@@ -5,7 +5,12 @@
 <h1>{{ worklist.name }}
   <span class="muted">— week of {{ worklist.week_starting }}</span>
   <a class="btn-link" href="/worklists/{{ worklist.id }}/print" target="_blank">Print</a>
-  {% if not worklist.locked %}<a class="btn-link" href="#lock">Lock</a>{% endif %}
+  {% if not worklist.locked %}
+    <form method="post" action="/worklists/{{ worklist.id }}/generate" style="display:inline">
+      <button type="submit" class="ghost-btn">Generate recurring</button>
+    </form>
+    <a class="btn-link" href="#lock">Lock</a>
+  {% endif %}
 </h1>
 
 {% if worklist.locked %}

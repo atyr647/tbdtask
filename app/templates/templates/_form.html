@@ -1,0 +1,65 @@
+{# shared fields between new + edit. context: template (Optional), cats, quals, required_qual_ids, carry_over_policies, recurrence_kinds, weekday_options #}
+{% set t = template %}
+{% set rule = (t.recurrence_rule if t and t.recurrence_rule else {}) %}
+{% set cur_kind = rule.get("kind", "none") if rule else "none" %}
+
+<label>Name <input name="name" value="{{ t.name if t else '' }}" required /></label>
+<label>Category
+  <select name="category_id">
+    <option value="">—</option>
+    {% for c in cats %}<option value="{{ c.id }}" {% if t and t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+  </select>
+</label>
+<label>Description <textarea name="description" rows="3">{{ t.description if t and t.description else '' }}</textarea></label>
+<label>Notes <textarea name="notes" rows="2">{{ t.notes if t and t.notes else '' }}</textarea></label>
+
+<fieldset>
+  <legend>Constraints</legend>
+  <label>Estimated hours <input type="number" step="0.25" name="estimated_hours" value="{{ t.estimated_hours if t and t.estimated_hours else '' }}" /></label>
+  <label><input type="checkbox" name="splittable" value="1" {% if t and t.splittable %}checked{% endif %} /> Splittable across people</label>
+  <label><input type="checkbox" name="reassignable" value="1" {% if not t or t.reassignable %}checked{% endif %} /> Reassignable</label>
+  <label><input type="checkbox" name="required_drivers_license" value="1" {% if t and t.required_drivers_license %}checked{% endif %} /> Requires drivers license</label>
+  <label>Required duty section <input type="number" name="required_duty_section" min="1" max="6" value="{{ t.required_duty_section if t and t.required_duty_section else '' }}" /></label>
+  <label>Required quals
+    <select name="required_quals" multiple size="6">
+      {% for q in quals %}<option value="{{ q.id }}" {% if required_qual_ids and q.id in required_qual_ids %}selected{% endif %}>{{ q.name }}{% if q.category %} ({{ q.category }}){% endif %}</option>{% endfor %}
+    </select>
+  </label>
+</fieldset>
+
+<fieldset>
+  <legend>Carry-over</legend>
+  <label>Policy
+    <select name="carry_over_policy">
+      {% for val, label in carry_over_policies %}<option value="{{ val }}" {% if t and t.carry_over_policy == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+</fieldset>
+
+<fieldset>
+  <legend>Recurrence</legend>
+  <label>Cadence
+    <select name="rec_kind">
+      {% for val, label in recurrence_kinds %}<option value="{{ val }}" {% if cur_kind == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Weekday(s) (for "weekday(s)" rule)
+    <select name="rec_weekdays" multiple size="7">
+      {% for idx, name in weekday_options %}<option value="{{ idx }}" {% if rule and rule.get("weekdays") and idx in rule.weekdays %}selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Single weekday (for every-N-weeks / Nth-weekday)
+    <select name="rec_weekday">
+      {% for idx, name in weekday_options %}<option value="{{ idx }}" {% if rule and rule.get("weekday") == idx %}selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>N (every-N-weeks or Nth-of-month; -1 = last)
+    <input type="number" name="rec_n" value="{{ rule.get('n', '') if rule else '' }}" />
+  </label>
+  <label>Anchor date (every-N-weeks parity reference)
+    <input type="date" name="rec_anchor" value="{{ rule.get('anchor', '') if rule else '' }}" />
+  </label>
+  <label>Day-of-month (for monthly_date)
+    <input type="number" name="rec_day" min="1" max="31" value="{{ rule.get('day', '') if rule else '' }}" />
+  </label>
+</fieldset>

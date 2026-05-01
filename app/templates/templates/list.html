@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Task templates{% endblock %}
+{% block content %}
+<h1>Task templates <a class="btn-link" href="/task-templates/new">+ New template</a></h1>
+<p class="muted">Templates with a recurrence rule are materialized into TaskInstances when "Generate recurring tasks" is run on a worklist.</p>
+
+{% if templates %}
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Category</th>
+      <th>Recurrence</th>
+      <th>Carry policy</th>
+      <th>Notes</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for t in templates %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td class="muted">{{ cats.get(t.category_id) or "—" }}</td>
+      <td>{{ descriptions.get(t.id, "—") }}</td>
+      <td class="muted">{{ t.carry_over_policy }}</td>
+      <td class="muted">{{ t.notes or "" }}</td>
+      <td><a href="/task-templates/{{ t.id }}/edit">Edit</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No templates yet. Create one to drive recurring tasks.</p>
+{% endif %}
+{% endblock %}

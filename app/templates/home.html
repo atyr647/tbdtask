@@ -4,6 +4,23 @@
 <h1>Dashboard</h1>
 <p class="muted">{{ today.strftime("%A, %B %-d, %Y") }}</p>
 
+{% if total_active %}
+<div class="banner alerts-banner severity-{{ 'urgent' if urgent_count else 'warn' if warn_count else 'info' }}">
+  <strong>{{ total_active }} active alert{{ "s" if total_active != 1 else "" }}</strong>
+  {% if urgent_count %} · <span class="sev sev-urgent">{{ urgent_count }} urgent</span>{% endif %}
+  {% if warn_count %} · <span class="sev sev-warn">{{ warn_count }} warn</span>{% endif %}
+  {% if info_count %} · <span class="muted">{{ info_count }} info</span>{% endif %}
+  <a class="btn-link" href="/alerts">Open alerts</a>
+  {% if banner_items %}
+  <ul class="banner-list">
+    {% for item in banner_items %}
+      <li><span class="sev sev-{{ item.alert.severity }}">{{ item.alert.severity }}</span> {{ item.label }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}
+
 <section class="cards">
   <div class="card">
     <div class="card-label">Personnel</div>

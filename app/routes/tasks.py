@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from ..db import SessionLocal
 from .. import models as M
+from ..services.assignment_helper import candidates_for
 from ..templating import render
 
 router = APIRouter()
@@ -64,11 +65,12 @@ def edit_task_form(task_id: int, request: Request):
             .where(M.TaskAssignment.instance_id == inst.id, M.TaskAssignment.active == True)  # noqa: E712
             .options(selectinload(M.TaskAssignment.person))
         ).all())
+        suggestions = candidates_for(s, inst)[:6] if inst.template_id else []
     return render(
         request,
         "tasks/edit.html",
         instance=inst, worklist=wl, categories=categories, people=people,
-        assignments=assignments,
+        assignments=assignments, suggestions=suggestions,
     )
 
 

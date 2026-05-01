@@ -71,6 +71,37 @@
   {% endif %}
 
   {% if not (worklist and worklist.locked) %}
+  {% if suggestions %}
+  <h3>Suggested candidates</h3>
+  <p class="muted">Filtered to people meeting this task's required quals, license, and duty section, available on the scheduled day.</p>
+  <table class="grid">
+    <thead><tr><th>Candidate</th><th>Rate</th><th>DS</th><th>License</th><th>Quals met</th><th>Availability</th><th></th></tr></thead>
+    <tbody>
+      {% for c in suggestions %}
+      <tr>
+        <td>{{ c.person.full_display }}</td>
+        <td>{{ c.rate or "" }}</td>
+        <td>{{ c.duty_section or "" }}</td>
+        <td>{{ "Y" if c.has_drivers_license else "N" }}</td>
+        <td>{{ c.qualified_count }}</td>
+        <td>{{ c.availability_status }}</td>
+        <td>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form-inline-row">
+            <input type="hidden" name="person_id" value="{{ c.person.id }}" />
+            <button type="submit" class="ghost-btn">Assign</button>
+          </form>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form-inline-row">
+            <input type="hidden" name="person_id" value="{{ c.person.id }}" />
+            <input type="hidden" name="is_poic" value="1" />
+            <button type="submit" class="ghost-btn">Assign as POIC</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   <h3>Add assignment</h3>
   <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form">
     <label>Person

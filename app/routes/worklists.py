@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from ..db import SessionLocal
 from .. import models as M
 from ..services.carry_over import apply_carry_over, find_pending_carry_overs
+from ..services.task_generator import generate_for_worklist
 from ..services.worklist_view import build_week_view, build_week_grid
 from ..templating import render
 
@@ -36,26 +37,40 @@ def _name_for(week_starting: date) -> str:
 def list_worklists(request: Request):
     today = date.today()
     with SessionLocal() as s:
-        all_lists = s.scalars(
+        all_lists = list(s.scalars(
             select(M.Worklist)
             .where(M.Worklist.active == True)  # noqa: E712
             .order_by(M.Worklist.week_starting.desc(), M.Worklist.version.desc())
-        ).all()
-    current = []
-    upcoming = []
-    archived = []
+        ).all())
+    # Group amendments under their base worklist.
+    children: dict[int, list[M.Worklist]] = {}
+    bases: list[M.Worklist] = []
     for w in all_lists:
-        end = w.week_starting + timedelta(days=6)
-        if w.locked or end < today:
-            archived.append(w)
-        elif w.week_starting > today:
-            upcoming.append(w)
+        if w.parent_id:
+            children.setdefault(w.parent_id, []).append(w)
         else:
-            current.append(w)
+            bases.append(w)
+    current: list[tuple[M.Worklist, list[M.Worklist]]] = []
+    upcoming: list[tuple[M.Worklist, list[M.Worklist]]] = []
+    archived_by_month: dict[str, list[tuple[M.Worklist, list[M.Worklist]]]] = {}
+    for w in bases:
+        kids = sorted(children.get(w.id, []), key=lambda c: c.version, reverse=True)
+        end = w.week_starting + timedelta(days=6)
+        is_archived = w.locked or end < today
+        bucket = (w, kids)
+        if is_archived:
+            ym = w.week_starting.strftime("%Y-%m %B")
+            archived_by_month.setdefault(ym, []).append(bucket)
+        elif w.week_starting > today:
+            upcoming.append(bucket)
+        else:
+            current.append(bucket)
+    archived_groups = sorted(archived_by_month.items(), reverse=True)
     return render(
         request,
         "worklists/list.html",
-        current=current, upcoming=upcoming, archived=archived,
+        current=current, upcoming=upcoming,
+        archived_groups=archived_groups,
         suggested_monday=_next_monday().isoformat(),
     )
 
@@ -95,9 +110,25 @@ def create_worklist(
             version=1,
         )
         s.add(wl)
+        s.flush()
+        # Auto-generate recurring tasks for the new week.
+        generate_for_worklist(s, wl)
         s.commit()
         new_id = wl.id
     return RedirectResponse(f"/worklists/{new_id}", status_code=303)
+
+
+@router.post("/worklists/{worklist_id}/generate")
+def generate_worklist(worklist_id: int):
+    with SessionLocal() as s:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            raise HTTPException(404)
+        if wl.locked:
+            raise HTTPException(409, "amend the worklist before generating tasks")
+        generate_for_worklist(s, wl)
+        s.commit()
+    return RedirectResponse(f"/worklists/{worklist_id}", status_code=303)
 
 
 @router.get("/worklists/{worklist_id}")
