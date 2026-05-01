@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Carry-over — {{ worklist.name }}{% endblock %}
+{% block content %}
+<p><a href="/worklists/{{ worklist.id }}">&lsaquo; Back to {{ worklist.name }}</a></p>
+<h1>Carry-over review</h1>
+<p class="muted">Tasks below were left open or in-progress in earlier weeks. Default action follows the task template's carry-over policy; override per row as needed.</p>
+
+{% if not items %}
+<p>Nothing to carry. ✓</p>
+{% else %}
+<form method="post" action="/worklists/{{ worklist.id }}/carry-over" class="form">
+  <table class="grid carry-grid">
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>Source week</th>
+        <th>Scheduled</th>
+        <th>Assigned</th>
+        <th>Policy</th>
+        <th>Action</th>
+        <th>Reassign to</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      {% set c = item.candidate %}
+      {% set iid = c.instance.id %}
+      <tr>
+        <td>
+          <a href="/tasks/{{ iid }}/edit">{{ c.instance.name }}</a>
+          {% if c.instance.notes %}<div class="muted small">{{ c.instance.notes }}</div>{% endif %}
+        </td>
+        <td>{{ item.source_label }}</td>
+        <td>{{ item.scheduled or "—" }}</td>
+        <td>{{ item.assignee_labels|join(", ") or "—" }}</td>
+        <td class="muted">{{ c.template_policy or "—" }}</td>
+        <td>
+          {% set sel = c.suggested_action %}
+          <label><input type="radio" name="action_{{ iid }}" value="carry" {% if sel == "carry" %}checked{% endif %} /> Carry as-is</label>
+          <label><input type="radio" name="action_{{ iid }}" value="reassign" {% if sel == "manual" %}checked{% endif %} /> Reassign</label>
+          <label><input type="radio" name="action_{{ iid }}" value="complete" /> Mark complete</label>
+          <label><input type="radio" name="action_{{ iid }}" value="discard" {% if sel == "discard" %}checked{% endif %} /> Discard</label>
+          <label><input type="radio" name="action_{{ iid }}" value="leave" /> Leave for next time</label>
+        </td>
+        <td>
+          <select name="reassign_to_{{ iid }}" multiple size="3" style="min-width:160px">
+            {% for p in people %}
+              <option value="{{ p.id }}">{{ p.full_display }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted small">POIC:
+            <select name="poic_{{ iid }}">
+              <option value="">—</option>
+              {% for p in people %}
+                <option value="{{ p.id }}">{{ p.full_display }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="form-actions">
+    <button type="submit">Apply selections</button>
+    <a href="/worklists/{{ worklist.id }}" class="btn-link">Cancel</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

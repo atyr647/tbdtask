@@ -7,73 +7,105 @@
 </head>
 <body>
 <header class="print-header">
-  <h1>{{ worklist.name }}</h1>
-  <div class="meta">
-    Week of {{ worklist.week_starting }}
-    {% if worklist.locked %} &middot; Locked {{ worklist.locked_at.strftime("%Y-%m-%d") if worklist.locked_at else "" }}{% if worklist.locked_by_name %} by {{ worklist.locked_by_name }}{% endif %}{% endif %}
-    {% if worklist.parent_id %} &middot; Amendment v{{ worklist.version }} ({{ worklist.amendment_reason }}){% endif %}
+  <div class="title-row">
+    <h1>{{ worklist.name }}</h1>
+    <div class="meta">
+      Week of {{ worklist.week_starting }}
+      {% if worklist.locked %} &middot; Locked {{ worklist.locked_at.strftime("%Y-%m-%d") if worklist.locked_at else "" }}{% if worklist.locked_by_name %} by {{ worklist.locked_by_name }}{% endif %}{% endif %}
+      {% if worklist.parent_id %} &middot; Amendment v{{ worklist.version }} ({{ worklist.amendment_reason }}){% endif %}
+    </div>
   </div>
 </header>
 
-{% for day in view.days %}
-<section class="day">
-  <h2>{{ day.weekday }} &mdash; {{ day.on_date }}
-    <span class="day-meta">{{ day.percent_present }}% present ({{ day.present_full }}/{{ day.total }})</span>
-  </h2>
+<table class="grid-print">
+  <thead>
+    <tr>
+      <th class="who-col">Person</th>
+      <th class="ds-col">DS</th>
+      {% for h in grid.headers %}
+        <th class="day-col">
+          <div class="day-name">{{ h.weekday }}</div>
+          <div class="day-date">{{ h.on_date.strftime("%b %-d") }}</div>
+          <div class="day-counts">{{ h.present_count }} present{% if h.out_count %} · {{ h.out_count }} out{% endif %}</div>
+        </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in grid.rows %}
+    <tr>
+      <td class="who">{{ r.person.full_display }}</td>
+      <td class="ds">{{ r.duty_section or "" }}</td>
+      {% for cell in r.cells %}
+        <td class="day-cell {% if cell.absence_code %}absent{% if cell.absence_partial %} partial{% endif %}{% endif %}">
+          {% if cell.absence_code %}
+            <div class="absent-tag">
+              {{ cell.absence_code }}{% if cell.absence_partial %} (partial){% endif %}
+              {% if cell.absence_reason %}<span class="reason">{{ cell.absence_reason }}</span>{% endif %}
+            </div>
+          {% endif %}
+          {% if cell.tasks %}
+          <ul class="task-list">
+            {% for tr in cell.tasks %}
+              <li>
+                {% if tr.is_poic %}<span class="poic">POIC</span>{% endif %}
+                {{ tr.instance.name }}
+                {% if tr.category_name %}<em class="cat">({{ tr.category_name }})</em>{% endif %}
+                {% if tr.other_assignees %}<span class="shared">w/ {{ tr.other_assignees|join(", ") }}</span>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 
-  {% if day.out_today %}
-  <p class="out-line"><strong>Out:</strong>
-    {% for r in day.out_today %}{{ r.person.full_display }} ({{ r.code }}{% if r.partial %} {{ r.start_time }}–{{ r.end_time }}{% endif %}){% if not loop.last %}; {% endif %}{% endfor %}
-  </p>
-  {% endif %}
+{% set has_unassigned = false %}
+{% for d, rows in grid.unassigned_by_day.items() %}{% if rows %}{% set has_unassigned = true %}{% endif %}{% endfor %}
 
-  {% if day.person_blocks or day.unassigned_tasks %}
-    <table class="day-grid">
-      <thead><tr><th>Person</th><th>DS</th><th>Tasks</th></tr></thead>
-      <tbody>
-        {% for pb in day.person_blocks %}
+{% if has_unassigned %}
+<section class="unassigned">
+  <h2>Unassigned</h2>
+  <table class="unassigned-grid">
+    <tbody>
+      {% for d, rows in grid.unassigned_by_day.items() %}
+        {% if rows %}
         <tr>
-          <td class="who">{{ pb.person.full_display }}</td>
-          <td class="ds">{{ pb.duty_section or "" }}</td>
+          <td class="who">{{ d.strftime("%a %b %-d") }}</td>
           <td>
             <ul class="task-list">
-              {% for tr in pb.tasks %}
-                <li>
-                  {% if tr.is_poic %}<span class="poic">[POIC]</span>{% endif %}
-                  {{ tr.instance.name }}
-                  {% if tr.category_name %} <em class="cat">({{ tr.category_name }})</em>{% endif %}
-                  {% if tr.other_assignees %} <span class="shared">w/ {{ tr.other_assignees|join(", ") }}</span>{% endif %}
-                  {% if tr.instance.notes %}<div class="note">{{ tr.instance.notes }}</div>{% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          </td>
-        </tr>
-        {% endfor %}
-        {% if day.unassigned_tasks %}
-        <tr>
-          <td class="who">(Unassigned)</td>
-          <td></td>
-          <td>
-            <ul class="task-list">
-              {% for tr in day.unassigned_tasks %}
+              {% for tr in rows %}
                 <li>
                   {{ tr.instance.name }}
-                  {% if tr.external_poic %} <em>POIC: {{ tr.external_poic }}</em>{% endif %}
-                  {% if tr.category_name %} <em class="cat">({{ tr.category_name }})</em>{% endif %}
+                  {% if tr.external_poic %}<em>POIC: {{ tr.external_poic }}</em>{% endif %}
+                  {% if tr.category_name %}<em class="cat">({{ tr.category_name }})</em>{% endif %}
                 </li>
               {% endfor %}
             </ul>
           </td>
         </tr>
         {% endif %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="empty">No tasks scheduled.</p>
-  {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
 </section>
-{% endfor %}
+{% endif %}
+
+{% set out_lines = [] %}
+{% for h in grid.headers %}{% if h.out_summary %}{% set _ = out_lines.append((h.weekday, h.out_summary)) %}{% endif %}{% endfor %}
+{% if out_lines %}
+<section class="out-summary">
+  <h2>Out summary</h2>
+  <ul>
+    {% for day, names in out_lines %}
+      <li><strong>{{ day }}:</strong> {{ names|join(", ") }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 <script>window.addEventListener("load", () => setTimeout(() => window.print(), 250));</script>
 </body>

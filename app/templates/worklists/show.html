@@ -17,6 +17,13 @@
 
 <p class="muted">{{ view.week_total_tasks }} task{{ "s" if view.week_total_tasks != 1 else "" }} scheduled this week.</p>
 
+{% if pending_count and not worklist.locked %}
+<div class="banner warn-banner">
+  <strong>{{ pending_count }} carry-over candidate{{ "s" if pending_count != 1 else "" }}</strong> from earlier weeks.
+  <a class="btn-link" href="/worklists/{{ worklist.id }}/carry-over">Review &amp; resolve</a>
+</div>
+{% endif %}
+
 {% for day in view.days %}
 <section class="block day-block">
   <h2>{{ day.weekday }} <span class="muted">{{ day.on_date }}</span>

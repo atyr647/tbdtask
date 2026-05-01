@@ -1,44 +1,58 @@
-@page { size: letter; margin: 0.5in; }
+@page { size: letter landscape; margin: 0.35in; }
 * { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
 body {
-  margin: 0; color: #111; background: #fff;
-  font: 11pt/1.35 "Times New Roman", Times, serif;
+  color: #111; background: #fff;
+  font: 8pt/1.2 "Helvetica Neue", Arial, sans-serif;
 }
-.print-header { border-bottom: 2px solid #000; margin-bottom: 14px; padding-bottom: 8px; }
-.print-header h1 { margin: 0; font-size: 18pt; }
-.print-header .meta { font-size: 10pt; color: #333; }
 
-section.day {
-  margin-top: 14px;
-  page-break-inside: avoid;
-}
-section.day h2 {
-  margin: 0 0 6px;
-  font-size: 13pt;
-  border-bottom: 1px solid #333;
-  display: flex; justify-content: space-between; align-items: baseline;
-}
-section.day h2 .day-meta { font-size: 10pt; font-weight: 400; color: #333; }
-section.day .out-line { font-size: 10pt; margin: 2px 0 6px; }
+.print-header { border-bottom: 2px solid #000; margin-bottom: 6px; padding-bottom: 3px; }
+.print-header .title-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.print-header h1 { margin: 0; font-size: 14pt; }
+.print-header .meta { font-size: 8pt; color: #333; }
 
-table.day-grid { width: 100%; border-collapse: collapse; }
-table.day-grid th, table.day-grid td {
-  border: 1px solid #999; padding: 4px 6px; vertical-align: top; text-align: left;
+table.grid-print {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
 }
-table.day-grid th {
-  background: #eee; font-size: 10pt; text-transform: uppercase; letter-spacing: .3px;
+table.grid-print th, table.grid-print td {
+  border: 1px solid #555; padding: 2px 4px; vertical-align: top; text-align: left;
 }
-table.day-grid td.who { width: 25%; font-weight: 600; }
-table.day-grid td.ds { width: 4%; text-align: center; }
+table.grid-print thead th { background: #e8e8e8; font-size: 8pt; }
+table.grid-print thead .day-name { font-weight: 700; font-size: 9pt; }
+table.grid-print thead .day-date { font-size: 7.5pt; color: #333; }
+table.grid-print thead .day-counts { font-size: 7pt; color: #555; font-weight: 400; }
+table.grid-print td.who { width: 13%; font-weight: 600; word-wrap: break-word; }
+table.grid-print td.ds { width: 3%; text-align: center; }
+table.grid-print th.who-col { width: 13%; }
+table.grid-print th.ds-col { width: 3%; }
+table.grid-print th.day-col { width: auto; }
+table.grid-print td.day-cell { font-size: 7.5pt; }
+table.grid-print td.day-cell ul.task-list { margin: 0; padding-left: 12px; }
+table.grid-print td.day-cell ul.task-list li { margin: 1px 0; }
+table.grid-print td.day-cell.absent { background: #f4ede0; }
+table.grid-print td.day-cell.absent.partial {
+  background-image: repeating-linear-gradient(45deg, rgba(0,0,0,.07) 0 3px, transparent 3px 7px);
+  background-color: #f4ede0;
+}
+.absent-tag { font-size: 7pt; font-weight: 700; color: #6a4a00; margin-bottom: 2px; }
+.absent-tag .reason { font-weight: 400; color: #555; margin-left: 3px; }
 
-ul.task-list { margin: 0; padding-left: 16px; }
-ul.task-list li { margin: 1px 0; }
-.poic { font-weight: 700; }
-.cat { color: #555; }
-.shared { color: #555; font-style: italic; }
-.note { font-size: 9.5pt; color: #444; padding-left: 4px; }
-.empty { font-style: italic; color: #555; }
+.poic { font-weight: 700; padding-right: 2px; }
+.cat { color: #555; font-style: italic; padding-left: 2px; }
+.shared { color: #555; font-style: italic; padding-left: 3px; font-size: 7pt; }
+
+.unassigned, .out-summary { margin-top: 6px; }
+.unassigned h2, .out-summary h2 {
+  font-size: 9pt; margin: 4px 0 2px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid #999;
+}
+.unassigned-grid { width: 100%; border-collapse: collapse; }
+.unassigned-grid td { border: 1px solid #999; padding: 2px 4px; vertical-align: top; font-size: 7.5pt; }
+.unassigned-grid td.who { width: 14%; font-weight: 600; }
+.unassigned-grid ul.task-list { margin: 0; padding-left: 12px; }
+.out-summary ul { margin: 0; padding-left: 16px; }
+.out-summary li { font-size: 8pt; }
 
 @media print {
   a { color: inherit; text-decoration: none; }
+  body { font-size: 8pt; }
 }

@@ -162,3 +162,15 @@ ul.task-list li { margin: 2px 0; }
 details.qual-detail { margin: 6px 0; padding: 6px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; }
 details.qual-detail summary { cursor: pointer; }
 details.qual-detail summary .warn { margin-left: 8px; }
+
+/* Banner */
+.banner {
+  margin: 12px 0; padding: 10px 14px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--panel-2);
+}
+.banner.warn-banner { border-color: rgba(240,160,32,.35); background: rgba(240,160,32,.10); color: var(--warn); }
+.banner strong { color: var(--text); }
+
+.carry-grid td { vertical-align: top; }
+.carry-grid label { display: block; font-size: 12px; margin: 1px 0; color: var(--text); }
+.carry-grid select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; }

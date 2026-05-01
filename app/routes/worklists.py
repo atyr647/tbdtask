@@ -8,7 +8,8 @@ from sqlalchemy.orm import selectinload
 
 from ..db import SessionLocal
 from .. import models as M
-from ..services.worklist_view import build_week_view
+from ..services.carry_over import apply_carry_over, find_pending_carry_overs
+from ..services.worklist_view import build_week_view, build_week_grid
 from ..templating import render
 
 router = APIRouter()
@@ -112,21 +113,88 @@ def show_worklist(worklist_id: int, request: Request):
         people = list(s.scalars(
             select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
         ).all())
+        pending = find_pending_carry_overs(s, wl) if not wl.locked else []
     return render(
         request,
         "worklists/show.html",
         view=view, worklist=wl, categories=categories, people=people,
+        pending_count=len(pending),
     )
 
 
-@router.get("/worklists/{worklist_id}/print")
-def print_worklist(worklist_id: int, request: Request):
+@router.get("/worklists/{worklist_id}/carry-over")
+def carry_over_form(worklist_id: int, request: Request):
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
         if not wl:
             raise HTTPException(404)
-        view = build_week_view(s, wl)
-    return render(request, "worklists/print.html", view=view, worklist=wl)
+        if wl.locked:
+            raise HTTPException(409, "amend the worklist before processing carry-overs")
+        candidates = find_pending_carry_overs(s, wl)
+        people = list(s.scalars(
+            select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
+        ).all())
+        # Pre-resolve display info for candidates while in session.
+        resolved = []
+        for c in candidates:
+            assignee_labels = []
+            for a in c.assignments:
+                if a.person:
+                    assignee_labels.append(a.person.full_display)
+                elif a.external_poic_name:
+                    assignee_labels.append(f"(ext) {a.external_poic_name}")
+            resolved.append({
+                "candidate": c,
+                "assignee_labels": assignee_labels,
+                "source_label": c.source_worklist.name if c.source_worklist else "—",
+                "scheduled": c.instance.scheduled_date,
+            })
+    return render(
+        request,
+        "worklists/carry_over.html",
+        worklist=wl, items=resolved, people=people,
+    )
+
+
+@router.post("/worklists/{worklist_id}/carry-over")
+async def carry_over_apply(worklist_id: int, request: Request):
+    form = await request.form()
+    with SessionLocal() as s:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            raise HTTPException(404)
+        if wl.locked:
+            raise HTTPException(409, "amend the worklist before processing carry-overs")
+        candidates = find_pending_carry_overs(s, wl)
+        for c in candidates:
+            iid = c.instance.id
+            action = form.get(f"action_{iid}", "leave")
+            if action == "reassign":
+                pids_raw = form.getlist(f"reassign_to_{iid}")
+                pids = [int(x) for x in pids_raw if str(x).strip()]
+                poic = form.get(f"poic_{iid}")
+                poic_id = int(poic) if poic else None
+                apply_carry_over(
+                    s, wl, c, "reassign",
+                    reassign_person_ids=pids,
+                    new_poic_person_id=poic_id,
+                )
+            else:
+                apply_carry_over(s, wl, c, action)
+        s.commit()
+    return RedirectResponse(f"/worklists/{worklist_id}", status_code=303)
+
+
+@router.get("/worklists/{worklist_id}/print")
+def print_worklist(worklist_id: int, request: Request, days: int = 5):
+    if days not in (5, 7):
+        days = 5
+    with SessionLocal() as s:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            raise HTTPException(404)
+        grid = build_week_grid(s, wl, days=days)
+    return render(request, "worklists/print.html", grid=grid, worklist=wl, days=days)
 
 
 @router.post("/worklists/{worklist_id}")
