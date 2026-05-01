@@ -62,14 +62,31 @@ the workbook is read.
 
 ## Build the AppImage
 
+The Pi 400 is **aarch64**, so that's the default target:
+
 ```sh
-ARCH=aarch64 tools/build_appimage.sh   # for the Pi 400
-ARCH=x86_64  tools/build_appimage.sh   # for x86_64 testing
+tools/build_appimage.sh                 # defaults to ARCH=aarch64 (Pi 400)
+ARCH=x86_64 tools/build_appimage.sh     # desktop testing
 ```
 
-The script fetches a portable Python via `python-build-standalone`, installs
-runtime dependencies into the bundle, and assembles the AppImage with
-`appimagetool`. Output lands in `dist/`.
+Output lands in `dist/tbdtask-<version>-<arch>.AppImage`.
+
+Cross-building from an x86_64 dev box for the Pi works too — the script
+fetches a portable Python interpreter for the target arch via
+`python-build-standalone` and uses `pip --platform manylinux2014_aarch64`
+to fetch architecture-correct wheels. Runtime deps are pure-Python
+wherever possible; the only native dependency is `pydantic-core` (Rust),
+for which manylinux2014_aarch64 wheels are published on PyPI.
+
+To install on the Pi:
+
+```sh
+chmod +x tbdtask-0.1.0-aarch64.AppImage
+./tbdtask-0.1.0-aarch64.AppImage
+```
+
+The AppImage opens the default browser to `http://127.0.0.1:8765/` and
+keeps its data in `~/.local/share/tbdtask/`.
 
 ## Data
 
