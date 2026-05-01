@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ person.full_display }}{% endblock %}
+{% block content %}
+<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+<h1>Edit {{ person.full_display }}</h1>
+<p class="muted">Effective date defaults to today. Changing rate / duty section / PRD / drivers license / roster status closes the prior record and opens a new one — old values are preserved as history.</p>
+
+<form method="post" action="/personnel/{{ person.id }}" class="form">
+  <label>Effective date <input type="date" name="effective_date" /></label>
+  <fieldset>
+    <legend>Identity</legend>
+    <label>Last name <input name="last_name" value="{{ person.last_name }}" required /></label>
+    <label>First name <input name="first_name" value="{{ person.first_name or '' }}" /></label>
+    <label>Notes <textarea name="notes" rows="2">{{ person.notes or '' }}</textarea></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Effective-dated attributes</legend>
+    <label>Rate <input name="rate" value="{{ cur.rate.rate if cur.rate else '' }}" /></label>
+    <label>Duty section
+      <select name="duty_section">
+        <option value="">—</option>
+        {% for n in duty_sections %}<option value="{{ n }}" {% if cur.duty_section and cur.duty_section.duty_section == n %}selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>PRD <input type="date" name="prd_date" value="{{ cur.prd.prd_date.isoformat() if cur.prd else '' }}" /></label>
+    <label>PRD change reason
+      <select name="prd_reason">
+        <option value="correction">correction</option>
+        <option value="extension">extension</option>
+        <option value="initial">initial</option>
+      </select>
+    </label>
+    <label>Drivers license
+      <input type="checkbox" name="has_drivers_license" value="1" {% if cur.drivers_license and cur.drivers_license.has_license %}checked{% endif %} />
+    </label>
+    <label>License expires <input type="date" name="drivers_license_expires" value="{{ cur.drivers_license.expires_on.isoformat() if cur.drivers_license and cur.drivers_license.expires_on else '' }}" /></label>
+    <label>Roster status
+      <select name="roster_status">
+        {% for st in roster_statuses %}<option value="{{ st }}" {% if cur.status and cur.status.status == st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+      </select>
+    </label>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit">Save</button>
+    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+<form method="post" action="/personnel/{{ person.id }}/archive" class="form-inline danger">
+  <label>Archive reason <input name="reason" placeholder="optional" /></label>
+  <button type="submit" onclick="return confirm('Archive {{ person.full_display }}? They will be hidden from the active roster but history is preserved.');">Archive</button>
+</form>
+{% endblock %}

@@ -69,3 +69,46 @@ h2 { font-size: 16px; margin: 0 0 12px; color: var(--muted); text-transform: upp
 .matrix td.x { background: rgba(120,120,120,.2); text-align: center; }
 .matrix td.w { background: rgba(106,169,255,.15); color: var(--accent); text-align: center; }
 .matrix td.a { text-align: center; color: var(--muted); }
+
+.warn { color: var(--warn); }
+
+/* Forms */
+.form { display: grid; gap: 12px; max-width: 600px; }
+.form fieldset { border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; }
+.form fieldset legend { color: var(--muted); padding: 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.form input[type="text"],
+.form input[type="number"],
+.form input[type="date"],
+.form input[type="time"],
+.form input[type="datetime-local"],
+.form input:not([type]),
+.form select,
+.form textarea {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 6px 8px; font: inherit;
+}
+.form textarea { resize: vertical; min-height: 50px; }
+.form input[type="checkbox"] { width: 18px; height: 18px; vertical-align: middle; }
+.form-actions { display: flex; gap: 10px; align-items: center; }
+.form-inline { margin-top: 14px; display: flex; gap: 10px; align-items: end; }
+.form-inline.danger button { background: rgba(239,91,91,.18); border-color: rgba(239,91,91,.35); color: var(--bad); }
+
+button {
+  background: var(--accent); color: #0b0e14; font-weight: 600;
+  border: 1px solid transparent; border-radius: 4px; padding: 7px 14px;
+  cursor: pointer; font: inherit;
+}
+button:hover { filter: brightness(1.1); }
+
+.btn-link {
+  display: inline-block; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); font-size: 13px; margin-left: 8px;
+}
+.btn-link:hover { text-decoration: none; background: var(--panel-2); }
+
+.day-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.day-nav h1 { margin: 0; }
+
+.inline-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 14px; }
+.inline-list li { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; }

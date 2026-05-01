@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Assign qual to {{ person.full_display }}{% endblock %}
+{% block content %}
+<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+<h1>Assign qualification</h1>
+
+{% if not available %}
+  <p class="muted">{{ person.full_display }} already has every qualification in the catalog assigned.</p>
+{% else %}
+<form method="post" action="/personnel/{{ person.id }}/quals" class="form">
+  <label>Qualification
+    <select name="qual_id" required>
+      {% for q in available %}
+        <option value="{{ q.id }}">{{ q.name }}{% if q.category %} ({{ q.category }}){% endif %}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Status
+    <select name="status">
+      {% for st in statuses %}<option value="{{ st }}" {% if st == "assigned" %}selected{% endif %}>{{ st }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Started <input type="datetime-local" name="started_at" /></label>
+  <label>Achieved <input type="datetime-local" name="achieved_at" /></label>
+  <label>Notes <textarea name="notes" rows="2"></textarea></label>
+  <div class="form-actions">
+    <button type="submit">Assign</button>
+    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

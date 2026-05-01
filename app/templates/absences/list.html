@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Absences{% endblock %}
+{% block content %}
+<h1>Absences <a class="btn-link" href="/absences/new">+ Add absence</a></h1>
+
+<section class="block">
+  <h2>Upcoming &amp; current ({{ upcoming|length }})</h2>
+  {% if upcoming %}
+  <table class="grid">
+    <thead><tr><th>Person</th><th>Code</th><th>Start</th><th>End</th><th>Window</th><th>Reason</th><th></th></tr></thead>
+    <tbody>
+      {% for a in upcoming %}
+      <tr>
+        <td><a href="/personnel/{{ a.person.id }}">{{ a.person.full_display }}</a></td>
+        <td>{{ a.code.code }}</td>
+        <td>{{ a.start_date }}</td>
+        <td>{{ a.end_date }}</td>
+        <td>{% if a.start_time %}{{ a.start_time }}–{{ a.end_time }}{% else %}all day{% endif %}</td>
+        <td>{{ a.reason or "" }}</td>
+        <td><a href="/absences/{{ a.id }}/edit">Edit</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No upcoming or active absences.</p>
+  {% endif %}
+</section>
+
+<section class="block">
+  <h2>Recent past ({{ past|length }})</h2>
+  {% if past %}
+  <table class="grid">
+    <thead><tr><th>Person</th><th>Code</th><th>Start</th><th>End</th><th>Window</th><th>Reason</th></tr></thead>
+    <tbody>
+      {% for a in past %}
+      <tr>
+        <td><a href="/personnel/{{ a.person.id }}">{{ a.person.full_display }}</a></td>
+        <td>{{ a.code.code }}</td>
+        <td>{{ a.start_date }}</td>
+        <td>{{ a.end_date }}</td>
+        <td>{% if a.start_time %}{{ a.start_time }}–{{ a.end_time }}{% else %}all day{% endif %}</td>
+        <td>{{ a.reason or "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No past absences on record.</p>
+  {% endif %}
+</section>
+{% endblock %}

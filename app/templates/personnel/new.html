@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}New person{% endblock %}
+{% block content %}
+<p><a href="/personnel">&lsaquo; Back to roster</a></p>
+<h1>Add personnel</h1>
+<form method="post" action="/personnel" class="form">
+  <label>Last name <input name="last_name" required /></label>
+  <label>First name <input name="first_name" /></label>
+  <label>Rate <input name="rate" placeholder="e.g. CM2" /></label>
+  <label>Duty section
+    <select name="duty_section">
+      <option value="">—</option>
+      {% for n in duty_sections %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>PRD <input type="date" name="prd_date" /></label>
+  <label>Drivers license
+    <input type="checkbox" name="has_drivers_license" value="1" />
+  </label>
+  <label>Drivers license expires <input type="date" name="drivers_license_expires" /></label>
+  <label>Roster status
+    <select name="roster_status">
+      {% for st in roster_statuses %}<option value="{{ st }}" {% if st == "active" %}selected{% endif %}>{{ st }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Notes <textarea name="notes" rows="2"></textarea></label>
+  <div class="form-actions">
+    <button type="submit">Create</button>
+    <a href="/personnel" class="btn-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

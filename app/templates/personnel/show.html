@@ -2,8 +2,9 @@
 {% block title %}{{ person.full_display }}{% endblock %}
 {% block content %}
 <p><a href="/personnel">&lsaquo; Back to roster</a></p>
-<h1>{{ person.full_display }}</h1>
+<h1>{{ person.full_display }} <a class="btn-link" href="/personnel/{{ person.id }}/edit">Edit</a></h1>
 {% if person.notes %}<p class="muted">{{ person.notes }}</p>{% endif %}
+{% if not person.active %}<p class="warn">Archived{% if person.archived_reason %}: {{ person.archived_reason }}{% endif %}</p>{% endif %}
 
 <section class="block">
   <h2>Current attributes</h2>
@@ -23,10 +24,10 @@
 </section>
 
 <section class="block">
-  <h2>Qualifications <span class="muted">({{ quals|length }})</span></h2>
+  <h2>Qualifications <span class="muted">({{ quals|length }})</span> <a class="btn-link" href="/personnel/{{ person.id }}/quals/new">+ Assign qual</a></h2>
   {% if quals %}
   <table class="grid">
-    <thead><tr><th>Qual</th><th>Category</th><th>Status</th><th>Started</th><th>Achieved</th><th>Expires</th></tr></thead>
+    <thead><tr><th>Qual</th><th>Category</th><th>Status</th><th>Started</th><th>Achieved</th><th>Expires</th><th></th></tr></thead>
     <tbody>
       {% for pq, q in quals %}
       <tr>
@@ -36,6 +37,7 @@
         <td>{{ pq.started_at.date() if pq.started_at else "—" }}</td>
         <td>{{ pq.achieved_at.date() if pq.achieved_at else "—" }}</td>
         <td>{{ pq.expires_at.date() if pq.expires_at else "—" }}</td>
+        <td><a href="/personnel/{{ person.id }}/quals/{{ pq.id }}/edit">Edit</a></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -46,10 +48,10 @@
 </section>
 
 <section class="block">
-  <h2>Absences <span class="muted">({{ absences|length }})</span></h2>
+  <h2>Absences <span class="muted">({{ absences|length }})</span> <a class="btn-link" href="/personnel/{{ person.id }}/absences/new">+ Add absence</a></h2>
   {% if absences %}
   <table class="grid">
-    <thead><tr><th>Code</th><th>Start</th><th>End</th><th>Window</th><th>Reason</th></tr></thead>
+    <thead><tr><th>Code</th><th>Start</th><th>End</th><th>Window</th><th>Reason</th><th></th></tr></thead>
     <tbody>
       {% for a in absences %}
       <tr>
@@ -58,6 +60,7 @@
         <td>{{ a.end_date }}</td>
         <td>{% if a.start_time %}{{ a.start_time }}–{{ a.end_time }}{% else %}all day{% endif %}</td>
         <td>{{ a.reason or "" }}</td>
+        <td><a href="/absences/{{ a.id }}/edit">Edit</a></td>
       </tr>
       {% endfor %}
     </tbody>
