@@ -59,6 +59,18 @@
       </td>
       <td>
         {% if not a.dismissed_at and not a.resolved_at %}
+          {% if a.alert_type.startswith("prd") and a.person_id %}
+          <form method="post" action="/alerts/{{ a.id }}/extend-prd" class="form-inline-row">
+            <input type="number" name="days" value="180" min="1" max="1095" style="width:70px" />
+            <button type="submit" class="ghost-btn">Extend PRD by N days</button>
+          </form>
+          {% if a.alert_type == "prd_passed" %}
+          <form method="post" action="/alerts/{{ a.id }}/archive-person" class="form-inline-row">
+            <input name="reason" value="PRD passed" />
+            <button type="submit" class="ghost-btn" onclick="return confirm('Archive this person? They are removed from the active roster but history is preserved.');">Archive person</button>
+          </form>
+          {% endif %}
+          {% endif %}
         <form method="post" action="/alerts/{{ a.id }}/dismiss" class="form-inline-row">
           <button type="submit" class="ghost-btn">Dismiss</button>
         </form>

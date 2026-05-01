@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -8,6 +8,7 @@ from sqlalchemy import select
 from ..db import SessionLocal
 from .. import models as M
 from ..services import alerts as alerts_service
+from ..services import effective as eff
 from ..templating import render
 
 router = APIRouter()
@@ -64,5 +65,60 @@ def resolve_alert(alert_id: int):
         if not a:
             raise HTTPException(404)
         a.resolved_at = datetime.now()
+        s.commit()
+    return RedirectResponse("/alerts", status_code=303)
+
+
+@router.post("/alerts/{alert_id}/extend-prd")
+def extend_prd(alert_id: int, days: int = Form(180)):
+    """Extend the linked person's PRD by `days` from the current PRD date,
+    closing the prior PRD row and inserting a new one. Resolves the alert."""
+    days = max(1, min(int(days), 365 * 3))
+    with SessionLocal() as s:
+        a = s.get(M.Alert, alert_id)
+        if not a or not a.person_id:
+            raise HTTPException(404)
+        cur = eff.current_row(s, M.PersonPrd, a.person_id)
+        base = cur.prd_date if cur else date.today()
+        new_prd = base + timedelta(days=days)
+        eff.set_new_value(
+            s, M.PersonPrd, person_id=a.person_id, effective_date=date.today(),
+            fields={
+                "prd_date": new_prd,
+                "change_reason": "extension",
+                "note": f"Extended by {days} days from alert #{alert_id}",
+            },
+            no_op_if_unchanged=("prd_date",),
+        )
+        a.resolved_at = datetime.now()
+        a.notes = (a.notes or "") + f"\nPRD extended by {days} days to {new_prd.isoformat()}"
+        # Re-run alert recompute so new PRD windows reflect the change.
+        s.flush()
+        alerts_service.recompute(s)
+        s.commit()
+    return RedirectResponse("/alerts", status_code=303)
+
+
+@router.post("/alerts/{alert_id}/archive-person")
+def archive_person_from_alert(alert_id: int, reason: str = Form("PRD passed")):
+    with SessionLocal() as s:
+        a = s.get(M.Alert, alert_id)
+        if not a or not a.person_id:
+            raise HTTPException(404)
+        p = s.get(M.Person, a.person_id)
+        if not p:
+            raise HTTPException(404)
+        p.active = False
+        p.archived_at = datetime.now()
+        p.archived_reason = reason
+        eff.set_new_value(
+            s, M.PersonRosterStatus, person_id=p.id, effective_date=date.today(),
+            fields={"status": "departed"},
+            no_op_if_unchanged=("status",),
+        )
+        a.resolved_at = datetime.now()
+        a.notes = (a.notes or "") + f"\nPersonnel archived: {reason}"
+        s.flush()
+        alerts_service.recompute(s)
         s.commit()
     return RedirectResponse("/alerts", status_code=303)
