@@ -1,0 +1,71 @@
+:root {
+  --bg: #0f1115;
+  --panel: #161a22;
+  --panel-2: #1c2230;
+  --text: #e6e8ec;
+  --muted: #9ba3af;
+  --accent: #6aa9ff;
+  --border: #262d3a;
+  --good: #3ecf8e;
+  --warn: #f0a020;
+  --bad: #ef5b5b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.muted { color: var(--muted); }
+code, pre { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; }
+pre { padding: 8px 10px; overflow: auto; }
+
+.topbar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 10px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .brand { font-weight: 700; letter-spacing: .5px; }
+.topbar nav { display: flex; gap: 16px; }
+
+main { padding: 20px 24px; max-width: 1200px; }
+h1 { margin: 0 0 16px; font-size: 22px; }
+h2 { font-size: 16px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px;
+}
+.card-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.card-value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+.card-link { display: inline-block; margin-top: 8px; font-size: 13px; }
+
+.block {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px 18px; margin-top: 18px;
+}
+.kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+
+.grid { width: 100%; border-collapse: collapse; }
+.grid th, .grid td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.grid th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.grid tr:hover td { background: var(--panel-2); }
+
+.matrix-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.matrix { border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.matrix th, .matrix td { padding: 4px 6px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); white-space: nowrap; }
+.matrix thead th { position: sticky; top: 0; background: var(--panel); z-index: 2; }
+.matrix .sticky-col { position: sticky; left: 0; background: var(--panel); z-index: 1; min-width: 180px; }
+.matrix td.q { background: rgba(62,207,142,.18); color: var(--good); text-align: center; }
+.matrix td.d { background: rgba(239,91,91,.18); color: var(--bad); text-align: center; }
+.matrix td.ip { background: rgba(240,160,32,.18); color: var(--warn); text-align: center; }
+.matrix td.x { background: rgba(120,120,120,.2); text-align: center; }
+.matrix td.w { background: rgba(106,169,255,.15); color: var(--accent); text-align: center; }
+.matrix td.a { text-align: center; color: var(--muted); }

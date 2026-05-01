@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ person.full_display }}{% endblock %}
+{% block content %}
+<p><a href="/personnel">&lsaquo; Back to roster</a></p>
+<h1>{{ person.full_display }}</h1>
+{% if person.notes %}<p class="muted">{{ person.notes }}</p>{% endif %}
+
+<section class="block">
+  <h2>Current attributes</h2>
+  <dl class="kv">
+    {% set cur_rate = rates|selectattr("valid_to","none")|first %}
+    <dt>Rate</dt><dd>{{ cur_rate.rate if cur_rate else "—" }}{% if cur_rate and cur_rate.paygrade %} <span class="muted">({{ cur_rate.paygrade }})</span>{% endif %}</dd>
+    {% set cur_ds = duty_sections|selectattr("valid_to","none")|first %}
+    <dt>Duty section</dt><dd>{{ cur_ds.duty_section if cur_ds else "—" }}</dd>
+    {% set cur_prd = prds|selectattr("valid_to","none")|first %}
+    <dt>PRD</dt><dd>{{ cur_prd.prd_date if cur_prd else "—" }}</dd>
+    {% set cur_status = roster|selectattr("valid_to","none")|first %}
+    <dt>Roster status</dt><dd>{{ cur_status.status if cur_status else "—" }}</dd>
+    {% set cur_dl = drivers_licenses|selectattr("valid_to","none")|first %}
+    <dt>Drivers license</dt>
+    <dd>{% if cur_dl %}{{ "Y" if cur_dl.has_license else "N" }}{% if cur_dl.expires_on %} <span class="muted">expires {{ cur_dl.expires_on }}</span>{% endif %}{% else %}—{% endif %}</dd>
+  </dl>
+</section>
+
+<section class="block">
+  <h2>Qualifications <span class="muted">({{ quals|length }})</span></h2>
+  {% if quals %}
+  <table class="grid">
+    <thead><tr><th>Qual</th><th>Category</th><th>Status</th><th>Started</th><th>Achieved</th><th>Expires</th></tr></thead>
+    <tbody>
+      {% for pq, q in quals %}
+      <tr>
+        <td>{{ q.name }}</td>
+        <td>{{ q.category or "—" }}</td>
+        <td>{{ pq.status }}</td>
+        <td>{{ pq.started_at.date() if pq.started_at else "—" }}</td>
+        <td>{{ pq.achieved_at.date() if pq.achieved_at else "—" }}</td>
+        <td>{{ pq.expires_at.date() if pq.expires_at else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No qualifications recorded.</p>
+  {% endif %}
+</section>
+
+<section class="block">
+  <h2>Absences <span class="muted">({{ absences|length }})</span></h2>
+  {% if absences %}
+  <table class="grid">
+    <thead><tr><th>Code</th><th>Start</th><th>End</th><th>Window</th><th>Reason</th></tr></thead>
+    <tbody>
+      {% for a in absences %}
+      <tr>
+        <td>{{ a.code.code }}</td>
+        <td>{{ a.start_date }}</td>
+        <td>{{ a.end_date }}</td>
+        <td>{% if a.start_time %}{{ a.start_time }}–{{ a.end_time }}{% else %}all day{% endif %}</td>
+        <td>{{ a.reason or "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No absences recorded.</p>
+  {% endif %}
+</section>
+{% endblock %}

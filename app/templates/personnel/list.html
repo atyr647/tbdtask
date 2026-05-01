@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Personnel{% endblock %}
+{% block content %}
+<h1>Personnel <span class="muted">({{ total }})</span></h1>
+
+{% for group, rows in grouped.items() if rows %}
+  <section class="block">
+    <h2>{{ group }} <span class="muted">({{ rows|length }})</span></h2>
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Rate</th>
+          <th>Paygrade</th>
+          <th>DS</th>
+          <th>Status</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a href="/personnel/{{ r.id }}">{{ r.display }}</a></td>
+          <td>{{ r.rate or "—" }}</td>
+          <td>{{ r.paygrade or "—" }}</td>
+          <td>{{ r.duty_section or "—" }}</td>
+          <td>{{ r.status or "—" }}</td>
+          <td class="muted">{{ r.notes or "" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}tbdtask &middot; Home{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="muted">{{ today.strftime("%A, %B %-d, %Y") }}</p>
+
+<section class="cards">
+  <div class="card">
+    <div class="card-label">Personnel</div>
+    <div class="card-value">{{ person_count }}</div>
+    <a href="/personnel" class="card-link">Roster &rsaquo;</a>
+  </div>
+  <div class="card">
+    <div class="card-label">Qualifications</div>
+    <div class="card-value">{{ qual_count }}</div>
+    <a href="/quals" class="card-link">Catalog &rsaquo;</a>
+  </div>
+  <div class="card">
+    <div class="card-label">Absences (active)</div>
+    <div class="card-value">{{ absence_count }}</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Worklists</div>
+    <div class="card-value">{{ worklist_count }}</div>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Last import</h2>
+  {% if last_import %}
+    <dl class="kv">
+      <dt>Source file</dt><dd>{{ last_import.source_file }}</dd>
+      <dt>Started</dt><dd>{{ last_import.started_at }}</dd>
+      <dt>Finished</dt><dd>{{ last_import.finished_at or "—" }}</dd>
+      <dt>Status</dt><dd>{{ last_import.status }}</dd>
+      <dt>Row counts</dt><dd><pre>{{ last_import.row_counts | tojson(indent=2) }}</pre></dd>
+    </dl>
+  {% else %}
+    <p>No imports yet. Run <code>python -m tools.migrate_from_xlsx</code> to seed.</p>
+  {% endif %}
+</section>
+{% endblock %}

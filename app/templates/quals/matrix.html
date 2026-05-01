@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Qual matrix{% endblock %}
+{% block content %}
+<h1>Qualification matrix</h1>
+<p class="muted">Mirrors the legacy Qual List sheet. Q = qualified, D = dinq, IP = in-progress, X = expired, W = waived.</p>
+
+<div class="matrix-wrap">
+<table class="matrix">
+  <thead>
+    <tr>
+      <th class="sticky-col">Person</th>
+      {% for q in quals %}
+        <th title="{{ q.category or "" }}">{{ q.name }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in grid %}
+    <tr>
+      <td class="sticky-col"><a href="/personnel/{{ row.person.id }}">{{ row.person.full_display }}</a></td>
+      {% for cell in row.cells %}
+        {% if cell == "qualified" %}<td class="q">Q</td>
+        {% elif cell == "dinq" %}<td class="d">D</td>
+        {% elif cell == "in_progress" %}<td class="ip">IP</td>
+        {% elif cell == "expired" %}<td class="x">X</td>
+        {% elif cell == "waived" %}<td class="w">W</td>
+        {% elif cell == "assigned" %}<td class="a">A</td>
+        {% else %}<td></td>{% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

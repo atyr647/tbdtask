@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Qualifications{% endblock %}
+{% block content %}
+<h1>Qualification catalog</h1>
+<p class="muted">Pinned quals are surfaced as their own column on generated worklists.</p>
+
+{% for category, quals in by_category.items() %}
+  <section class="block">
+    <h2>{{ category }} <span class="muted">({{ quals|length }})</span></h2>
+    <table class="grid">
+      <thead>
+        <tr><th>Name</th><th>Code</th><th>Pinned column</th><th>Validity (days)</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        {% for q in quals %}
+        <tr>
+          <td>{{ q.name }}</td>
+          <td class="muted">{{ q.code or "" }}</td>
+          <td>{{ "yes" if q.pinned_column else "" }}</td>
+          <td>{{ q.validity_period_days or "—" }}</td>
+          <td class="muted">{{ q.notes or "" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endfor %}
+{% endblock %}
