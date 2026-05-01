@@ -110,5 +110,55 @@ button:hover { filter: brightness(1.1); }
 .day-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .day-nav h1 { margin: 0; }
 
-.inline-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 14px; }
+.inline-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
 .inline-list li { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; }
+
+.small { font-size: 11px; }
+
+/* Worklists */
+.day-block { padding-bottom: 6px; }
+.day-block h2 { color: var(--text); text-transform: none; font-size: 17px; }
+.out-box { padding: 6px 10px; background: rgba(240,160,32,.08); border: 1px solid rgba(240,160,32,.25); border-radius: 4px; margin-bottom: 8px; }
+.out-box .chip { display: inline-block; background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; padding: 2px 9px; margin: 2px 4px 2px 0; font-size: 12px; }
+.person-block { padding: 8px 10px; border-left: 2px solid var(--border); margin: 6px 0; }
+.person-block.unassigned { border-left-color: var(--warn); }
+.person-block h3 { margin: 0 0 4px; font-size: 14px; }
+ul.task-list { margin: 4px 0; padding-left: 18px; }
+ul.task-list li { margin: 2px 0; }
+.poic { display: inline-block; background: rgba(106,169,255,.18); color: var(--accent); border-radius: 3px; padding: 0 6px; font-size: 11px; font-weight: 700; margin-right: 4px; }
+.cat { display: inline-block; color: var(--muted); font-size: 11px; margin-left: 6px; }
+.status { display: inline-block; padding: 0 6px; border-radius: 3px; font-size: 11px; margin-left: 6px; background: var(--panel-2); border: 1px solid var(--border); }
+.status-done { color: var(--good); border-color: rgba(62,207,142,.35); }
+.status-in_progress { color: var(--warn); border-color: rgba(240,160,32,.35); }
+.status-discarded, .status-carried { color: var(--muted); }
+.add-task { margin-top: 8px; }
+.add-task summary { cursor: pointer; color: var(--accent); padding: 6px 0; }
+
+.form-inline-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 2px 0; }
+.form-inline-row label { color: var(--muted); font-size: 12px; }
+.form-inline-row input[type="text"], .form-inline-row input:not([type]), .form-inline-row input[type="number"] {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit;
+}
+.form-inline-row button { padding: 4px 10px; font-size: 12px; }
+.form-inline-row button.ghost { background: transparent; color: var(--bad); border: 1px solid rgba(239,91,91,.4); }
+
+/* Absence calendar */
+.matrix.calendar td.cal { text-align: center; font-weight: 700; color: #fff; min-width: 22px; }
+.matrix.calendar .cal-leave { background: #4b6bdb; }
+.matrix.calendar .cal-tad { background: #b56b1d; }
+.matrix.calendar .cal-school { background: #6a8aa3; }
+.matrix.calendar .cal-medical { background: #a23a3a; }
+.matrix.calendar .cal-appt { background: #6f4caa; }
+.matrix.calendar .cal-other { background: #555; }
+.matrix.calendar .partial { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.25) 0 3px, transparent 3px 6px); }
+.matrix.calendar .day-h { text-align: center; min-width: 26px; }
+.matrix.calendar .day-h .dow { font-size: 10px; color: var(--muted); }
+.matrix.calendar .day-h .dom { font-size: 12px; }
+.matrix.calendar .day-h.weekend { background: var(--panel-2); }
+.matrix.calendar .totals td { font-size: 11px; text-align: center; }
+.swatch.cal { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 3px; text-align: center; }
+
+/* Qual overview */
+details.qual-detail { margin: 6px 0; padding: 6px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; }
+details.qual-detail summary { cursor: pointer; }
+details.qual-detail summary .warn { margin-left: 8px; }

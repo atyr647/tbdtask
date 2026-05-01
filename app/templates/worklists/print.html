@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ worklist.name }}</title>
+<link rel="stylesheet" href="/static/print.css" />
+</head>
+<body>
+<header class="print-header">
+  <h1>{{ worklist.name }}</h1>
+  <div class="meta">
+    Week of {{ worklist.week_starting }}
+    {% if worklist.locked %} &middot; Locked {{ worklist.locked_at.strftime("%Y-%m-%d") if worklist.locked_at else "" }}{% if worklist.locked_by_name %} by {{ worklist.locked_by_name }}{% endif %}{% endif %}
+    {% if worklist.parent_id %} &middot; Amendment v{{ worklist.version }} ({{ worklist.amendment_reason }}){% endif %}
+  </div>
+</header>
+
+{% for day in view.days %}
+<section class="day">
+  <h2>{{ day.weekday }} &mdash; {{ day.on_date }}
+    <span class="day-meta">{{ day.percent_present }}% present ({{ day.present_full }}/{{ day.total }})</span>
+  </h2>
+
+  {% if day.out_today %}
+  <p class="out-line"><strong>Out:</strong>
+    {% for r in day.out_today %}{{ r.person.full_display }} ({{ r.code }}{% if r.partial %} {{ r.start_time }}–{{ r.end_time }}{% endif %}){% if not loop.last %}; {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+
+  {% if day.person_blocks or day.unassigned_tasks %}
+    <table class="day-grid">
+      <thead><tr><th>Person</th><th>DS</th><th>Tasks</th></tr></thead>
+      <tbody>
+        {% for pb in day.person_blocks %}
+        <tr>
+          <td class="who">{{ pb.person.full_display }}</td>
+          <td class="ds">{{ pb.duty_section or "" }}</td>
+          <td>
+            <ul class="task-list">
+              {% for tr in pb.tasks %}
+                <li>
+                  {% if tr.is_poic %}<span class="poic">[POIC]</span>{% endif %}
+                  {{ tr.instance.name }}
+                  {% if tr.category_name %} <em class="cat">({{ tr.category_name }})</em>{% endif %}
+                  {% if tr.other_assignees %} <span class="shared">w/ {{ tr.other_assignees|join(", ") }}</span>{% endif %}
+                  {% if tr.instance.notes %}<div class="note">{{ tr.instance.notes }}</div>{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if day.unassigned_tasks %}
+        <tr>
+          <td class="who">(Unassigned)</td>
+          <td></td>
+          <td>
+            <ul class="task-list">
+              {% for tr in day.unassigned_tasks %}
+                <li>
+                  {{ tr.instance.name }}
+                  {% if tr.external_poic %} <em>POIC: {{ tr.external_poic }}</em>{% endif %}
+                  {% if tr.category_name %} <em class="cat">({{ tr.category_name }})</em>{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">No tasks scheduled.</p>
+  {% endif %}
+</section>
+{% endfor %}
+
+<script>window.addEventListener("load", () => setTimeout(() => window.print(), 250));</script>
+</body>
+</html>

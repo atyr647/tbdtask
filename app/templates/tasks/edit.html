@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Edit task — {{ instance.name }}{% endblock %}
+{% block content %}
+{% if worklist %}
+  <p><a href="/worklists/{{ worklist.id }}">&lsaquo; Back to {{ worklist.name }}</a></p>
+{% else %}
+  <p><a href="/worklists">&lsaquo; Back to worklists</a></p>
+{% endif %}
+<h1>{{ instance.name }}</h1>
+{% if worklist and worklist.locked %}
+  <p class="warn">🔒 Worklist is locked. Amend it to edit this task.</p>
+{% endif %}
+
+<form method="post" action="/tasks/{{ instance.id }}" class="form">
+  <label>Name <input name="name" value="{{ instance.name }}" required /></label>
+  <label>Scheduled date
+    <input type="date" name="scheduled_date" value="{{ instance.scheduled_date.isoformat() if instance.scheduled_date else '' }}" />
+  </label>
+  <label>Category
+    <select name="category_id">
+      <option value="">—</option>
+      {% for c in categories %}<option value="{{ c.id }}" {% if instance.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Status
+    <select name="status">
+      {% for st in ["open", "in_progress", "done", "discarded", "carried"] %}
+        <option value="{{ st }}" {% if instance.status == st %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Description <textarea name="description" rows="3">{{ instance.description or '' }}</textarea></label>
+  <label>Notes <textarea name="notes" rows="2">{{ instance.notes or '' }}</textarea></label>
+  <label>Completion notes <textarea name="completion_notes" rows="2">{{ instance.completion_notes or '' }}</textarea></label>
+  <div class="form-actions">
+    <button type="submit">Save</button>
+  </div>
+</form>
+
+<section class="block">
+  <h2>Assignments ({{ assignments|length }})</h2>
+  {% if assignments %}
+  <table class="grid">
+    <thead><tr><th>Person</th><th>POIC</th><th>Completed</th><th>Hours</th><th>Notes</th><th></th></tr></thead>
+    <tbody>
+      {% for a in assignments %}
+      <tr>
+        <td>{{ a.person.full_display if a.person else (a.external_poic_name or "—") }}</td>
+        <td>{{ "yes" if a.is_poic else "" }}</td>
+        <td>{{ "✓" if a.completed else "" }}</td>
+        <td>{{ a.hours_worked or "" }}</td>
+        <td class="muted">{{ a.completion_notes or "" }}</td>
+        <td>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments/{{ a.id }}" class="form-inline-row">
+            <label><input type="checkbox" name="is_poic" value="1" {% if a.is_poic %}checked{% endif %} /> POIC</label>
+            <label><input type="checkbox" name="completed" value="1" {% if a.completed %}checked{% endif %} /> done</label>
+            <input type="number" step="0.25" name="hours_worked" value="{{ a.hours_worked or '' }}" placeholder="hrs" style="width:60px" />
+            <input name="completion_notes" value="{{ a.completion_notes or '' }}" placeholder="notes" />
+            <button type="submit">Save</button>
+          </form>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments/{{ a.id }}/delete" class="form-inline-row">
+            <button type="submit" class="ghost" onclick="return confirm('Remove this assignment?');">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No assignees yet.</p>
+  {% endif %}
+
+  {% if not (worklist and worklist.locked) %}
+  <h3>Add assignment</h3>
+  <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form">
+    <label>Person
+      <select name="person_id">
+        <option value="">— external POIC instead —</option>
+        {% for p in people %}<option value="{{ p.id }}">{{ p.full_display }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>External POIC name
+      <input name="external_poic_name" placeholder="if not on the roster" />
+    </label>
+    <label><input type="checkbox" name="is_poic" value="1" /> Mark as POIC for this task</label>
+    <div class="form-actions"><button type="submit">Add</button></div>
+  </form>
+  {% endif %}
+</section>
+
+{% if not (worklist and worklist.locked) %}
+<form method="post" action="/tasks/{{ instance.id }}/archive" class="form-inline danger">
+  <label>Archive reason <input name="reason" /></label>
+  <button type="submit" onclick="return confirm('Archive this task?');">Archive task</button>
+</form>
+{% endif %}
+{% endblock %}

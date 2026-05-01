@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Worklists{% endblock %}
+{% block content %}
+{% macro _list(items) %}
+  {% if items %}
+  <table class="grid">
+    <thead><tr><th>Week starting</th><th>Name</th><th>Version</th><th>Status</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for w in items %}
+      <tr>
+        <td>{{ w.week_starting }}</td>
+        <td><a href="/worklists/{{ w.id }}">{{ w.name }}</a></td>
+        <td>v{{ w.version }}{% if w.parent_id %} (amends #{{ w.parent_id }}){% endif %}</td>
+        <td>{% if w.locked %}🔒 locked{% else %}open{% endif %}</td>
+        <td class="muted">{{ w.notes or "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">none</p>
+  {% endif %}
+{% endmacro %}
+
+<h1>Weekly worklists <a class="btn-link" href="/worklists/new">+ New week</a></h1>
+<p class="muted">Suggested next Monday: <code>{{ suggested_monday }}</code></p>
+
+<section class="block"><h2>Current</h2>{{ _list(current) }}</section>
+<section class="block"><h2>Upcoming</h2>{{ _list(upcoming) }}</section>
+<section class="block"><h2>Archived &amp; locked</h2>{{ _list(archived) }}</section>
+{% endblock %}

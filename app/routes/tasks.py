@@ -1,0 +1,209 @@
+from datetime import date, datetime
+from typing import Optional
+
+from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from ..db import SessionLocal
+from .. import models as M
+from ..templating import render
+
+router = APIRouter()
+
+
+def _ensure_unlocked(wl: Optional[M.Worklist]) -> None:
+    if wl is None:
+        raise HTTPException(404)
+    if wl.locked:
+        raise HTTPException(409, "worklist is locked; amend it before editing tasks")
+
+
+@router.post("/worklists/{worklist_id}/tasks")
+def create_task(
+    worklist_id: int,
+    name: str = Form(...),
+    scheduled_date: Optional[str] = Form(None),
+    category_id: Optional[int] = Form(None),
+    description: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+):
+    with SessionLocal() as s:
+        wl = s.get(M.Worklist, worklist_id)
+        _ensure_unlocked(wl)
+        inst = M.TaskInstance(
+            worklist_id=worklist_id,
+            scheduled_date=date.fromisoformat(scheduled_date) if scheduled_date else None,
+            category_id=category_id or None,
+            name=name.strip()[:240],
+            description=(description or None),
+            notes=(notes or None),
+            status="open",
+        )
+        s.add(inst)
+        s.commit()
+    return RedirectResponse(f"/worklists/{worklist_id}", status_code=303)
+
+
+@router.get("/tasks/{task_id}/edit")
+def edit_task_form(task_id: int, request: Request):
+    with SessionLocal() as s:
+        inst = s.get(M.TaskInstance, task_id)
+        if not inst:
+            raise HTTPException(404)
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        categories = list(s.scalars(
+            select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
+        ).all())
+        people = list(s.scalars(
+            select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
+        ).all())
+        assignments = list(s.scalars(
+            select(M.TaskAssignment)
+            .where(M.TaskAssignment.instance_id == inst.id, M.TaskAssignment.active == True)  # noqa: E712
+            .options(selectinload(M.TaskAssignment.person))
+        ).all())
+    return render(
+        request,
+        "tasks/edit.html",
+        instance=inst, worklist=wl, categories=categories, people=people,
+        assignments=assignments,
+    )
+
+
+@router.post("/tasks/{task_id}")
+def update_task(
+    task_id: int,
+    name: str = Form(...),
+    scheduled_date: Optional[str] = Form(None),
+    category_id: Optional[int] = Form(None),
+    status: str = Form("open"),
+    description: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None),
+    completion_notes: Optional[str] = Form(None),
+):
+    with SessionLocal() as s:
+        inst = s.get(M.TaskInstance, task_id)
+        if not inst:
+            raise HTTPException(404)
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        _ensure_unlocked(wl)
+        inst.name = name.strip()[:240]
+        inst.scheduled_date = date.fromisoformat(scheduled_date) if scheduled_date else None
+        inst.category_id = category_id or None
+        inst.status = status
+        inst.description = (description or None)
+        inst.notes = (notes or None)
+        inst.completion_notes = (completion_notes or None)
+        if status == "done" and inst.completed_at is None:
+            inst.completed_at = datetime.now()
+        if status != "done":
+            inst.completed_at = None
+        s.commit()
+        wl_id = inst.worklist_id
+    return RedirectResponse(f"/worklists/{wl_id}" if wl_id else "/worklists", status_code=303)
+
+
+@router.post("/tasks/{task_id}/archive")
+def archive_task(task_id: int, reason: str = Form("")):
+    with SessionLocal() as s:
+        inst = s.get(M.TaskInstance, task_id)
+        if not inst:
+            raise HTTPException(404)
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        _ensure_unlocked(wl)
+        inst.active = False
+        inst.archived_at = datetime.now()
+        inst.archived_reason = reason or None
+        s.commit()
+        wl_id = inst.worklist_id
+    return RedirectResponse(f"/worklists/{wl_id}" if wl_id else "/worklists", status_code=303)
+
+
+@router.post("/tasks/{task_id}/assignments")
+def add_assignment(
+    task_id: int,
+    person_id: Optional[int] = Form(None),
+    external_poic_name: Optional[str] = Form(None),
+    is_poic: Optional[str] = Form(None),
+):
+    if not person_id and not external_poic_name:
+        raise HTTPException(400, "must provide a person or an external POIC name")
+    with SessionLocal() as s:
+        inst = s.get(M.TaskInstance, task_id)
+        if not inst:
+            raise HTTPException(404)
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        _ensure_unlocked(wl)
+        is_poic_bool = bool(is_poic)
+        if is_poic_bool:
+            # Demote any prior POIC for this instance.
+            existing = s.scalars(
+                select(M.TaskAssignment).where(
+                    M.TaskAssignment.instance_id == inst.id,
+                    M.TaskAssignment.is_poic == True,  # noqa: E712
+                    M.TaskAssignment.active == True,  # noqa: E712
+                )
+            ).all()
+            for a in existing:
+                a.is_poic = False
+        s.add(M.TaskAssignment(
+            instance_id=inst.id,
+            person_id=person_id or None,
+            external_poic_name=(external_poic_name or None) and external_poic_name.strip(),
+            is_poic=is_poic_bool,
+        ))
+        s.commit()
+        wl_id = inst.worklist_id
+    return RedirectResponse(f"/tasks/{task_id}/edit", status_code=303)
+
+
+@router.post("/tasks/{task_id}/assignments/{assignment_id}")
+def update_assignment(
+    task_id: int,
+    assignment_id: int,
+    is_poic: Optional[str] = Form(None),
+    completed: Optional[str] = Form(None),
+    hours_worked: Optional[float] = Form(None),
+    completion_notes: Optional[str] = Form(None),
+):
+    with SessionLocal() as s:
+        a = s.get(M.TaskAssignment, assignment_id)
+        if not a or a.instance_id != task_id:
+            raise HTTPException(404)
+        inst = s.get(M.TaskInstance, task_id)
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        _ensure_unlocked(wl)
+        new_poic = bool(is_poic)
+        if new_poic and not a.is_poic:
+            existing = s.scalars(
+                select(M.TaskAssignment).where(
+                    M.TaskAssignment.instance_id == inst.id,
+                    M.TaskAssignment.is_poic == True,  # noqa: E712
+                    M.TaskAssignment.active == True,  # noqa: E712
+                )
+            ).all()
+            for other in existing:
+                other.is_poic = False
+        a.is_poic = new_poic
+        a.completed = bool(completed)
+        a.hours_worked = hours_worked
+        a.completion_notes = (completion_notes or None)
+        s.commit()
+    return RedirectResponse(f"/tasks/{task_id}/edit", status_code=303)
+
+
+@router.post("/tasks/{task_id}/assignments/{assignment_id}/delete")
+def delete_assignment(task_id: int, assignment_id: int):
+    with SessionLocal() as s:
+        a = s.get(M.TaskAssignment, assignment_id)
+        if not a or a.instance_id != task_id:
+            raise HTTPException(404)
+        inst = s.get(M.TaskInstance, task_id)
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        _ensure_unlocked(wl)
+        a.active = False
+        a.archived_at = datetime.now()
+        s.commit()
+    return RedirectResponse(f"/tasks/{task_id}/edit", status_code=303)

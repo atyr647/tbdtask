@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ worklist.name }}{% endblock %}
+{% block content %}
+<p><a href="/worklists">&lsaquo; All worklists</a></p>
+<h1>{{ worklist.name }}
+  <span class="muted">— week of {{ worklist.week_starting }}</span>
+  <a class="btn-link" href="/worklists/{{ worklist.id }}/print" target="_blank">Print</a>
+  {% if not worklist.locked %}<a class="btn-link" href="#lock">Lock</a>{% endif %}
+</h1>
+
+{% if worklist.locked %}
+  <p class="warn">🔒 Locked {{ worklist.locked_at.strftime("%Y-%m-%d %H:%M") if worklist.locked_at else "" }}{% if worklist.locked_by_name %} by {{ worklist.locked_by_name }}{% endif %}. Edits require an amendment.</p>
+{% endif %}
+{% if worklist.parent_id %}
+  <p class="muted">Amendment v{{ worklist.version }} of <a href="/worklists/{{ worklist.parent_id }}">#{{ worklist.parent_id }}</a> — reason: {{ worklist.amendment_reason }}{% if worklist.operator_name %} (operator: {{ worklist.operator_name }}){% endif %}</p>
+{% endif %}
+
+<p class="muted">{{ view.week_total_tasks }} task{{ "s" if view.week_total_tasks != 1 else "" }} scheduled this week.</p>
+
+{% for day in view.days %}
+<section class="block day-block">
+  <h2>{{ day.weekday }} <span class="muted">{{ day.on_date }}</span>
+    <span class="muted small">— {{ day.percent_present }}% present ({{ day.present_full }} of {{ day.total }})</span>
+  </h2>
+
+  {% if day.out_today %}
+  <div class="out-box">
+    <strong>Out:</strong>
+    {% for r in day.out_today %}
+      <span class="chip">{{ r.person.full_display }} — {{ r.code }}{% if r.partial %} ({{ r.start_time }}–{{ r.end_time }}){% endif %}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if day.person_blocks %}
+    {% for pb in day.person_blocks %}
+      <div class="person-block">
+        <h3>{{ pb.person.full_display }}{% if pb.duty_section %} <span class="muted small">DS{{ pb.duty_section }}</span>{% endif %}</h3>
+        <ul class="task-list">
+          {% for tr in pb.tasks %}
+            <li>
+              {% if tr.is_poic %}<span class="poic">POIC</span>{% endif %}
+              <a href="/tasks/{{ tr.instance.id }}/edit">{{ tr.instance.name }}</a>
+              {% if tr.category_name %}<span class="cat">{{ tr.category_name }}</span>{% endif %}
+              <span class="status status-{{ tr.instance.status }}">{{ tr.instance.status }}</span>
+              {% if tr.other_assignees %}<span class="muted small">w/ {{ tr.other_assignees|join(", ") }}</span>{% endif %}
+              {% if tr.instance.notes %}<div class="muted small">{{ tr.instance.notes }}</div>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if day.unassigned_tasks %}
+  <div class="person-block unassigned">
+    <h3>Unassigned</h3>
+    <ul class="task-list">
+      {% for tr in day.unassigned_tasks %}
+        <li>
+          <a href="/tasks/{{ tr.instance.id }}/edit">{{ tr.instance.name }}</a>
+          {% if tr.external_poic %}<span class="poic">POIC: {{ tr.external_poic }}</span>{% endif %}
+          {% if tr.category_name %}<span class="cat">{{ tr.category_name }}</span>{% endif %}
+          <span class="status status-{{ tr.instance.status }}">{{ tr.instance.status }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if not worklist.locked %}
+    <details class="add-task">
+      <summary>+ Add task on {{ day.weekday }}</summary>
+      <form method="post" action="/worklists/{{ worklist.id }}/tasks" class="form">
+        <input type="hidden" name="scheduled_date" value="{{ day.on_date }}" />
+        <label>Name <input name="name" required /></label>
+        <label>Category
+          <select name="category_id">
+            <option value="">—</option>
+            {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Description <textarea name="description" rows="2"></textarea></label>
+        <label>Notes <input name="notes" /></label>
+        <div class="form-actions"><button type="submit">Add task</button></div>
+      </form>
+    </details>
+  {% endif %}
+</section>
+{% endfor %}
+
+{% if not worklist.locked %}
+<section class="block" id="lock">
+  <h2>Finalize</h2>
+  <form method="post" action="/worklists/{{ worklist.id }}/lock" class="form-inline">
+    <label>Locked by <input name="locked_by_name" placeholder="optional" /></label>
+    <button type="submit" onclick="return confirm('Lock this worklist? Further edits will require an amendment.');">Lock worklist</button>
+  </form>
+</section>
+
+<section class="block">
+  <h2>Edit week metadata</h2>
+  <form method="post" action="/worklists/{{ worklist.id }}" class="form">
+    <label>Name <input name="name" value="{{ worklist.name }}" required /></label>
+    <label>Notes <textarea name="notes" rows="2">{{ worklist.notes or '' }}</textarea></label>
+    <div class="form-actions"><button type="submit">Save</button></div>
+  </form>
+</section>
+{% else %}
+<section class="block">
+  <h2>Amend</h2>
+  <p class="muted">Locked weeks are immutable. Creating an amendment clones this worklist into a new editable version that links back to this one.</p>
+  <form method="post" action="/worklists/{{ worklist.id }}/amend" class="form">
+    <label>Reason <input name="amendment_reason" required /></label>
+    <label>Operator <input name="operator_name" /></label>
+    <div class="form-actions"><button type="submit">Create amendment</button></div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

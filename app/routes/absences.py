@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from ..db import SessionLocal
 from .. import models as M
+from ..services.absence_calendar import build_calendar
 from ..templating import render
 
 router = APIRouter()
@@ -49,6 +50,37 @@ def list_absences(request: Request):
             ).all()
         )
     return render(request, "absences/list.html", upcoming=upcoming, past=past)
+
+
+@router.get("/absences/calendar")
+def absence_calendar(
+    request: Request,
+    start: Optional[str] = None,
+    days: int = 28,
+):
+    if days < 7 or days > 120:
+        days = 28
+    if start:
+        try:
+            start_date = date.fromisoformat(start)
+        except ValueError:
+            raise HTTPException(400, "expected ISO date for ?start=")
+    else:
+        # Anchor on the Monday of the current week so the grid aligns.
+        today = date.today()
+        start_date = today - timedelta(days=today.weekday())
+    with SessionLocal() as s:
+        view = build_calendar(s, start_date, days)
+    prev_start = (start_date - timedelta(days=days)).isoformat()
+    next_start = (start_date + timedelta(days=days)).isoformat()
+    return render(
+        request,
+        "absences/calendar.html",
+        view=view,
+        days=days,
+        prev_start=prev_start,
+        next_start=next_start,
+    )
 
 
 @router.get("/personnel/{person_id}/absences/new")

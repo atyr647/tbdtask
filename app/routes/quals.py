@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from ..db import SessionLocal
 from .. import models as M
+from ..services.qual_overview import build_qual_overview
 from ..templating import render
 
 router = APIRouter()
@@ -68,6 +69,14 @@ def create_qual(
         s.add(q)
         s.commit()
     return RedirectResponse("/quals", status_code=303)
+
+
+@router.get("/quals/overview")
+def quals_overview(request: Request, threshold: int = 2):
+    threshold = max(1, min(threshold, 10))
+    with SessionLocal() as s:
+        summaries = build_qual_overview(s, qualified_threshold=threshold)
+    return render(request, "quals/overview.html", summaries=summaries, threshold=threshold)
 
 
 @router.get("/quals/matrix")

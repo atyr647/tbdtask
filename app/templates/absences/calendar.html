@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Absence calendar{% endblock %}
+{% block content %}
+<h1>Absence calendar</h1>
+<p class="muted">Showing {{ days }} days starting {{ view.start_date }}.
+  <a href="/absences/calendar?start={{ prev_start }}&days={{ days }}">&lsaquo; back</a>
+  &middot; <a href="/absences/calendar?days={{ days }}">today</a>
+  &middot; <a href="/absences/calendar?start={{ next_start }}&days={{ days }}">forward &rsaquo;</a>
+</p>
+<p class="muted">Window:
+  <a href="/absences/calendar?start={{ view.start_date }}&days=14">14d</a> ·
+  <a href="/absences/calendar?start={{ view.start_date }}&days=28">28d</a> ·
+  <a href="/absences/calendar?start={{ view.start_date }}&days=60">60d</a> ·
+  <a href="/absences/calendar?start={{ view.start_date }}&days=90">90d</a>
+</p>
+
+<div class="matrix-wrap">
+<table class="matrix calendar">
+  <thead>
+    <tr>
+      <th class="sticky-col">Person</th>
+      {% for d in view.days %}
+        <th class="day-h{% if d.weekday() >= 5 %} weekend{% endif %}" title="{{ d }}">
+          <div class="dow">{{ ['M','T','W','T','F','S','S'][d.weekday()] }}</div>
+          <div class="dom">{{ d.day }}</div>
+        </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in view.rows %}
+    <tr>
+      <td class="sticky-col"><a href="/personnel/{{ row.person.id }}">{{ row.person.full_display }}</a></td>
+      {% for cell in row.cells %}
+        {% if cell.code %}
+          <td class="cal cal-{{ cell.code|lower }}{% if cell.partial %} partial{% endif %}" title="{{ cell.code }}{% if cell.reason %} — {{ cell.reason }}{% endif %}">{{ cell.code[0] }}</td>
+        {% else %}
+          <td></td>
+        {% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+    <tr class="totals">
+      <td class="sticky-col">Out</td>
+      {% for n in view.daily_absent %}
+        <td class="muted small">{{ n if n else "" }}</td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<section class="block">
+  <h2>Legend</h2>
+  <ul class="inline-list">
+    <li><span class="swatch cal cal-leave">L</span> Leave</li>
+    <li><span class="swatch cal cal-tad">T</span> TAD</li>
+    <li><span class="swatch cal cal-school">S</span> School</li>
+    <li><span class="swatch cal cal-medical">M</span> Medical</li>
+    <li><span class="swatch cal cal-appt">A</span> Appt</li>
+    <li><span class="swatch cal cal-other">O</span> Other</li>
+    <li><span class="swatch cal partial">P</span> Hatched = partial day</li>
+  </ul>
+</section>
+{% endblock %}
