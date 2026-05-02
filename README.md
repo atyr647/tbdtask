@@ -69,6 +69,24 @@ python -m uvicorn app.main:app --reload    # dev server on :8000
 python -m app.main                         # opens default browser on :8765
 ```
 
+The schema is managed by Alembic. `init_db()` runs `alembic upgrade head`
+on every startup, so the app self-migrates. To create a new migration
+after editing `app/models.py`:
+
+```sh
+alembic revision --autogenerate -m "describe the change"
+alembic upgrade head      # apply locally
+```
+
+Existing pre-Alembic databases are detected and stamped as
+up-to-date on first run; no manual migration required.
+
+Run the test suite with:
+
+```sh
+python -m pytest tests/
+```
+
 ## Build the AppImage
 
 The Pi 400 is **aarch64**, so that's the default target:

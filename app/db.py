@@ -46,31 +46,34 @@ def session_scope() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    from . import models  # noqa: F401  ensure models are registered
-    Base.metadata.create_all(engine)
-    _ensure_columns()
+    """Bring the configured DB up to the latest schema via Alembic.
 
+    On a fresh install this creates every table at HEAD; on an existing
+    one it applies any migrations that landed since the last run.
+    Pre-Alembic databases (created back when ``_ensure_columns`` patched
+    the schema in place) get a one-shot ``stamp head`` since their
+    schema already matches the initial revision.
+    """
+    from . import models  # noqa: F401  ensure mappers are registered
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import inspect
 
-# Lightweight forward-only column additions for SQLite. Each entry is
-# (table, column_name, column_def). Skipped silently when the column is
-# already present, so re-running on a fresh DB is a no-op.
-_COLUMN_ADDITIONS = [
-    ("persons", "arrival_date", "DATE"),
-    ("persons", "sponsor_person_id", "INTEGER REFERENCES persons(id)"),
-    ("persons", "orders_received", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("persons", "itinerary_received", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("persons", "aob_scheduled", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("persons", "barracks_assigned", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("persons", "position", "VARCHAR(128)"),
-    ("alerts", "snoozed_until", "DATE"),
-    ("task_instances", "hours", "FLOAT"),
-]
+    project_root = Path(__file__).resolve().parent.parent
+    cfg = Config(str(project_root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(project_root / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", DB_URL)
 
+    # If this DB was created before Alembic was wired in, it already has
+    # all the tables but no alembic_version row. Stamp it instead of
+    # trying to re-run the initial migration (which would fail on table
+    # already-exists).
+    insp = inspect(engine)
+    table_names = set(insp.get_table_names())
+    has_app_tables = "persons" in table_names
+    has_alembic_table = "alembic_version" in table_names
+    if has_app_tables and not has_alembic_table:
+        command.stamp(cfg, "head")
+        return
 
-def _ensure_columns() -> None:
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        for table, col, defn in _COLUMN_ADDITIONS:
-            existing = {r[1] for r in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
-            if col not in existing:
-                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {col} {defn}")
+    command.upgrade(cfg, "head")

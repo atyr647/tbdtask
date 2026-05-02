@@ -79,10 +79,12 @@ python3 -m pip install \
   --implementation cp --abi "cp${PY_VERSION//./}" \
   --only-binary=:all: \
   --upgrade \
-  fastapi 'uvicorn>=0.27' sqlalchemy jinja2 python-multipart pydantic pydantic-core
+  fastapi 'uvicorn>=0.27' sqlalchemy alembic jinja2 python-multipart pydantic pydantic-core mako
 
-# Bundle the app source.
+# Bundle the app source + alembic migrations.
 cp -R "$ROOT/app" "$APPDIR/usr/share/${APP_NAME}/app"
+cp -R "$ROOT/alembic" "$APPDIR/usr/share/${APP_NAME}/alembic"
+cp "$ROOT/alembic.ini" "$APPDIR/usr/share/${APP_NAME}/alembic.ini"
 
 # 3. AppRun launcher and metadata -----------------------------------------
 echo "[3/4] Writing AppRun launcher..."
