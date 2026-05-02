@@ -151,7 +151,6 @@ class PersonDutySection(Base, TimestampMixin, ProvenanceMixin):
     person: Mapped["Person"] = relationship(back_populates="duty_sections")
 
     __table_args__ = (
-        CheckConstraint("duty_section >= 1 AND duty_section <= 6", name="ck_duty_section_range"),
         Index("ix_person_duty_sections_current", "person_id", "valid_to"),
     )
 

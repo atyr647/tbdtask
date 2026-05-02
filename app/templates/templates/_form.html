@@ -19,7 +19,7 @@
   <label><input type="checkbox" name="splittable" value="1" {% if t and t.splittable %}checked{% endif %} /> Splittable across people</label>
   <label><input type="checkbox" name="reassignable" value="1" {% if not t or t.reassignable %}checked{% endif %} /> Reassignable</label>
   <label><input type="checkbox" name="required_drivers_license" value="1" {% if t and t.required_drivers_license %}checked{% endif %} /> Requires drivers license</label>
-  <label>Required duty section <input type="number" name="required_duty_section" min="1" max="6" value="{{ t.required_duty_section if t and t.required_duty_section else '' }}" /></label>
+  <label>Required duty section <input type="number" name="required_duty_section" min="1" max="20" value="{{ t.required_duty_section if t and t.required_duty_section else '' }}" /></label>
   <label>Required quals
     <select name="required_quals" multiple size="6">
       {% for q in quals %}<option value="{{ q.id }}" {% if required_qual_ids and q.id in required_qual_ids %}selected{% endif %}>{{ q.name }}{% if q.category %} ({{ q.category }}){% endif %}</option>{% endfor %}

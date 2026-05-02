@@ -28,10 +28,7 @@
   <fieldset>
     <legend>Assignment</legend>
     <label>Duty section
-      <select name="duty_section">
-        <option value="">—</option>
-        {% for n in duty_sections %}<option value="{{ n }}">{{ n }}</option>{% endfor %}
-      </select>
+      <input type="number" name="duty_section" min="1" max="20" placeholder="e.g. 1, 2, 3 …" />
     </label>
     <label>PRD <input type="date" name="prd_date" /></label>
     <label>Drivers license

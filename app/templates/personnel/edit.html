@@ -34,10 +34,8 @@
   <fieldset>
     <legend>Assignment</legend>
     <label>Duty section
-      <select name="duty_section">
-        <option value="">—</option>
-        {% for n in duty_sections %}<option value="{{ n }}" {% if cur.duty_section and cur.duty_section.duty_section == n %}selected{% endif %}>{{ n }}</option>{% endfor %}
-      </select>
+      <input type="number" name="duty_section" min="1" max="20"
+             value="{{ cur.duty_section.duty_section if cur.duty_section else '' }}" />
     </label>
     <label>PRD <input type="date" name="prd_date" value="{{ cur.prd.prd_date.isoformat() if cur.prd else '' }}" /></label>
     <label>PRD change reason

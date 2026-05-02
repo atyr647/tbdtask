@@ -68,10 +68,8 @@
   </tbody>
   {# Out summary lives inside the main table as a tfoot so the browser
      repeats it on each printed page when the grid spans multiple pages.
-     Each day's absences land under that day's column. #}
-  {% set any_out = false %}
-  {% for h in grid.headers %}{% if h.out_summary %}{% set any_out = true %}{% endif %}{% endfor %}
-  {% if any_out %}
+     Each day's absences land under that day's column. Always rendered
+     so the breakdown is present even on weeks with one or zero absences. #}
   <tfoot>
     <tr class="out-foot">
       <td class="who">Out</td>
@@ -87,7 +85,6 @@
       {% endfor %}
     </tr>
   </tfoot>
-  {% endif %}
 </table>
 
 {% set has_unassigned = false %}

@@ -87,29 +87,40 @@ def resolve_alert(alert_id: int):
 
 
 @router.post("/alerts/{alert_id}/extend-prd")
-def extend_prd(alert_id: int, days: int = Form(180)):
-    """Extend the linked person's PRD by `days` from the current PRD date,
-    closing the prior PRD row and inserting a new one. Resolves the alert."""
-    days = max(1, min(int(days), 365 * 3))
+def extend_prd(
+    alert_id: int,
+    new_date: Optional[str] = Form(None),
+    days: Optional[int] = Form(None),
+):
+    """Update the linked person's PRD. Caller supplies either ``new_date``
+    (an absolute YYYY-MM-DD) or ``days`` (relative offset from the current
+    PRD). Closes the prior PRD row and inserts a new effective-dated row
+    tagged with change_reason='extension'."""
     with SessionLocal() as s:
         a = s.get(M.Alert, alert_id)
         if not a or not a.person_id:
             raise HTTPException(404)
-        cur = eff.current_row(s, M.PersonPrd, a.person_id)
-        base = cur.prd_date if cur else date.today()
-        new_prd = base + timedelta(days=days)
+        if new_date:
+            try:
+                new_prd = date.fromisoformat(new_date)
+            except ValueError:
+                raise HTTPException(400, "expected YYYY-MM-DD for new_date")
+        else:
+            d = max(1, min(int(days or 180), 365 * 3))
+            cur = eff.current_row(s, M.PersonPrd, a.person_id)
+            base = cur.prd_date if cur else date.today()
+            new_prd = base + timedelta(days=d)
         eff.set_new_value(
             s, M.PersonPrd, person_id=a.person_id, effective_date=date.today(),
             fields={
                 "prd_date": new_prd,
                 "change_reason": "extension",
-                "note": f"Extended by {days} days from alert #{alert_id}",
+                "note": f"Updated from alert #{alert_id}",
             },
             no_op_if_unchanged=("prd_date",),
         )
         a.resolved_at = datetime.now()
-        a.notes = (a.notes or "") + f"\nPRD extended by {days} days to {new_prd.isoformat()}"
-        # Re-run alert recompute so new PRD windows reflect the change.
+        a.notes = (a.notes or "") + f"\nPRD updated to {new_prd.isoformat()}"
         s.flush()
         alerts_service.recompute(s)
         s.commit()

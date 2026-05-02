@@ -56,13 +56,22 @@ async def create_task(worklist_id: int, request: Request):
         person_ids = [int(x) for x in form.getlist("person_ids") if str(x).strip()]
         poic_id = form.get("poic_person_id")
         poic_id_int = int(poic_id) if poic_id else None
+        ext = (form.get("external_poic_name") or "").strip()
+        # Multi-assignment guarantee: if more than one person is on the task
+        # and the operator didn't pick a POIC, default to the first assignee
+        # so the task always has someone in charge.
+        if len(person_ids) >= 2 and poic_id_int is None and not ext:
+            poic_id_int = person_ids[0]
+        # Single-assignment convenience: a one-person task with no explicit
+        # POIC choice silently makes that person POIC.
+        if len(person_ids) == 1 and poic_id_int is None and not ext:
+            poic_id_int = person_ids[0]
         for pid in person_ids:
             s.add(M.TaskAssignment(
                 instance_id=inst.id,
                 person_id=pid,
                 is_poic=(pid == poic_id_int),
             ))
-        ext = (form.get("external_poic_name") or "").strip()
         if ext:
             s.add(M.TaskAssignment(
                 instance_id=inst.id,

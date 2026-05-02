@@ -43,28 +43,40 @@
   {% endif %}
 
   {% set existing = day.person_blocks|sum(start=[], attribute='tasks') + day.unassigned_tasks %}
-  {% if existing %}
+  {# Dedupe: a task with multiple assignees shows up once per assignee, so
+     collect all rows per instance to render a single line with the POIC
+     name in its own column. #}
+  {% set seen_ids = namespace(v=[]) %}
+  {% set unique_instances = [] %}
+  {% for tr in existing %}
+    {% if tr.instance.id not in seen_ids.v %}
+      {% set _ = seen_ids.v.append(tr.instance.id) %}
+      {% set _ = unique_instances.append(tr.instance.id) %}
+    {% endif %}
+  {% endfor %}
+  {% if unique_instances %}
   <table class="grid">
     <thead><tr><th>Task</th><th>Assigned</th><th>POIC</th><th></th></tr></thead>
     <tbody>
-      {% for tr in existing %}
+      {% for iid in unique_instances %}
+      {% set rows_for = existing|selectattr('instance.id','equalto',iid)|list %}
+      {% set primary = rows_for[0] %}
+      {% set poic_row = (rows_for|selectattr('is_poic')|first) %}
+      {% set poic_label = (poic_row.assignment.person.full_display if poic_row and poic_row.assignment and poic_row.assignment.person else (poic_row.external_poic if poic_row else None)) %}
+      {% set assignee_names = [] %}
+      {% for r in rows_for %}
+        {% if r.assignment and r.assignment.person %}{% set _ = assignee_names.append(r.assignment.person.full_display) %}
+        {% elif r.external_poic %}{% set _ = assignee_names.append('(ext) ' ~ r.external_poic) %}{% endif %}
+      {% endfor %}
       <tr>
         <td>
-          <a href="/tasks/{{ tr.instance.id }}/edit">{{ tr.instance.name }}</a>
-          {% if tr.category_name %}<span class="cat">{{ tr.category_name }}</span>{% endif %}
+          <a href="/tasks/{{ primary.instance.id }}/edit">{{ primary.instance.name }}</a>
+          {% if primary.category_name %}<span class="cat">{{ primary.category_name }}</span>{% endif %}
         </td>
-        <td class="muted small">
-          {% if tr.assignment and tr.assignment.person %}
-            {{ tr.assignment.person.full_display }}{% if tr.other_assignees %}, {{ tr.other_assignees|join(", ") }}{% endif %}
-          {% elif tr.external_poic %}
-            (ext) {{ tr.external_poic }}
-          {% else %}
-            —
-          {% endif %}
-        </td>
-        <td>{% if tr.is_poic %}<span class="poic">POIC</span>{% endif %}</td>
+        <td class="muted small">{{ assignee_names|unique|join(", ") if assignee_names else "—" }}</td>
+        <td>{% if poic_label %}<span class="poic">POIC</span> {{ poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>
-          <form method="post" action="/tasks/{{ tr.instance.id }}/archive" class="form-inline-row">
+          <form method="post" action="/tasks/{{ primary.instance.id }}/archive" class="form-inline-row">
             <input type="hidden" name="reason" value="removed during setup" />
             <button type="submit" class="ghost" onclick="return confirm('Remove this task?');">Remove</button>
           </form>
