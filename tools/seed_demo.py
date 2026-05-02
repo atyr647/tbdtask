@@ -88,10 +88,10 @@ PINNED = {"3M", "HMMWV", "MTVR", "DOZER", "LARC Crew", "LARC Eng.", "LARC Cdr."}
 
 
 ABSENCE_CODES = [
-    ("Leave", "Long-form leave"),
+    ("Leave", None),
     ("TAD", "Temporary additional duty"),
     ("School", "School / formal training"),
-    ("Medical", "Medical event (full day)"),
+    ("Medical", None),
     ("Appt", "Appointment (often partial day)"),
     ("Other", "Free-text reason"),
 ]

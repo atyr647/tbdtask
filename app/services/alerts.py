@@ -135,48 +135,6 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
     counts["prd_weekly_in_month"] = len(keep_weekly)
     counts["prd_passed"] = len(keep_passed)
 
-    # Qual expirations ------------------------------------------------
-    now = datetime.combine(today, datetime.min.time())
-    expiring_rows = session.execute(
-        select(M.PersonQual, M.Person, M.Qualification)
-        .join(M.Person, M.Person.id == M.PersonQual.person_id)
-        .join(M.Qualification, M.Qualification.id == M.PersonQual.qual_id)
-        .where(
-            M.PersonQual.valid_to.is_(None),
-            M.PersonQual.active == True,  # noqa: E712
-            M.Person.active == True,  # noqa: E712
-            M.PersonQual.status == "qualified",
-            M.PersonQual.expires_at.is_not(None),
-        )
-    ).all()
-    keep_expiring: set = set()
-    keep_expired: set = set()
-    for pq, person, qual in expiring_rows:
-        delta = (pq.expires_at - now).days
-        key = f"{person.id}:{qual.id}:{pq.expires_at.date().isoformat()}"
-        if delta < 0:
-            keep_expired.add(key)
-            _ensure_alert(
-                session, "qual_expired", severity="urgent", person_id=person.id,
-                payload={
-                    "key": key, "qual_id": qual.id, "qual_name": qual.name,
-                    "expired_on": pq.expires_at.date().isoformat(), "days": delta,
-                },
-            )
-        elif delta <= QUAL_EXPIRING_WINDOW:
-            keep_expiring.add(key)
-            _ensure_alert(
-                session, "qual_expiring", severity="warn", person_id=person.id,
-                payload={
-                    "key": key, "qual_id": qual.id, "qual_name": qual.name,
-                    "expires_on": pq.expires_at.date().isoformat(), "days": delta,
-                },
-            )
-    _resolve_stale(session, "qual_expiring", keep_expiring)
-    _resolve_stale(session, "qual_expired", keep_expired)
-    counts["qual_expiring"] = len(keep_expiring)
-    counts["qual_expired"] = len(keep_expired)
-
     # Worklist carry-overs --------------------------------------------
     pending = session.execute(
         select(

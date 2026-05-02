@@ -68,6 +68,10 @@ class GridDayCell:
     absence_code: Optional[str]
     absence_partial: bool
     absence_reason: Optional[str]
+    absence_start_date: Optional[date] = None
+    absence_end_date: Optional[date] = None
+    absence_start_time: Optional[str] = None
+    absence_end_time: Optional[str] = None
     tasks: list[TaskRow] = field(default_factory=list)
 
 
@@ -86,6 +90,7 @@ class GridDayHeader:
     weekday: str
     out_count: int
     present_count: int
+    percent_present: float
     out_summary: list[str]
 
 
@@ -146,6 +151,7 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
         headers.append(GridDayHeader(
             on_date=d, weekday=WEEKDAY_NAMES[d.weekday()],
             out_count=len(out), present_count=report.total - len(out),
+            percent_present=report.percent_present,
             out_summary=out_summary,
         ))
 
@@ -173,9 +179,14 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
         for i, d in enumerate(day_dates):
             avail = absence_lookup[d].get(person.id)
             if avail and avail.absence:
+                a = avail.absence
                 cells[i].absence_code = avail.code
                 cells[i].absence_partial = avail.partial
                 cells[i].absence_reason = avail.reason
+                cells[i].absence_start_date = a.start_date
+                cells[i].absence_end_date = a.end_date
+                cells[i].absence_start_time = a.start_time.strftime("%H:%M") if a.start_time else None
+                cells[i].absence_end_time = a.end_time.strftime("%H:%M") if a.end_time else None
         row = GridPersonRow(
             person=person, rate=rate, duty_section=ds, cells=cells, has_any_content=False,
         )

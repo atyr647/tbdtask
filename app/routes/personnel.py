@@ -8,12 +8,13 @@ from sqlalchemy.orm import selectinload
 
 from ..db import SessionLocal
 from .. import models as M
+from ..data import ranks as rank_catalog
 from ..services import effective as eff
 from ..templating import render
 
 router = APIRouter(prefix="/personnel")
 
-ROSTER_STATUS_VALUES = ("active", "prd_pending", "departed", "dropped")
+ROSTER_STATUS_VALUES = ("active", "departed")
 DUTY_SECTIONS = (1, 2, 3, 4, 5, 6)
 
 
@@ -29,39 +30,11 @@ def _current(person: M.Person):
     }
 
 
-def _group_for(rate: Optional[str], paygrade: Optional[str]) -> str:
-    if not rate:
-        return "Other"
-    if rate.startswith(("CWO", "ENS", "LT", "LCDR")):
-        return "Khakis"
-    if rate.endswith("(Sel)"):
-        return "Khakis"
-    if paygrade in ("E-7", "E-8", "E-9"):
-        return "Khakis"
-    if paygrade == "E-6":
-        return "E6"
-    if paygrade == "E-5":
-        return "E5"
-    return "Junior"
+_group_for = rank_catalog.group_for
 
 
-PAYGRADE_BY_RATE = {
-    "CWO2": "W-2", "CWO3": "W-3", "CWO4": "W-4", "CWO5": "W-5",
-    "ENS": "O-1", "LTJG": "O-2", "LT": "O-3", "LCDR": "O-4",
-    "BMC": "E-7", "BMC(Sel)": "E-6", "BMCS": "E-8", "BMCM": "E-9",
-    "ENC": "E-7", "CMC": "E-7", "QMC": "E-7", "ETC": "E-7", "GMC": "E-7",
-    "BM1": "E-6", "EN1": "E-6", "CM1": "E-6", "QM1": "E-6",
-    "ET1": "E-6", "GM1": "E-6", "MM1": "E-6", "IT1": "E-6",
-    "BM2": "E-5", "EN2": "E-5", "CM2": "E-5", "GM2": "E-5",
-    "ET2": "E-5", "MM2": "E-5", "QM2": "E-5", "IT2": "E-5",
-    "BM3": "E-4", "EN3": "E-4", "CM3": "E-4", "GM3": "E-4",
-    "ET3": "E-4", "MM3": "E-4", "QM3": "E-4", "IT3": "E-4",
-    "SN": "E-3", "BMSN": "E-3", "ENFN": "E-3", "CMCN": "E-3",
-    "ITSN": "E-3", "GMSN": "E-3", "MMFN": "E-3", "QMSN": "E-3",
-    "SA": "E-2", "FA": "E-2", "CN": "E-2",
-    "SR": "E-1", "FR": "E-1", "BMSR": "E-1", "CMCR": "E-1",
-    "ENFR": "E-1", "ITSR": "E-1", "GMSR": "E-1",
-}
+def _paygrade_for(rate: Optional[str]) -> Optional[str]:
+    return rank_catalog.paygrade_for(rate or "") if rate else None
 
 
 @router.get("")
@@ -72,7 +45,6 @@ def list_personnel(request: Request):
             .where(M.Person.active == True)  # noqa: E712
             .options(
                 selectinload(M.Person.rates),
-                selectinload(M.Person.roster_statuses),
                 selectinload(M.Person.duty_sections),
             )
             .order_by(M.Person.display_order)
@@ -84,11 +56,11 @@ def list_personnel(request: Request):
             paygrade = cur["rate"].paygrade if cur["rate"] else None
             rows.append({
                 "id": p.id,
-                "display": p.full_display,
                 "rate": rate,
                 "paygrade": paygrade,
+                "last_name": p.last_name,
+                "first_name": p.first_name,
                 "duty_section": cur["duty_section"].duty_section if cur["duty_section"] else None,
-                "status": cur["status"].status if cur["status"] else None,
                 "group": _group_for(rate, paygrade),
                 "notes": p.notes,
             })
@@ -102,8 +74,8 @@ def new_person_form(request: Request):
     return render(
         request,
         "personnel/new.html",
-        roster_statuses=ROSTER_STATUS_VALUES,
         duty_sections=DUTY_SECTIONS,
+        rate_groups=rank_catalog.by_category(),
     )
 
 
@@ -137,7 +109,7 @@ def create_person(
         if rate:
             s.add(M.PersonRate(
                 person_id=p.id, rate=rate.strip(),
-                paygrade=PAYGRADE_BY_RATE.get(rate.strip()),
+                paygrade=rank_catalog.paygrade_for(rate.strip()),
                 valid_from=today,
             ))
         if duty_section:
@@ -167,12 +139,12 @@ def create_person(
 
 @router.get("/{person_id}")
 def show_person(person_id: int, request: Request):
+    from ..services.personnel_stats import stats_for
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
         if not p:
             raise HTTPException(404, "person not found")
         rates = list(p.rates)
-        roster = list(p.roster_statuses)
         ds = list(p.duty_sections)
         prds = list(p.prds)
         dl = list(p.drivers_licenses)
@@ -191,18 +163,18 @@ def show_person(person_id: int, request: Request):
                 .order_by(M.Absence.start_date.desc())
             ).all()
         )
-        # Refresh detached relationships explicitly, then close.
+        stats = stats_for(s, p.id, window_days=180)
         return render(
             request,
             "personnel/show.html",
             person=p,
             rates=rates,
-            roster=roster,
             duty_sections=ds,
             prds=prds,
             drivers_licenses=dl,
             quals=quals,
             absences=absences,
+            stats=stats,
         )
 
 
@@ -218,8 +190,8 @@ def edit_person_form(person_id: int, request: Request):
         "personnel/edit.html",
         person=p,
         cur=cur,
-        roster_statuses=ROSTER_STATUS_VALUES,
         duty_sections=DUTY_SECTIONS,
+        rate_groups=rank_catalog.by_category(),
     )
 
 
@@ -253,7 +225,7 @@ def update_person(
         if new_rate:
             eff.set_new_value(
                 s, M.PersonRate, person_id=p.id, effective_date=eff_date,
-                fields={"rate": new_rate, "paygrade": PAYGRADE_BY_RATE.get(new_rate)},
+                fields={"rate": new_rate, "paygrade": rank_catalog.paygrade_for(new_rate)},
                 no_op_if_unchanged=("rate", "paygrade"),
             )
         if duty_section:

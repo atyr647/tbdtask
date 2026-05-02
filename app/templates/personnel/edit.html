@@ -1,10 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Edit {{ person.full_display }}{% endblock %}
+{% block title %}Edit {{ person.last_name }}{% endblock %}
 {% block content %}
 <p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
 <h1>Edit {{ person.full_display }}</h1>
-<p class="muted">Effective date defaults to today. Changing rate / duty section / PRD / drivers license / roster status closes the prior record and opens a new one — old values are preserved as history.</p>
+<p class="muted">Effective date defaults to today. Changing rate / duty section / PRD / drivers license closes the prior record and opens a new one — old values are preserved as history.</p>
 
+{% include "personnel/_rate_picker.html" %}
 <form method="post" action="/personnel/{{ person.id }}" class="form">
   <label>Effective date <input type="date" name="effective_date" /></label>
   <fieldset>
@@ -15,8 +16,23 @@
   </fieldset>
 
   <fieldset>
-    <legend>Effective-dated attributes</legend>
-    <label>Rate <input name="rate" value="{{ cur.rate.rate if cur.rate else '' }}" /></label>
+    <legend>Rate / rank</legend>
+    <label>Category
+      <select id="rate-category">
+        <option value="">— any —</option>
+        <option value="Officer">Officer</option>
+        <option value="CWO">CWO</option>
+        <option value="Enlisted">Enlisted</option>
+      </select>
+    </label>
+    <label>Rate / rank
+      <input name="rate" list="rate-suggestions" value="{{ cur.rate.rate if cur.rate else '' }}" autocomplete="off" />
+    </label>
+    {% if cur.rate and cur.rate.paygrade %}<p class="muted small">Current paygrade: {{ cur.rate.paygrade }}</p>{% endif %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Assignment</legend>
     <label>Duty section
       <select name="duty_section">
         <option value="">—</option>
@@ -47,4 +63,6 @@
   <label>Reason <input name="reason" placeholder="e.g. PCS, separated, transfer" /></label>
   <button type="submit" onclick="return confirm('Remove {{ person.full_display }} from the roster? Their history is preserved on disk; this just hides them from the active roster.');">Remove from roster</button>
 </form>
+
+{% include "personnel/_rate_picker_js.html" %}
 {% endblock %}

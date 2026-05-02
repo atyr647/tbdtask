@@ -28,15 +28,34 @@ PERSON_QUAL_STATUSES = (
 @router.get("/quals")
 def list_quals(request: Request):
     with SessionLocal() as s:
-        quals = s.scalars(
+        quals = list(s.scalars(
             select(M.Qualification)
             .where(M.Qualification.active == True)  # noqa: E712
             .order_by(M.Qualification.display_order)
+        ).all())
+        # Per-qual usage rollup: assigned, qualified, in_progress, dinq.
+        rows = s.execute(
+            select(M.PersonQual.qual_id, M.PersonQual.status)
+            .where(
+                M.PersonQual.valid_to.is_(None),
+                M.PersonQual.active == True,  # noqa: E712
+            )
         ).all()
-        by_category: dict[str, list] = defaultdict(list)
+        counts: dict[int, dict[str, int]] = {}
+        for qid, status in rows:
+            counts.setdefault(qid, {})[status] = counts.get(qid, {}).get(status, 0) + 1
+        catalog = []
         for q in quals:
-            by_category[q.category or "Uncategorized"].append(q)
-    return render(request, "quals/list.html", by_category=dict(by_category))
+            c = counts.get(q.id, {})
+            assigned = sum(c.values())
+            catalog.append({
+                "qual": q,
+                "assigned": assigned,
+                "qualified": c.get("qualified", 0),
+                "in_progress": c.get("in_progress", 0),
+                "dinq": c.get("dinq", 0),
+            })
+    return render(request, "quals/list.html", catalog=catalog)
 
 
 @router.get("/quals/new")
@@ -47,25 +66,12 @@ def new_qual_form(request: Request):
 @router.post("/quals")
 def create_qual(
     name: str = Form(...),
-    code: Optional[str] = Form(None),
-    category: Optional[str] = Form(None),
-    pinned_column: Optional[str] = Form(None),
-    validity_period_days: Optional[int] = Form(None),
-    notes: Optional[str] = Form(None),
 ):
     with SessionLocal() as s:
         last_pos = s.scalar(
             select(M.Qualification.display_order).order_by(M.Qualification.display_order.desc()).limit(1)
         ) or 0
-        q = M.Qualification(
-            name=name.strip(),
-            code=(code or None) and code.strip(),
-            category=(category or None) and category.strip(),
-            pinned_column=bool(pinned_column),
-            validity_period_days=validity_period_days,
-            notes=(notes or None),
-            display_order=last_pos + 1,
-        )
+        q = M.Qualification(name=name.strip(), display_order=last_pos + 1)
         s.add(q)
         s.commit()
     return RedirectResponse("/quals", status_code=303)
@@ -120,22 +126,12 @@ def edit_qual_form(qual_id: int, request: Request):
 def update_qual(
     qual_id: int,
     name: str = Form(...),
-    code: Optional[str] = Form(None),
-    category: Optional[str] = Form(None),
-    pinned_column: Optional[str] = Form(None),
-    validity_period_days: Optional[int] = Form(None),
-    notes: Optional[str] = Form(None),
 ):
     with SessionLocal() as s:
         q = s.get(M.Qualification, qual_id)
         if not q:
             raise HTTPException(404, "qual not found")
         q.name = name.strip()
-        q.code = (code or None) and code.strip()
-        q.category = (category or None) and category.strip()
-        q.pinned_column = bool(pinned_column)
-        q.validity_period_days = validity_period_days
-        q.notes = (notes or None)
         s.commit()
     return RedirectResponse("/quals", status_code=303)
 

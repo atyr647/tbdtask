@@ -26,7 +26,7 @@
         <th class="day-col">
           <div class="day-name">{{ h.weekday }}</div>
           <div class="day-date">{{ h.on_date.strftime("%b %-d") }}</div>
-          <div class="day-counts">{{ h.present_count }} present{% if h.out_count %} · {{ h.out_count }} out{% endif %}</div>
+          <div class="day-counts">{{ h.percent_present }}% present · {{ h.present_count }}/{{ h.present_count + h.out_count }}{% if h.out_count %} ({{ h.out_count }} out){% endif %}</div>
         </th>
       {% endfor %}
     </tr>
@@ -40,7 +40,12 @@
         <td class="day-cell {% if cell.absence_code %}absent{% if cell.absence_partial %} partial{% endif %}{% endif %}">
           {% if cell.absence_code %}
             <div class="absent-tag">
-              {{ cell.absence_code }}{% if cell.absence_partial %} (partial){% endif %}
+              <strong>{{ cell.absence_code }}</strong>
+              {% if cell.absence_start_time %}
+                {{ cell.absence_start_time }}–{{ cell.absence_end_time }}
+              {% elif cell.absence_start_date and cell.absence_end_date and cell.absence_start_date != cell.absence_end_date %}
+                {{ cell.absence_start_date.strftime("%-m/%-d") }}–{{ cell.absence_end_date.strftime("%-m/%-d") }}
+              {% endif %}
               {% if cell.absence_reason %}<span class="reason">{{ cell.absence_reason }}</span>{% endif %}
             </div>
           {% endif %}

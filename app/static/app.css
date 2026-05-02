@@ -167,7 +167,22 @@ ul.task-list li { margin: 2px 0; }
 .matrix.calendar .totals.percent-row td.low { color: var(--bad); }
 .matrix.calendar .totals.percent-row td.mid { color: var(--warn); }
 .matrix.calendar .totals.percent-row td.good { color: var(--good); }
-.cal-legend li { display: flex; align-items: center; }
+.cal-legend li { display: flex; align-items: center; gap: 6px; }
+
+/* Qual matrix legend swatches (mirror the cell fills) */
+.qual-legend li { padding: 4px 10px; background: var(--panel); }
+.qual-legend .swatch {
+  display: inline-block; min-width: 26px; padding: 2px 8px; border-radius: 3px;
+  text-align: center; font-weight: 700; margin-right: 4px;
+}
+.swatch.q-q  { background: rgba(62,207,142,.18); color: var(--good); border: 1px solid rgba(62,207,142,.35); }
+.swatch.q-d  { background: rgba(239,91,91,.18);  color: var(--bad);  border: 1px solid rgba(239,91,91,.35); }
+.swatch.q-ip { background: rgba(240,160,32,.18); color: var(--warn); border: 1px solid rgba(240,160,32,.35); }
+.swatch.q-a  { background: var(--panel-2);       color: var(--muted);border: 1px solid var(--border); }
+.swatch.q-w  { background: rgba(106,169,255,.15);color: var(--accent);border: 1px solid rgba(106,169,255,.35); }
+.swatch.q-x  { background: rgba(120,120,120,.2); color: var(--text); border: 1px solid var(--border); }
+.swatch.q-blank { background: transparent; color: var(--muted); border: 1px dashed var(--border); }
+.legend-block { background: var(--panel); }
 .matrix.calendar tbody tr.cal-row:nth-child(odd) td { background: var(--panel); }
 .matrix.calendar tbody tr.cal-row:nth-child(even) td { background: #1c2230; }
 .matrix.calendar tbody tr.cal-row:nth-child(odd) td.sticky-col { background: var(--panel); }
@@ -212,6 +227,14 @@ ul.task-list li { margin: 2px 0; }
 .snapshot-pct.low .big { color: var(--bad); }
 .snapshot-stats { display: grid; gap: 4px; font-size: 14px; }
 .code-chip { display: inline-block; background: var(--panel-2); border: 1px solid var(--border); border-radius: 3px; padding: 1px 8px; margin: 2px 4px 2px 0; font-size: 12px; }
+
+ul.task-history { list-style: none; padding: 0; margin: 0; }
+ul.task-history li { padding: 4px 0; border-bottom: 1px solid var(--border); }
+ul.task-history li:last-child { border-bottom: 0; }
+
+.status-q  { color: var(--good); }
+.status-d  { color: var(--bad); }
+.status-ip { color: var(--warn); }
 
 /* Qual overview */
 details.qual-detail { margin: 6px 0; padding: 6px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; }

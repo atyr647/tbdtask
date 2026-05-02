@@ -2,28 +2,30 @@
 {% block title %}Qualifications{% endblock %}
 {% block content %}
 <h1>Qualification catalog <a class="btn-link" href="/quals/new">+ New qual</a></h1>
-<p class="muted">Pinned quals are surfaced as their own column on generated worklists.</p>
+<p class="muted">Counts reflect the current (most recent) status row per person × qual.</p>
 
-{% for category, quals in by_category.items() %}
-  <section class="block">
-    <h2>{{ category }} <span class="muted">({{ quals|length }})</span></h2>
-    <table class="grid">
-      <thead>
-        <tr><th>Name</th><th>Code</th><th>Pinned column</th><th>Validity (days)</th><th>Notes</th><th></th></tr>
-      </thead>
-      <tbody>
-        {% for q in quals %}
-        <tr>
-          <td>{{ q.name }}</td>
-          <td class="muted">{{ q.code or "" }}</td>
-          <td>{{ "yes" if q.pinned_column else "" }}</td>
-          <td>{{ q.validity_period_days or "—" }}</td>
-          <td class="muted">{{ q.notes or "" }}</td>
-          <td><a href="/quals/{{ q.id }}/edit">Edit</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-{% endfor %}
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Assigned</th>
+      <th>Qualified</th>
+      <th>In progress</th>
+      <th>Dinq</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in catalog %}
+    <tr>
+      <td>{{ row.qual.name }}</td>
+      <td>{{ row.assigned }}</td>
+      <td class="status-q">{{ row.qualified }}</td>
+      <td class="status-ip">{{ row.in_progress }}</td>
+      <td class="status-d">{{ row.dinq }}</td>
+      <td><a href="/quals/{{ row.qual.id }}/edit">Edit</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}

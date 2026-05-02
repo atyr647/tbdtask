@@ -9,9 +9,9 @@
     <table class="grid">
       <thead>
         <tr>
-          <th>Name</th>
           <th>Rate</th>
           <th>Paygrade</th>
+          <th>Name</th>
           <th>DS</th>
           <th>Notes</th>
         </tr>
@@ -19,9 +19,9 @@
       <tbody>
         {% for r in rows %}
         <tr>
-          <td><a href="/personnel/{{ r.id }}">{{ r.display }}</a></td>
           <td>{{ r.rate or "—" }}</td>
-          <td>{{ r.paygrade or "—" }}</td>
+          <td class="muted">{{ r.paygrade or "—" }}</td>
+          <td><a href="/personnel/{{ r.id }}">{{ r.last_name }}{% if r.first_name %}, {{ r.first_name }}{% endif %}</a></td>
           <td>{{ r.duty_section or "—" }}</td>
           <td class="muted">{{ r.notes or "" }}</td>
         </tr>

@@ -28,12 +28,9 @@
     <thead>
       <tr>
         <th>Qual</th>
-        <th>Category</th>
         <th>Qualified</th>
         <th>In&nbsp;progress</th>
         <th>Dinq</th>
-        <th>Expired</th>
-        <th>Waived</th>
         <th>Gap</th>
       </tr>
     </thead>
@@ -41,12 +38,9 @@
       {% for s in summaries %}
       <tr>
         <td><a href="/quals/{{ s.qual.id }}/edit">{{ s.qual.name }}</a></td>
-        <td class="muted">{{ s.qual.category or "—" }}</td>
         <td>{{ s.counts.get("qualified", 0) }}</td>
         <td>{{ s.counts.get("in_progress", 0) }}</td>
         <td>{{ s.counts.get("dinq", 0) }}</td>
-        <td>{{ s.counts.get("expired", 0) }}</td>
-        <td>{{ s.counts.get("waived", 0) }}</td>
         <td>{% if s.gap %}<span class="warn">⚠</span>{% endif %}</td>
       </tr>
       {% endfor %}
@@ -66,12 +60,6 @@
         <dt>Qualified</dt><dd>{{ s.qualified_names|join(", ") if s.qualified_names else "—" }}</dd>
         <dt>In progress</dt><dd>{{ s.in_progress_names|join(", ") if s.in_progress_names else "—" }}</dd>
         <dt>Dinq</dt><dd>{{ s.dinq_names|join(", ") if s.dinq_names else "—" }}</dd>
-        {% if s.expiring_soon %}
-        <dt>Expiring soon</dt>
-        <dd>
-          {% for name, exp in s.expiring_soon %}{{ name }} ({{ exp }}){% if not loop.last %}, {% endif %}{% endfor %}
-        </dd>
-        {% endif %}
       </dl>
     </details>
   {% endfor %}

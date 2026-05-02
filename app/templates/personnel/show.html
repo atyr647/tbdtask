@@ -22,6 +22,49 @@
 </section>
 
 <section class="block">
+  <h2>Task history <span class="muted">— last {{ stats.window_days }} days</span></h2>
+  <div class="snapshot">
+    <div class="snapshot-pct snapshot-good">
+      <div class="big">{{ stats.total_completed }}</div>
+      <div class="muted small">tasks completed</div>
+    </div>
+    <div class="snapshot-stats">
+      <div><strong>{{ stats.total_hours }}</strong> hours logged</div>
+      <div><strong>{{ stats.poic_count }}</strong> as POIC</div>
+    </div>
+  </div>
+  {% if stats.by_category %}
+  <table class="grid">
+    <thead><tr><th>Category</th><th>Tasks</th><th>Hours</th><th>POIC</th></tr></thead>
+    <tbody>
+      {% for c in stats.by_category %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ c.count }}</td>
+        <td>{{ "%.2f"|format(c.hours) if c.hours else "—" }}</td>
+        <td>{{ c.poic_count or "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No completed tasks recorded in this window.</p>
+  {% endif %}
+  {% if stats.recent %}
+    <h3>Recent</h3>
+    <ul class="task-history">
+      {% for t in stats.recent %}
+        <li>
+          {% if t.is_poic %}<span class="poic">POIC</span>{% endif %}
+          {{ t.instance.name }}
+          <span class="muted small">— {{ t.category_name }}{% if t.completed_at %}, {{ t.completed_at.date() }}{% elif t.instance.scheduled_date %}, {{ t.instance.scheduled_date }}{% endif %}{% if t.hours_worked %} · {{ t.hours_worked }}h{% endif %}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+
+<section class="block">
   <h2>Qualifications <span class="muted">({{ quals|length }})</span> <a class="btn-link" href="/personnel/{{ person.id }}/quals/new">+ Assign qual</a></h2>
   {% if quals %}
   <table class="grid">

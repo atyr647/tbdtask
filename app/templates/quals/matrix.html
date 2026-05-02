@@ -2,7 +2,19 @@
 {% block title %}Qual matrix{% endblock %}
 {% block content %}
 <h1>Qualification matrix</h1>
-<p class="muted">Mirrors the legacy Qual List sheet. Q = qualified, D = dinq, IP = in-progress, X = expired, W = waived.</p>
+
+<section class="block legend-block">
+  <h2>Legend</h2>
+  <ul class="inline-list cal-legend qual-legend">
+    <li><span class="swatch q-q">Q</span> Qualified</li>
+    <li><span class="swatch q-d">D</span> Dinq</li>
+    <li><span class="swatch q-ip">IP</span> In progress</li>
+    <li><span class="swatch q-a">A</span> Assigned (not started)</li>
+    <li><span class="swatch q-w">W</span> Waived</li>
+    <li><span class="swatch q-x">X</span> Expired</li>
+    <li><span class="swatch q-blank">—</span> Not assigned</li>
+  </ul>
+</section>
 
 <div class="matrix-wrap">
 <table class="matrix">
@@ -10,7 +22,7 @@
     <tr>
       <th class="sticky-col">Person</th>
       {% for q in quals %}
-        <th title="{{ q.category or "" }}">{{ q.name }}</th>
+        <th>{{ q.name }}</th>
       {% endfor %}
     </tr>
   </thead>

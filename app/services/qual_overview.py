@@ -53,12 +53,10 @@ def build_qual_overview(
         ).all()
     )
 
-    # Bucket by qual_id
     by_qual: dict[int, list[tuple[M.PersonQual, M.Person]]] = defaultdict(list)
     for pq, p in rows:
         by_qual[pq.qual_id].append((pq, p))
 
-    now = datetime.now()
     summaries: list[QualSummary] = []
     for q in quals:
         counts: dict[str, int] = defaultdict(int)
@@ -67,10 +65,6 @@ def build_qual_overview(
             counts[pq.status] += 1
             if pq.status == "qualified":
                 s.qualified_names.append(p.full_display)
-                if pq.expires_at:
-                    delta = (pq.expires_at - now).days
-                    if 0 <= delta <= expiring_within_days:
-                        s.expiring_soon.append((p.full_display, pq.expires_at.date().isoformat()))
             elif pq.status == "in_progress":
                 s.in_progress_names.append(p.full_display)
             elif pq.status == "dinq":
