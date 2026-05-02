@@ -13,17 +13,14 @@
       <img src="/static/logo.svg" alt="" width="22" height="22" />
     </a>
     <nav>
-      <a href="/">Home</a>
-      <a href="/today">Today</a>
-      <a href="/worklists">Worklists</a>
-      <a href="/task-templates">Templates</a>
-      <a href="/personnel">Personnel</a>
-      <a href="/quals">Quals</a>
-      <a href="/quals/overview">Qual overview</a>
-      <a href="/quals/matrix">Qual matrix</a>
-      <a href="/absences">Absences</a>
-      <a href="/absences/calendar">Absence calendar</a>
-      <a href="/alerts">Alerts</a>
+      {% set p = request.url.path %}
+      <a href="/" {% if p == "/" %}class="active"{% endif %}>Dashboard</a>
+      <a href="/today" {% if p == "/today" or p.startswith("/day/") %}class="active"{% endif %}>Today</a>
+      <a href="/worklists" {% if p.startswith("/worklists") or p.startswith("/tasks") or p.startswith("/task-templates") %}class="active"{% endif %}>Worklists</a>
+      <a href="/personnel" {% if p.startswith("/personnel") %}class="active"{% endif %}>Personnel</a>
+      <a href="/quals" {% if p.startswith("/quals") %}class="active"{% endif %}>Qualifications</a>
+      <a href="/absences" {% if p.startswith("/absences") %}class="active"{% endif %}>Absences</a>
+      <a href="/alerts" {% if p.startswith("/alerts") %}class="active"{% endif %}>Alerts</a>
     </nav>
   </header>
   <main>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Qual overview{% endblock %}
 {% block content %}
+{% include "quals/_tabs.html" %}
 <h1>Qualification overview</h1>
 <p class="muted">Per-qual rollups across the active roster. Gaps flagged when fewer than {{ threshold }} qualified.</p>
 <form method="get" action="/quals/overview" class="form-inline">

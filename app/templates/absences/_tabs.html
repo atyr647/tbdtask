@@ -1,0 +1,5 @@
+{% set p = request.url.path %}
+<nav class="tabs">
+  <a href="/absences"          {% if p == "/absences" %}class="active"{% endif %}>List</a>
+  <a href="/absences/calendar" {% if p == "/absences/calendar" %}class="active"{% endif %}>Calendar</a>
+</nav>

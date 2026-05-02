@@ -183,9 +183,12 @@ def main() -> int:
     for tmpl, path in resolved:
         url = args.base_url + path
         out = out_dir / (_slug(tmpl) + ".png")
-        # Tall viewport so most pages capture full content. Print page uses
-        # landscape sizing via its own CSS but the screenshot still works.
-        ok = screenshot(url, out, width=1400, height=2000)
+        if "/print" in tmpl:
+            # Print views are styled landscape Letter; capture in landscape
+            # window-size so the screenshot reflects the printed page.
+            ok = screenshot(url, out, width=1600, height=1100)
+        else:
+            ok = screenshot(url, out, width=1400, height=2000)
         flag = "✓" if ok else "✗"
         print(f"  {flag} {path:50s} -> {out.name}")
 
