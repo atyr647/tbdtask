@@ -11,7 +11,8 @@
   <fieldset>
     <legend>Identity</legend>
     <label>Last name <input name="last_name" value="{{ person.last_name }}" required /></label>
-    <label>First name <input name="first_name" value="{{ person.first_name or '' }}" /></label>
+    <label>First name <input name="first_name" value="{{ person.first_name or '' }}" placeholder="useful when multiple sailors share a last name" /></label>
+    <label>Position <input name="position" value="{{ person.position or '' }}" placeholder="e.g. LPO, Watchbill Coordinator" /></label>
     <label>Notes <textarea name="notes" rows="2">{{ person.notes or '' }}</textarea></label>
   </fieldset>
 
@@ -57,10 +58,21 @@
   </div>
 </form>
 
-<form method="post" action="/personnel/{{ person.id }}/archive" class="form-inline danger">
-  <label>Reason <input name="reason" placeholder="e.g. PCS, separated, transfer" /></label>
-  <button type="submit" onclick="return confirm('Remove {{ person.full_display }} from the roster? Their history is preserved on disk; this just hides them from the active roster.');">Remove from roster</button>
-</form>
+<section class="block depart-block">
+  <h2>Move to departed</h2>
+  <p class="muted small">Use this when the sailor PCSes, separates, transfers, or otherwise leaves the command. They drop off the active roster but their full history is preserved on the Departed tab.</p>
+  <form method="post" action="/personnel/{{ person.id }}/archive" class="form-inline">
+    <label>Reason
+      <select name="reason">
+        <option value="Transferred (PCS)">Transferred (PCS)</option>
+        <option value="Separated">Separated</option>
+        <option value="Discharged">Discharged</option>
+        <option value="Other">Other</option>
+      </select>
+    </label>
+    <button type="submit" class="depart-btn" onclick="return confirm('Move {{ person.full_display }} to the Departed tab?');">Move to Departed</button>
+  </form>
+</section>
 
 {% include "personnel/_rate_picker_js.html" %}
 {% endblock %}

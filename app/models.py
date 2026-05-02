@@ -92,6 +92,7 @@ class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     last_name: Mapped[str] = mapped_column(String(128), nullable=False)
     first_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     full_display: Mapped[str] = mapped_column(String(256), nullable=False)
+    position: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

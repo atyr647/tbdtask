@@ -11,20 +11,18 @@
       <thead>
         <tr>
           <th>Rate</th>
-          <th>Paygrade</th>
           <th>Name</th>
           <th>DS</th>
-          <th>Notes</th>
+          <th>Position</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
         <tr>
           <td>{{ r.rate or "—" }}</td>
-          <td class="muted">{{ r.paygrade or "—" }}</td>
           <td><a href="/personnel/{{ r.id }}">{{ r.last_name }}{% if r.first_name %}, {{ r.first_name }}{% endif %}</a></td>
           <td>{{ r.duty_section or "—" }}</td>
-          <td class="muted">{{ r.notes or "" }}</td>
+          <td class="muted">{{ r.position or "" }}</td>
         </tr>
         {% endfor %}
       </tbody>

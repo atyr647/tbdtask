@@ -71,6 +71,7 @@ def list_personnel(request: Request):
                 "paygrade": paygrade,
                 "last_name": p.last_name,
                 "first_name": p.first_name,
+                "position": p.position,
                 "duty_section": cur["duty_section"].duty_section if cur["duty_section"] else None,
                 "group": _group_for(rate, paygrade),
                 "notes": p.notes,
@@ -247,6 +248,7 @@ def create_person(
     has_drivers_license: Optional[str] = Form(None),
     drivers_license_expires: Optional[str] = Form(None),
     roster_status: str = Form("active"),
+    position: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
 ):
     today = date.today()
@@ -259,6 +261,7 @@ def create_person(
             last_name=last_name.strip(),
             first_name=(first_name or None) and first_name.strip(),
             full_display=full_display.strip(),
+            position=(position or None) and position.strip(),
             notes=(notes or None),
             display_order=last_pos + 1,
         )
@@ -358,6 +361,7 @@ def update_person(
     person_id: int,
     last_name: str = Form(...),
     first_name: Optional[str] = Form(None),
+    position: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
     rate: Optional[str] = Form(None),
     duty_section: Optional[int] = Form(None),
@@ -375,6 +379,7 @@ def update_person(
             raise HTTPException(404, "person not found")
         p.last_name = last_name.strip()
         p.first_name = (first_name or None) and first_name.strip()
+        p.position = (position or None) and position.strip()
         p.notes = (notes or None)
         # Recompute full_display from current rate (may have just changed below).
         new_rate = rate.strip() if rate else None
