@@ -18,7 +18,7 @@
       <th>Subject</th>
       <th>Detail</th>
       <th>Created</th>
-      <th>State</th>
+      {% if show == "history" %}<th>State</th>{% endif %}
       <th></th>
     </tr>
   </thead>
@@ -52,16 +52,20 @@
         {% endif %}
       </td>
       <td class="muted">{{ a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "" }}</td>
+      {% if show == "history" %}
       <td class="muted">
         {% if a.dismissed_at %}dismissed
         {% elif a.resolved_at %}resolved
         {% else %}active{% endif %}
       </td>
+      {% endif %}
       <td>
         {% if not a.dismissed_at and not a.resolved_at %}
           {% if a.alert_type.startswith("prd") and a.person_id %}
-          <form method="post" action="/alerts/{{ a.id }}/extend-prd" class="form-inline-row">
-            <input type="number" name="days" value="180" min="1" max="1095" style="width:70px" title="days from current PRD" />
+          <form method="post" action="/alerts/{{ a.id }}/extend-prd" class="form-inline-row" title="Extend the PRD by this many days">
+            <label class="muted small">+</label>
+            <input type="number" name="days" value="180" min="1" max="1095" style="width:60px" />
+            <label class="muted small">days</label>
             <button type="submit" class="ghost-btn">Update PRD</button>
           </form>
           {% if a.alert_type == "prd_passed" %}

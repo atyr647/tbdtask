@@ -37,6 +37,13 @@ def _paygrade_for(rate: Optional[str]) -> Optional[str]:
     return rank_catalog.paygrade_for(rate or "") if rate else None
 
 
+def _current_status(person: M.Person) -> Optional[str]:
+    for r in person.roster_statuses:
+        if r.valid_to is None:
+            return r.status
+    return None
+
+
 @router.get("")
 def list_personnel(request: Request):
     with SessionLocal() as s:
@@ -46,11 +53,15 @@ def list_personnel(request: Request):
             .options(
                 selectinload(M.Person.rates),
                 selectinload(M.Person.duty_sections),
+                selectinload(M.Person.roster_statuses),
             )
             .order_by(M.Person.display_order)
         ).all()
+        # Active list excludes incoming personnel — they live on /incoming.
         rows = []
         for p in people:
+            if _current_status(p) == "incoming":
+                continue
             cur = _current(p)
             rate = cur["rate"].rate if cur["rate"] else None
             paygrade = cur["rate"].paygrade if cur["rate"] else None
@@ -67,6 +78,153 @@ def list_personnel(request: Request):
     groups = ["Khakis", "E6", "E5", "Junior", "Other"]
     grouped = {g: [r for r in rows if r["group"] == g] for g in groups}
     return render(request, "personnel/list.html", grouped=grouped, total=len(rows))
+
+
+@router.get("/incoming")
+def list_incoming(request: Request):
+    with SessionLocal() as s:
+        people = list(s.scalars(
+            select(M.Person)
+            .where(M.Person.active == True)  # noqa: E712
+            .options(
+                selectinload(M.Person.rates),
+                selectinload(M.Person.roster_statuses),
+                selectinload(M.Person.sponsor),
+            )
+            .order_by(M.Person.arrival_date.is_(None), M.Person.arrival_date)
+        ).all())
+        rows = []
+        for p in people:
+            if _current_status(p) != "incoming":
+                continue
+            cur = _current(p)
+            rate = cur["rate"].rate if cur["rate"] else None
+            checks = [p.orders_received, p.itinerary_received, p.aob_scheduled, p.barracks_assigned]
+            done = sum(1 for c in checks if c)
+            rows.append({
+                "person": p,
+                "rate": rate,
+                "arrival_date": p.arrival_date,
+                "sponsor_label": p.sponsor.full_display if p.sponsor else None,
+                "checklist_done": done,
+                "checklist_total": len(checks),
+                "orders_received": p.orders_received,
+                "itinerary_received": p.itinerary_received,
+                "aob_scheduled": p.aob_scheduled,
+                "barracks_assigned": p.barracks_assigned,
+            })
+    return render(request, "personnel/incoming.html", rows=rows)
+
+
+@router.get("/departed")
+def list_departed(request: Request):
+    with SessionLocal() as s:
+        people = list(s.scalars(
+            select(M.Person)
+            .where(M.Person.active == False)  # noqa: E712
+            .options(selectinload(M.Person.rates))
+            .order_by(M.Person.archived_at.desc())
+        ).all())
+        rows = []
+        for p in people:
+            cur_rate = next((r for r in p.rates if r.valid_to is None), None)
+            rows.append({
+                "person": p,
+                "rate": cur_rate.rate if cur_rate else None,
+                "departed_at": p.archived_at,
+                "reason": p.archived_reason,
+            })
+    return render(request, "personnel/departed.html", rows=rows)
+
+
+@router.get("/incoming/new")
+def new_incoming_form(request: Request):
+    with SessionLocal() as s:
+        sponsors = list(s.scalars(
+            select(M.Person)
+            .where(M.Person.active == True)  # noqa: E712
+            .order_by(M.Person.display_order)
+        ).all())
+    return render(
+        request, "personnel/incoming_new.html",
+        sponsors=sponsors, rate_groups=rank_catalog.by_category(),
+    )
+
+
+@router.post("/incoming")
+async def create_incoming(request: Request):
+    form = await request.form()
+    today = date.today()
+    last_name = (form.get("last_name") or "").strip()
+    if not last_name:
+        raise HTTPException(400, "last name is required")
+    rate = (form.get("rate") or "").strip() or None
+    full_display = f"{rate} {last_name}".strip() if rate else last_name
+    arrival_iso = form.get("arrival_date") or None
+    sponsor_raw = form.get("sponsor_person_id") or None
+
+    with SessionLocal() as s:
+        last_pos = s.scalar(
+            select(M.Person.display_order).order_by(M.Person.display_order.desc()).limit(1)
+        ) or 0
+        p = M.Person(
+            last_name=last_name,
+            first_name=(form.get("first_name") or None) and form.get("first_name").strip(),
+            full_display=full_display,
+            notes=(form.get("notes") or None),
+            display_order=last_pos + 1,
+            arrival_date=date.fromisoformat(arrival_iso) if arrival_iso else None,
+            sponsor_person_id=int(sponsor_raw) if sponsor_raw else None,
+            orders_received=bool(form.get("orders_received")),
+            itinerary_received=bool(form.get("itinerary_received")),
+            aob_scheduled=bool(form.get("aob_scheduled")),
+            barracks_assigned=bool(form.get("barracks_assigned")),
+        )
+        s.add(p)
+        s.flush()
+        if rate:
+            s.add(M.PersonRate(
+                person_id=p.id, rate=rate,
+                paygrade=rank_catalog.paygrade_for(rate),
+                valid_from=today,
+            ))
+        s.add(M.PersonRosterStatus(person_id=p.id, status="incoming", valid_from=today))
+        s.commit()
+    return RedirectResponse("/personnel/incoming", status_code=303)
+
+
+@router.post("/{person_id}/checklist")
+async def update_checklist(person_id: int, request: Request):
+    form = await request.form()
+    with SessionLocal() as s:
+        p = s.get(M.Person, person_id)
+        if not p:
+            raise HTTPException(404)
+        p.orders_received = bool(form.get("orders_received"))
+        p.itinerary_received = bool(form.get("itinerary_received"))
+        p.aob_scheduled = bool(form.get("aob_scheduled"))
+        p.barracks_assigned = bool(form.get("barracks_assigned"))
+        if form.get("arrival_date"):
+            p.arrival_date = date.fromisoformat(form.get("arrival_date"))
+        sponsor_raw = form.get("sponsor_person_id")
+        p.sponsor_person_id = int(sponsor_raw) if sponsor_raw else None
+        s.commit()
+    return RedirectResponse("/personnel/incoming", status_code=303)
+
+
+@router.post("/{person_id}/arrived")
+def mark_arrived(person_id: int):
+    with SessionLocal() as s:
+        p = s.get(M.Person, person_id)
+        if not p:
+            raise HTTPException(404)
+        eff.set_new_value(
+            s, M.PersonRosterStatus, person_id=p.id, effective_date=date.today(),
+            fields={"status": "active"},
+            no_op_if_unchanged=("status",),
+        )
+        s.commit()
+    return RedirectResponse(f"/personnel/{person_id}", status_code=303)
 
 
 @router.get("/new")

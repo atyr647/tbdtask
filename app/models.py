@@ -95,6 +95,15 @@ class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    # Incoming / arrival tracking. Populated for personnel still en route;
+    # cleared (or just ignored) once they're on board and active.
+    arrival_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    sponsor_person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persons.id"), nullable=True)
+    orders_received: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    itinerary_received: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    aob_scheduled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    barracks_assigned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     rates: Mapped[list["PersonRate"]] = relationship(back_populates="person")
     duty_sections: Mapped[list["PersonDutySection"]] = relationship(back_populates="person")
     prds: Mapped[list["PersonPrd"]] = relationship(back_populates="person")
@@ -102,6 +111,7 @@ class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     drivers_licenses: Mapped[list["PersonDriversLicense"]] = relationship(back_populates="person")
     quals: Mapped[list["PersonQual"]] = relationship(back_populates="person")
     absences: Mapped[list["Absence"]] = relationship(back_populates="person")
+    sponsor: Mapped[Optional["Person"]] = relationship(remote_side=[id], foreign_keys=[sponsor_person_id])
 
 
 def _effective_date_cols():
@@ -176,7 +186,7 @@ class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('active','prd_pending','departed','dropped')",
+            "status IN ('active','incoming','prd_pending','departed','dropped')",
             name="ck_roster_status_value",
         ),
     )

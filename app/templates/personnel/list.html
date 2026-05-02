@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Personnel{% endblock %}
 {% block content %}
-<h1>Personnel <span class="muted">({{ total }})</span> <a class="btn-link" href="/personnel/new">+ New person</a></h1>
+{% include "personnel/_tabs.html" %}
+<h1>Active roster <span class="muted">({{ total }})</span> <a class="btn-link" href="/personnel/new">+ New person</a></h1>
 
 {% for group, rows in grouped.items() if rows %}
   <section class="block">

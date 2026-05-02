@@ -48,3 +48,26 @@ def session_scope() -> Iterator[Session]:
 def init_db() -> None:
     from . import models  # noqa: F401  ensure models are registered
     Base.metadata.create_all(engine)
+    _ensure_columns()
+
+
+# Lightweight forward-only column additions for SQLite. Each entry is
+# (table, column_name, column_def). Skipped silently when the column is
+# already present, so re-running on a fresh DB is a no-op.
+_COLUMN_ADDITIONS = [
+    ("persons", "arrival_date", "DATE"),
+    ("persons", "sponsor_person_id", "INTEGER REFERENCES persons(id)"),
+    ("persons", "orders_received", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("persons", "itinerary_received", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("persons", "aob_scheduled", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("persons", "barracks_assigned", "BOOLEAN NOT NULL DEFAULT 0"),
+]
+
+
+def _ensure_columns() -> None:
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        for table, col, defn in _COLUMN_ADDITIONS:
+            existing = {r[1] for r in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+            if col not in existing:
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {col} {defn}")

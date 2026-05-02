@@ -66,6 +66,28 @@
     </tr>
     {% endfor %}
   </tbody>
+  {# Out summary lives inside the main table as a tfoot so the browser
+     repeats it on each printed page when the grid spans multiple pages.
+     Each day's absences land under that day's column. #}
+  {% set any_out = false %}
+  {% for h in grid.headers %}{% if h.out_summary %}{% set any_out = true %}{% endif %}{% endfor %}
+  {% if any_out %}
+  <tfoot>
+    <tr class="out-foot">
+      <td class="who">Out</td>
+      <td></td>
+      {% for h in grid.headers %}
+        <td class="day-cell out-foot-cell">
+          {% if h.out_summary %}
+            {% for line in h.out_summary %}<div class="out-line">{{ line }}</div>{% endfor %}
+          {% else %}
+            <span class="muted">—</span>
+          {% endif %}
+        </td>
+      {% endfor %}
+    </tr>
+  </tfoot>
+  {% endif %}
 </table>
 
 {% set has_unassigned = false %}
@@ -96,19 +118,6 @@
       {% endfor %}
     </tbody>
   </table>
-</section>
-{% endif %}
-
-{% set out_lines = [] %}
-{% for h in grid.headers %}{% if h.out_summary %}{% set _ = out_lines.append((h.weekday, h.out_summary)) %}{% endif %}{% endfor %}
-{% if out_lines %}
-<section class="out-summary">
-  <h2>Out summary</h2>
-  <ul>
-    {% for day, names in out_lines %}
-      <li><strong>{{ day }}:</strong> {{ names|join(", ") }}</li>
-    {% endfor %}
-  </ul>
 </section>
 {% endif %}
 

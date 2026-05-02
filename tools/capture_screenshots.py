@@ -105,6 +105,9 @@ PAGE_PATHS = [
     "/task-templates/{template_id}/edit",
     # Personnel
     "/personnel",
+    "/personnel/departed",
+    "/personnel/incoming/new",
+    "/personnel/incoming",
     "/personnel/new",
     "/personnel/{person_id}",
     "/personnel/{person_id}/edit",
