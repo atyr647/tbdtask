@@ -2,8 +2,20 @@
 {% block title %}Qualifications{% endblock %}
 {% block content %}
 {% include "quals/_tabs.html" %}
-<h1>Qualification catalog <a class="btn-link" href="/quals/new">+ New qual</a></h1>
+<h1>Qualification catalog</h1>
 <p class="muted">Counts reflect the current (most recent) status row per person × qual.</p>
+
+<details class="inline-create">
+  <summary>+ Add a qualification</summary>
+  <form method="post" action="/quals" class="form quick-add">
+    <div class="quick-add-row">
+      <label class="grow">Name
+        <input name="name" placeholder="e.g. POOW, HMMWV, Tagout Authority" required />
+      </label>
+      <button type="submit">Add</button>
+    </div>
+  </form>
+</details>
 
 <table class="grid">
   <thead>

@@ -462,6 +462,25 @@ ul.task-history li:last-child { border-bottom: 0; }
 .wizard-finish { margin: 24px 0 8px; text-align: right; }
 .wizard-finish .btn-link { font-weight: 600; padding: 9px 18px; background: var(--panel); border-color: var(--accent); color: var(--accent); }
 
+/* Inline-create disclosure used on listing pages. */
+details.inline-create {
+  margin: 12px 0 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 8px 14px;
+}
+details.inline-create > summary {
+  list-style: none; cursor: pointer; padding: 6px 4px;
+  color: var(--accent); font-weight: 600; font-size: 13px;
+  user-select: none;
+}
+details.inline-create > summary::-webkit-details-marker { display: none; }
+details.inline-create[open] { padding-bottom: 14px; }
+details.inline-create[open] > summary { border-bottom: 1px solid var(--border-soft); margin-bottom: 10px; }
+details.inline-create .quick-add { background: transparent; border: 0; padding: 0; margin: 0; }
+
 /* Combobox chips */
 .combobox-chips { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
 .combobox-chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; font-size: 12px; cursor: pointer; color: var(--text); }

@@ -33,8 +33,26 @@
   {% endif %}
 {% endmacro %}
 
-<h1>Weekly worklists <a class="btn-link" href="/worklists/new">+ New week</a></h1>
-<p class="muted">Suggested next Monday: <code>{{ suggested_monday }}</code></p>
+<h1>Weekly worklists</h1>
+
+<details class="inline-create" open>
+  <summary>+ Start a new week</summary>
+  <form method="post" action="/worklists" class="form quick-add">
+    <div class="quick-add-row">
+      <label>Week starting (any day; snaps to Monday)
+        <input type="date" name="week_starting" value="{{ suggested_monday }}" required />
+      </label>
+      <label class="grow">Name (optional)
+        <input name="name" placeholder="auto: Week N Month YYYY" />
+      </label>
+    </div>
+    <label>Notes <textarea name="notes" rows="2" placeholder="optional"></textarea></label>
+    <div class="form-actions">
+      <button type="submit">Create &amp; set up tasks &rsaquo;</button>
+      <span class="muted small">You'll go straight to the task wizard.</span>
+    </div>
+  </form>
+</details>
 
 <div class="search-row">
   <label>Filter
