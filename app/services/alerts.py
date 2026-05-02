@@ -92,6 +92,7 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
             select(M.Person).where(M.Person.active == True)  # noqa: E712
         ).all()
     )
+    keep_orders: set = set()
     keep_2mo: set = set()
     keep_1mo: set = set()
     keep_weekly: set = set()
@@ -126,10 +127,18 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
                 session, "prd_2mo", severity="info", person_id=p.id,
                 payload={"key": key, "prd": prd.prd_date.isoformat(), "days": delta},
             )
+        elif delta <= 365:
+            keep_orders.add(key)
+            _ensure_alert(
+                session, "prd_orders_window", severity="warn", person_id=p.id,
+                payload={"key": key, "prd": prd.prd_date.isoformat(), "days": delta},
+            )
+    _resolve_stale(session, "prd_orders_window", keep_orders)
     _resolve_stale(session, "prd_2mo", keep_2mo)
     _resolve_stale(session, "prd_1mo", keep_1mo)
     _resolve_stale(session, "prd_weekly_in_month", keep_weekly)
     _resolve_stale(session, "prd_passed", keep_passed)
+    counts["prd_orders_window"] = len(keep_orders)
     counts["prd_2mo"] = len(keep_2mo)
     counts["prd_1mo"] = len(keep_1mo)
     counts["prd_weekly_in_month"] = len(keep_weekly)

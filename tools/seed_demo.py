@@ -175,6 +175,9 @@ def main() -> None:
                           change_reason="initial", valid_from=today))
         s.add(M.PersonPrd(person_id=by_last["Foster"].id, prd_date=today + timedelta(days=50),
                           change_reason="initial", valid_from=today))
+        # 10 months out — triggers the order negotiation window alert
+        s.add(M.PersonPrd(person_id=by_last["Vega"].id, prd_date=today + timedelta(days=300),
+                          change_reason="initial", valid_from=today))
 
         # Qualifications + per-person status -----------------------------
         quals: dict[str, M.Qualification] = {}

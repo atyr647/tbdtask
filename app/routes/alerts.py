@@ -16,6 +16,7 @@ router = APIRouter()
 
 # Internal type slug -> human-readable label shown on the alerts list.
 TYPE_LABELS = {
+    "prd_orders_window": "Apply for orders — negotiation window",
     "prd_2mo": "PRD in ~2 months",
     "prd_1mo": "PRD in ~1 month",
     "prd_weekly_in_month": "PRD this week",
