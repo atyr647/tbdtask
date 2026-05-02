@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from ..db import SessionLocal
 from .. import models as M
@@ -38,6 +39,7 @@ def list_absences(request: Request):
             s.scalars(
                 select(M.Absence)
                 .where(M.Absence.active == True, M.Absence.end_date >= today)  # noqa: E712
+                .options(selectinload(M.Absence.person), selectinload(M.Absence.code))
                 .order_by(M.Absence.start_date)
             ).all()
         )
@@ -45,11 +47,12 @@ def list_absences(request: Request):
             s.scalars(
                 select(M.Absence)
                 .where(M.Absence.active == True, M.Absence.end_date < today)  # noqa: E712
+                .options(selectinload(M.Absence.person), selectinload(M.Absence.code))
                 .order_by(M.Absence.start_date.desc())
                 .limit(50)
             ).all()
         )
-    return render(request, "absences/list.html", upcoming=upcoming, past=past)
+        return render(request, "absences/list.html", upcoming=upcoming, past=past)
 
 
 @router.get("/absences/calendar")

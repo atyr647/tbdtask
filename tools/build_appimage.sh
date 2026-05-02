@@ -99,7 +99,7 @@ chmod +x "$APPDIR/AppRun"
 
 cat > "$APPDIR/${APP_NAME}.desktop" <<EOF
 [Desktop Entry]
-Name=tbdtask
+Name=Worklist Tracker
 Exec=AppRun
 Icon=tbdtask
 Type=Application

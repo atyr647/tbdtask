@@ -3,12 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}tbdtask{% endblock %}</title>
+  <title>{% block title %}Worklist Tracker{% endblock %}</title>
   <link rel="stylesheet" href="/static/app.css" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">tbdtask</a>
+    <a class="brand" href="/" aria-label="Home">
+      <img src="/static/logo.svg" alt="" width="22" height="22" />
+    </a>
     <nav>
       <a href="/">Home</a>
       <a href="/today">Today</a>

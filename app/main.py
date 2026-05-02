@@ -15,7 +15,7 @@ APP_ROOT = Path(__file__).resolve().parent
 
 def create_app() -> FastAPI:
     init_db()
-    app = FastAPI(title="tbdtask", version="0.1.0")
+    app = FastAPI(title="Worklist Tracker", version="0.1.0")
     app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
     app.include_router(home.router)
     app.include_router(today.router)
