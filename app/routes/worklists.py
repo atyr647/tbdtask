@@ -115,7 +115,9 @@ def create_worklist(
         generate_for_worklist(s, wl)
         s.commit()
         new_id = wl.id
-    return RedirectResponse(f"/worklists/{new_id}", status_code=303)
+    # Land in setup mode so the operator can fill in tasks for the week
+    # without first having to read the show page.
+    return RedirectResponse(f"/worklists/{new_id}/setup", status_code=303)
 
 
 @router.post("/worklists/{worklist_id}/generate")
@@ -214,6 +216,29 @@ async def carry_over_apply(worklist_id: int, request: Request):
                 apply_carry_over(s, wl, c, action)
         s.commit()
     return RedirectResponse(f"/worklists/{worklist_id}", status_code=303)
+
+
+@router.get("/worklists/{worklist_id}/setup")
+def setup_worklist(worklist_id: int, request: Request):
+    """Wizard view: pick what tasks happen on each day and who's on them."""
+    with SessionLocal() as s:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            raise HTTPException(404)
+        if wl.locked:
+            return RedirectResponse(f"/worklists/{worklist_id}", status_code=303)
+        view = build_week_view(s, wl)
+        categories = list(s.scalars(
+            select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
+        ).all())
+        people = list(s.scalars(
+            select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
+        ).all())
+    return render(
+        request,
+        "worklists/setup.html",
+        view=view, worklist=wl, categories=categories, people=people,
+    )
 
 
 @router.get("/worklists/{worklist_id}/print")

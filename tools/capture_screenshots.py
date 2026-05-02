@@ -95,6 +95,7 @@ PAGE_PATHS = [
     "/worklists",
     "/worklists/new",
     "/worklists/{worklist_id}",
+    "/worklists/{worklist_id}/setup",
     "/worklists/{worklist_id}/carry-over",
     "/worklists/{worklist_id}/print",
     # Tasks + templates

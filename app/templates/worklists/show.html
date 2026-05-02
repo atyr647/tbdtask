@@ -30,9 +30,11 @@
 {% endif %}
 
 {% for day in view.days %}
+{% set sev = "low" if day.percent_present < 80 else "mid" if day.percent_present < 90 else "good" %}
 <section class="block day-block">
   <h2>{{ day.weekday }} <span class="muted">{{ day.on_date }}</span>
-    <span class="muted small">— {{ day.percent_present }}% present ({{ day.present_full }} of {{ day.total }})</span>
+    <span class="pct {{ sev }}">{{ day.percent_present }}% present</span>
+    <span class="muted small">{{ day.present_full }} of {{ day.total }}</span>
   </h2>
 
   {% if day.out_today %}

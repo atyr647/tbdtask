@@ -243,25 +243,31 @@ ul.task-list li { margin: 3px 0; }
 /* Absence calendar ----------------------------------------------------- */
 .matrix.calendar td.cal,
 .swatch.cal {
-  text-align: center; font-weight: 700; color: #fff; min-width: 22px;
+  text-align: center; font-weight: 700; color: #0c1018; min-width: 22px;
 }
 .swatch.cal { display: inline-block; padding: 1px 8px; border-radius: 4px; line-height: 18px; margin-right: 4px; }
-.cal-leave   { background: #4b6bdb; }
-.cal-tad     { background: #b56b1d; }
-.cal-school  { background: #6a8aa3; }
-.cal-medical { background: #a23a3a; }
-.cal-appt    { background: #6f4caa; }
-.cal-other   { background: #555; }
+.cal-leave   { background: #6cb1ff; }
+.cal-tad     { background: #ffb86b; }
+.cal-school  { background: #6dd6c1; }
+.cal-medical { background: #ff8c93; }
+.cal-appt    { background: #cba2ff; }
+.cal-other   { background: #c2cad8; }
 .cal.partial { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.35) 0 3px, transparent 3px 6px); }
 .matrix.calendar .day-h { text-align: center; min-width: 28px; }
 .matrix.calendar .day-h .dow { font-size: 10px; color: var(--muted); }
 .matrix.calendar .day-h .dom { font-size: 12px; }
 .matrix.calendar .day-h.weekend { background: var(--panel-2); }
 .matrix.calendar .totals td { font-size: 11px; text-align: center; }
-.matrix.calendar .totals.percent-row td { font-weight: 600; }
-.matrix.calendar .totals.percent-row td.low { color: var(--bad); }
-.matrix.calendar .totals.percent-row td.mid { color: var(--warn); }
-.matrix.calendar .totals.percent-row td.good { color: var(--good); }
+.matrix.calendar .totals.percent-row td { font-weight: 700; }
+.matrix.calendar .totals.percent-row td.low { color: var(--bad); background: rgba(239,93,110,.16) !important; }
+.matrix.calendar .totals.percent-row td.mid { color: var(--warn); background: rgba(240,176,74,.16) !important; }
+.matrix.calendar .totals.percent-row td.good { color: var(--good); background: rgba(67,211,158,.12) !important; }
+
+/* Generic percentage pill, used in worklist day headers and elsewhere. */
+.pct { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 600; font-size: 11px; }
+.pct.low  { background: rgba(239,93,110,.18); color: var(--bad);  border: 1px solid rgba(239,93,110,.35); }
+.pct.mid  { background: rgba(240,176,74,.18); color: var(--warn); border: 1px solid rgba(240,176,74,.35); }
+.pct.good { background: rgba(67,211,158,.18); color: var(--good); border: 1px solid rgba(67,211,158,.35); }
 .cal-legend { gap: 10px; }
 .cal-legend li { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; }
 .matrix.calendar tbody tr.cal-row:nth-child(odd) td { background: var(--panel); }
@@ -343,3 +349,33 @@ ul.task-history li:last-child { border-bottom: 0; }
 .combobox-result { padding: 6px 10px; cursor: pointer; font-size: 13px; }
 .combobox-result:hover, .combobox-result.active { background: var(--panel-3); }
 .combobox-result .muted { font-size: 11px; }
+
+/* Worklist wizard ------------------------------------------------------ */
+.wizard-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.wizard-head h1 { margin-bottom: 4px; }
+.wizard-actions { display: flex; align-items: center; gap: 8px; }
+
+.step-strip { display: flex; gap: 12px; flex-wrap: wrap; margin: 8px 0 18px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.step { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.step .step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--panel-2); color: var(--muted); border: 1px solid var(--border);
+  font-size: 11px; font-weight: 700;
+}
+.step.done .step-num { background: rgba(67,211,158,.18); color: var(--good); border-color: rgba(67,211,158,.35); }
+.step.done { color: var(--text); }
+.step.active .step-num { background: var(--accent); color: #0c1018; border-color: var(--accent); }
+.step.active { color: var(--text); font-weight: 600; }
+
+.setup-day { padding-bottom: 12px; }
+.setup-day-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.setup-day-head h2 { margin: 0; color: var(--text); text-transform: none; font-size: 16px; letter-spacing: 0; }
+
+.quick-add { background: rgba(127,177,255,.04); padding: 10px 12px; border-radius: var(--radius); border: 1px dashed var(--border); margin-top: 10px; }
+.quick-add-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.quick-add-row label { flex: 0 0 auto; }
+.quick-add-row .grow { flex: 1 1 220px; }
+
+.wizard-finish { margin: 24px 0 8px; text-align: right; }
+.wizard-finish .btn-link { font-weight: 600; padding: 8px 16px; background: var(--panel-2); }

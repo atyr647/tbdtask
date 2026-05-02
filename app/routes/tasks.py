@@ -22,29 +22,56 @@ def _ensure_unlocked(wl: Optional[M.Worklist]) -> None:
 
 
 @router.post("/worklists/{worklist_id}/tasks")
-def create_task(
-    worklist_id: int,
-    name: str = Form(...),
-    scheduled_date: Optional[str] = Form(None),
-    category_id: Optional[int] = Form(None),
-    description: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
-):
+async def create_task(worklist_id: int, request: Request):
+    """Create a TaskInstance and (optionally) attach assignees in one shot.
+
+    Form fields:
+      name (required), scheduled_date, category_id, description, notes
+      person_ids (multi)  - assignees from the roster
+      poic_person_id      - which assignee to mark POIC (if any)
+      external_poic_name  - optional off-roster supervisor as POIC
+      next                - "setup" to redirect back to the wizard,
+                            otherwise lands on the worklist show page
+    """
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "name is required")
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
         _ensure_unlocked(wl)
+        scheduled_iso = form.get("scheduled_date") or None
+        category_raw = form.get("category_id") or None
         inst = M.TaskInstance(
             worklist_id=worklist_id,
-            scheduled_date=date.fromisoformat(scheduled_date) if scheduled_date else None,
-            category_id=category_id or None,
-            name=name.strip()[:240],
-            description=(description or None),
-            notes=(notes or None),
+            scheduled_date=date.fromisoformat(scheduled_iso) if scheduled_iso else None,
+            category_id=int(category_raw) if category_raw else None,
+            name=name[:240],
+            description=(form.get("description") or None),
+            notes=(form.get("notes") or None),
             status="open",
         )
         s.add(inst)
+        s.flush()
+        person_ids = [int(x) for x in form.getlist("person_ids") if str(x).strip()]
+        poic_id = form.get("poic_person_id")
+        poic_id_int = int(poic_id) if poic_id else None
+        for pid in person_ids:
+            s.add(M.TaskAssignment(
+                instance_id=inst.id,
+                person_id=pid,
+                is_poic=(pid == poic_id_int),
+            ))
+        ext = (form.get("external_poic_name") or "").strip()
+        if ext:
+            s.add(M.TaskAssignment(
+                instance_id=inst.id,
+                external_poic_name=ext,
+                is_poic=True,
+            ))
         s.commit()
-    return RedirectResponse(f"/worklists/{worklist_id}", status_code=303)
+    redirect_to = f"/worklists/{worklist_id}/setup" if form.get("next") == "setup" else f"/worklists/{worklist_id}"
+    return RedirectResponse(redirect_to, status_code=303)
 
 
 @router.get("/tasks/{task_id}/edit")
