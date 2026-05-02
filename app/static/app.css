@@ -481,6 +481,42 @@ details.inline-create[open] { padding-bottom: 14px; }
 details.inline-create[open] > summary { border-bottom: 1px solid var(--border-soft); margin-bottom: 10px; }
 details.inline-create .quick-add { background: transparent; border: 0; padding: 0; margin: 0; }
 
+/* Recurrence form */
+.recur-fieldset .rec-block { margin-top: 10px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px; }
+.weekday-checks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.weekday-check {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--panel-2); cursor: pointer; user-select: none;
+  color: var(--text); font-size: 13px;
+}
+.weekday-check:has(input:checked) {
+  background: rgba(40,86,231,.10); border-color: var(--accent); color: var(--accent);
+  font-weight: 600;
+}
+.weekday-check input { margin: 0; }
+
+.rec-block.rec-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.rec-block.rec-row label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+
+details.advanced-fieldset {
+  margin-top: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+details.advanced-fieldset > summary {
+  list-style: none; cursor: pointer; padding: 10px 14px;
+  color: var(--muted); font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .8px;
+}
+details.advanced-fieldset > summary::-webkit-details-marker { display: none; }
+details.advanced-fieldset > summary::before {
+  content: "▸ "; color: var(--accent); font-weight: 700;
+}
+details.advanced-fieldset[open] > summary::before { content: "▾ "; }
+.advanced-body { padding: 0 14px 14px; display: grid; gap: 10px; }
+
 /* Combobox chips */
 .combobox-chips { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
 .combobox-chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; font-size: 12px; cursor: pointer; color: var(--text); }

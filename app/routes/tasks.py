@@ -119,7 +119,6 @@ def update_task(
     status: str = Form("open"),
     hours: Optional[float] = Form(None),
     description: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
     completion_notes: Optional[str] = Form(None),
 ):
     with SessionLocal() as s:
@@ -134,7 +133,7 @@ def update_task(
         inst.status = status
         inst.hours = hours
         inst.description = (description or None)
-        inst.notes = (notes or None)
+        inst.notes = None  # consolidated into description
         inst.completion_notes = (completion_notes or None)
         if status == "done" and inst.completed_at is None:
             inst.completed_at = datetime.now()

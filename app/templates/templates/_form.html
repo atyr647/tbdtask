@@ -1,4 +1,6 @@
-{# shared fields between new + edit. context: template (Optional), cats, quals, required_qual_ids, carry_over_policies, recurrence_kinds, weekday_options #}
+{# Task template form (shared between new + edit). Simplified flow: the
+   essentials are visible; rare constraints (required quals / DL / DS,
+   estimated hours, etc.) live behind an "Advanced" disclosure. #}
 {% set t = template %}
 {% set rule = (t.recurrence_rule if t and t.recurrence_rule else {}) %}
 {% set cur_kind = rule.get("kind", "none") if rule else "none" %}
@@ -10,56 +12,108 @@
     {% for c in cats %}<option value="{{ c.id }}" {% if t and t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
   </select>
 </label>
-<label>Description <textarea name="description" rows="3">{{ t.description if t and t.description else '' }}</textarea></label>
-<label>Notes <textarea name="notes" rows="2">{{ t.notes if t and t.notes else '' }}</textarea></label>
+<label>Description / notes
+  <textarea name="description" rows="3" placeholder="What is this task? Any standing instructions?">{{ ((t.description if t and t.description else '') or (t.notes if t and t.notes else '')) }}</textarea>
+</label>
 
-<fieldset>
-  <legend>Constraints</legend>
-  <label>Estimated hours <input type="number" step="0.25" name="estimated_hours" value="{{ t.estimated_hours if t and t.estimated_hours else '' }}" /></label>
-  <label><input type="checkbox" name="splittable" value="1" {% if t and t.splittable %}checked{% endif %} /> Splittable across people</label>
-  <label><input type="checkbox" name="reassignable" value="1" {% if not t or t.reassignable %}checked{% endif %} /> Reassignable</label>
-  <label><input type="checkbox" name="required_drivers_license" value="1" {% if t and t.required_drivers_license %}checked{% endif %} /> Requires drivers license</label>
-  <label>Required duty section <input type="number" name="required_duty_section" min="1" max="20" value="{{ t.required_duty_section if t and t.required_duty_section else '' }}" /></label>
-  <label>Required quals
-    <select name="required_quals" multiple size="6">
-      {% for q in quals %}<option value="{{ q.id }}" {% if required_qual_ids and q.id in required_qual_ids %}selected{% endif %}>{{ q.name }}{% if q.category %} ({{ q.category }}){% endif %}</option>{% endfor %}
+<fieldset class="recur-fieldset">
+  <legend>How often does this fire?</legend>
+  <label>Cadence
+    <select name="rec_kind" id="rec_kind">
+      {% for val, label in recurrence_kinds %}<option value="{{ val }}" {% if cur_kind == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </label>
+
+  <div class="rec-block" data-rec-kinds="weekdays">
+    <label>Pick the weekday(s)</label>
+    <div class="weekday-checks">
+      {% for idx, name in weekday_options %}
+        <label class="weekday-check">
+          <input type="checkbox" name="rec_weekdays" value="{{ idx }}"
+                 {% if rule and rule.get("weekdays") and idx in rule.weekdays %}checked{% endif %} />
+          <span>{{ name }}</span>
+        </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="rec-block rec-row" data-rec-kinds="every_n_weeks">
+    <label>Every
+      <input type="number" name="rec_n" min="1" value="{{ rule.get('n', 2) if rule else 2 }}" style="width:70px" />
+      weeks
+    </label>
+    <label>on
+      <select name="rec_weekday">
+        {% for idx, name in weekday_options %}<option value="{{ idx }}" {% if rule and rule.get("weekday") == idx %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>starting from
+      <input type="date" name="rec_anchor" value="{{ rule.get('anchor', '') if rule else '' }}" />
+    </label>
+  </div>
+
+  <div class="rec-block rec-row" data-rec-kinds="monthly_nth_weekday">
+    <label>The
+      <select name="rec_n">
+        {% for n, lbl in [(1,'1st'),(2,'2nd'),(3,'3rd'),(4,'4th'),(-1,'last')] %}
+          <option value="{{ n }}" {% if rule and rule.get("n") == n %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <select name="rec_weekday">
+        {% for idx, name in weekday_options %}<option value="{{ idx }}" {% if rule and rule.get("weekday") == idx %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    </label>
+    <span class="muted">of every month</span>
+  </div>
+
+  <div class="rec-block rec-row" data-rec-kinds="monthly_date">
+    <label>On day
+      <input type="number" name="rec_day" min="1" max="31" value="{{ rule.get('day', '') if rule else '' }}" style="width:70px" />
+    </label>
+    <span class="muted">of every month</span>
+  </div>
 </fieldset>
 
 <fieldset>
   <legend>Carry-over</legend>
-  <label>Policy
+  <label>If left undone at week's end
     <select name="carry_over_policy">
       {% for val, label in carry_over_policies %}<option value="{{ val }}" {% if t and t.carry_over_policy == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </label>
 </fieldset>
 
-<fieldset>
-  <legend>Recurrence</legend>
-  <label>Cadence
-    <select name="rec_kind">
-      {% for val, label in recurrence_kinds %}<option value="{{ val }}" {% if cur_kind == val %}selected{% endif %}>{{ label }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>Weekday(s) (for "weekday(s)" rule)
-    <select name="rec_weekdays" multiple size="7">
-      {% for idx, name in weekday_options %}<option value="{{ idx }}" {% if rule and rule.get("weekdays") and idx in rule.weekdays %}selected{% endif %}>{{ name }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>Single weekday (for every-N-weeks / Nth-weekday)
-    <select name="rec_weekday">
-      {% for idx, name in weekday_options %}<option value="{{ idx }}" {% if rule and rule.get("weekday") == idx %}selected{% endif %}>{{ name }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>N (every-N-weeks or Nth-of-month; -1 = last)
-    <input type="number" name="rec_n" value="{{ rule.get('n', '') if rule else '' }}" />
-  </label>
-  <label>Anchor date (every-N-weeks parity reference)
-    <input type="date" name="rec_anchor" value="{{ rule.get('anchor', '') if rule else '' }}" />
-  </label>
-  <label>Day-of-month (for monthly_date)
-    <input type="number" name="rec_day" min="1" max="31" value="{{ rule.get('day', '') if rule else '' }}" />
-  </label>
-</fieldset>
+<details class="advanced-fieldset">
+  <summary>Advanced constraints</summary>
+  <div class="advanced-body">
+    <label>Estimated hours <input type="number" step="0.25" name="estimated_hours" value="{{ t.estimated_hours if t and t.estimated_hours else '' }}" /></label>
+    <label><input type="checkbox" name="splittable" value="1" {% if t and t.splittable %}checked{% endif %} /> Splittable across people</label>
+    <label><input type="checkbox" name="reassignable" value="1" {% if not t or t.reassignable %}checked{% endif %} /> Reassignable</label>
+    <label><input type="checkbox" name="required_drivers_license" value="1" {% if t and t.required_drivers_license %}checked{% endif %} /> Requires drivers license</label>
+    <label>Required duty section <input type="number" name="required_duty_section" min="1" max="20" value="{{ t.required_duty_section if t and t.required_duty_section else '' }}" /></label>
+    <label>Required quals
+      <select name="required_quals" multiple size="6">
+        {% for q in quals %}<option value="{{ q.id }}" {% if required_qual_ids and q.id in required_qual_ids %}selected{% endif %}>{{ q.name }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+</details>
+
+<script>
+(function() {
+  const sel = document.getElementById("rec_kind");
+  if (!sel) return;
+  const blocks = Array.from(document.querySelectorAll(".rec-block"));
+  function apply() {
+    const k = sel.value;
+    for (const b of blocks) {
+      const kinds = (b.dataset.recKinds || "").split(/\s+/);
+      b.style.display = (kinds.includes(k)) ? "" : "none";
+    }
+  }
+  sel.addEventListener("change", apply);
+  apply();
+})();
+</script>

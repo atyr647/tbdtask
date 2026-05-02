@@ -12,7 +12,7 @@
       <th>Category</th>
       <th>Recurrence</th>
       <th>Carry policy</th>
-      <th>Notes</th>
+      <th>Description</th>
       <th></th>
     </tr>
   </thead>
@@ -23,7 +23,7 @@
       <td class="muted">{{ cats.get(t.category_id) or "—" }}</td>
       <td>{{ descriptions.get(t.id, "—") }}</td>
       <td class="muted">{{ t.carry_over_policy }}</td>
-      <td class="muted">{{ t.notes or "" }}</td>
+      <td class="muted">{{ t.description or t.notes or "" }}</td>
       <td><a href="/task-templates/{{ t.id }}/edit">Edit</a></td>
     </tr>
     {% endfor %}
