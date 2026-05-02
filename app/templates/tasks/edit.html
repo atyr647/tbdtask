@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Edit task — {{ instance.name }}{% endblock %}
+{% block content %}
+{% if worklist %}
+  <p><a href="/worklists/{{ worklist.id }}">&lsaquo; Back to {{ worklist.name }}</a></p>
+{% else %}
+  <p><a href="/worklists">&lsaquo; Back to worklists</a></p>
+{% endif %}
+<h1>{{ instance.name }}</h1>
+{% if worklist and worklist.locked %}
+  <p class="warn">🔒 Worklist is locked. Amend it to edit this task.</p>
+{% endif %}
+
+<form method="post" action="/tasks/{{ instance.id }}" class="form">
+  <label>Name <input name="name" value="{{ instance.name }}" required /></label>
+  <label>Scheduled date
+    <input type="date" name="scheduled_date" value="{{ instance.scheduled_date.isoformat() if instance.scheduled_date else '' }}" />
+  </label>
+  <label>Category
+    <select name="category_id">
+      <option value="">—</option>
+      {% for c in categories %}<option value="{{ c.id }}" {% if instance.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Status
+    <select name="status">
+      {% for st in ["open", "in_progress", "done", "discarded", "carried"] %}
+        <option value="{{ st }}" {% if instance.status == st %}selected{% endif %}>{{ st }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Hours
+    <input type="number" step="0.25" min="0" name="hours" value="{{ instance.hours if instance.hours else '' }}" />
+    <span class="muted small">Every assignee on this task gets full credit for these hours.</span>
+  </label>
+  <label>Description / notes
+    <textarea name="description" rows="4">{{ instance.description or instance.notes or '' }}</textarea>
+  </label>
+  <label>Completion notes <textarea name="completion_notes" rows="2">{{ instance.completion_notes or '' }}</textarea></label>
+  <div class="form-actions">
+    <button type="submit">Save</button>
+  </div>
+</form>
+
+<section class="block">
+  <h2>Assignments ({{ assignments|length }})</h2>
+  {% if assignments %}
+  <table class="grid">
+    <thead><tr><th>Person</th><th>POIC</th><th>Completed</th><th>Notes</th><th></th></tr></thead>
+    <tbody>
+      {% for a in assignments %}
+      <tr>
+        <td>{{ a.person.full_display if a.person else (a.external_poic_name or "—") }}</td>
+        <td>{{ "yes" if a.is_poic else "" }}</td>
+        <td>{{ "✓" if a.completed else "" }}</td>
+        <td class="muted">{{ a.completion_notes or "" }}</td>
+        <td>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments/{{ a.id }}" class="form-inline-row">
+            <label><input type="checkbox" name="is_poic" value="1" {% if a.is_poic %}checked{% endif %} /> POIC</label>
+            <label><input type="checkbox" name="completed" value="1" {% if a.completed %}checked{% endif %} /> done</label>
+            <input name="completion_notes" value="{{ a.completion_notes or '' }}" placeholder="notes" />
+            <button type="submit">Save</button>
+          </form>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments/{{ a.id }}/delete" class="form-inline-row">
+            <button type="submit" class="ghost" onclick="return confirm('Remove this assignment?');">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No assignees yet.</p>
+  {% endif %}
+
+  {% if not (worklist and worklist.locked) %}
+  {% if suggestions %}
+  <h3>Suggested candidates</h3>
+  <p class="muted">Filtered to people meeting this task's required quals, license, and duty section, available on the scheduled day.</p>
+  <table class="grid">
+    <thead><tr><th>Candidate</th><th>Rate</th><th>DS</th><th>License</th><th>Quals met</th><th>Availability</th><th></th></tr></thead>
+    <tbody>
+      {% for c in suggestions %}
+      <tr>
+        <td>{{ c.person.full_display }}</td>
+        <td>{{ c.rate or "" }}</td>
+        <td>{{ c.duty_section or "" }}</td>
+        <td>{{ "Y" if c.has_drivers_license else "N" }}</td>
+        <td>{{ c.qualified_count }}</td>
+        <td>{{ c.availability_status }}</td>
+        <td>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form-inline-row">
+            <input type="hidden" name="person_id" value="{{ c.person.id }}" />
+            <button type="submit" class="ghost-btn">Assign</button>
+          </form>
+          <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form-inline-row">
+            <input type="hidden" name="person_id" value="{{ c.person.id }}" />
+            <input type="hidden" name="is_poic" value="1" />
+            <button type="submit" class="ghost-btn">Assign as POIC</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h3>Add assignment</h3>
+  <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form">
+    <label>Person
+      <select name="person_id">
+        <option value="">— external POIC instead —</option>
+        {% for p in people %}<option value="{{ p.id }}">{{ p.full_display }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>External POIC name
+      <input name="external_poic_name" placeholder="if not on the roster" />
+    </label>
+    <label><input type="checkbox" name="is_poic" value="1" /> Mark as POIC for this task</label>
+    <div class="form-actions"><button type="submit">Add</button></div>
+  </form>
+  {% endif %}
+</section>
+
+{% if not (worklist and worklist.locked) %}
+<form method="post" action="/tasks/{{ instance.id }}/archive" class="form-inline danger">
+  <label>Archive reason <input name="reason" /></label>
+  <button type="submit" onclick="return confirm('Archive this task?');">Archive task</button>
+</form>
+{% endif %}
+{% endblock %}

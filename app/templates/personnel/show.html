@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ person.full_display }}{% endblock %}
+{% block content %}
+<p><a href="/personnel">&lsaquo; Back to roster</a></p>
+<h1>{{ person.full_display }} <a class="btn-link" href="/personnel/{{ person.id }}/edit">Edit</a></h1>
+{% if person.notes %}<p class="muted">{{ person.notes }}</p>{% endif %}
+{% if not person.active %}<p class="warn">Departed{% if person.archived_reason %}: {{ person.archived_reason }}{% endif %}</p>{% endif %}
+
+<div class="split-2">
+  <div>
+    <section class="block">
+      <h2>Task history <span class="muted">— last {{ stats.window_days }} days</span></h2>
+      <div class="snapshot">
+        <div class="snapshot-pct snapshot-good">
+          <div class="big">{{ stats.total_completed }}</div>
+          <div class="muted small">tasks completed</div>
+        </div>
+        <div class="snapshot-stats">
+          <div><strong>{{ stats.total_hours }}</strong> hours logged</div>
+          <div><strong>{{ stats.poic_count }}</strong> as POIC</div>
+        </div>
+      </div>
+      {% if stats.by_category %}
+      <table class="grid">
+        <thead><tr><th>Category</th><th>Tasks</th><th>Hours</th><th>POIC</th></tr></thead>
+        <tbody>
+          {% for c in stats.by_category %}
+          <tr>
+            <td>{{ c.name }}</td>
+            <td>{{ c.count }}</td>
+            <td>{{ "%.2f"|format(c.hours) if c.hours else "—" }}</td>
+            <td>{{ c.poic_count or "" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">No completed tasks recorded in this window.</p>
+      {% endif %}
+      {% if stats.recent %}
+        <h3>Recent</h3>
+        <ul class="task-history">
+          {% for t in stats.recent %}
+            <li>
+              {% if t.is_poic %}<span class="poic">POIC</span>{% endif %}
+              {{ t.instance.name }}
+              <span class="muted small">— {{ t.category_name }}{% if t.completed_at %}, {{ t.completed_at.date() }}{% elif t.instance.scheduled_date %}, {{ t.instance.scheduled_date }}{% endif %}{% if t.hours_worked %} · {{ t.hours_worked }}h{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+
+    <section class="block">
+      <h2>Qualifications <span class="muted">({{ quals|length }})</span> <a class="btn-link" href="/personnel/{{ person.id }}/quals/new">+ Assign qual</a></h2>
+      {% if quals %}
+      <table class="grid">
+        <thead><tr><th>Qual</th><th>Status</th><th>Started</th><th>Achieved</th><th></th></tr></thead>
+        <tbody>
+          {% for pq, q in quals %}
+          <tr>
+            <td>{{ q.name }}</td>
+            <td>
+              {% if pq.status == "qualified" %}<span class="status-q">Qualified</span>
+              {% elif pq.status == "in_progress" %}<span class="status-ip">In progress</span>
+              {% elif pq.status == "dinq" %}<span class="status-d">Dinq</span>
+              {% else %}{{ pq.status|replace("_", " ")|capitalize }}{% endif %}
+            </td>
+            <td>{{ pq.started_at.date() if pq.started_at else "—" }}</td>
+            <td>{{ pq.achieved_at.date() if pq.achieved_at else "—" }}</td>
+            <td><a href="/personnel/{{ person.id }}/quals/{{ pq.id }}/edit">Edit</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">No qualifications recorded.</p>
+      {% endif %}
+    </section>
+
+    <section class="block">
+      <h2>Absences <span class="muted">({{ absences|length }})</span> <a class="btn-link" href="/personnel/{{ person.id }}/absences/new">+ Add absence</a></h2>
+      {% if absences %}
+      <table class="grid">
+        <thead><tr><th>Code</th><th>Start</th><th>End</th><th>Window</th><th>Reason</th><th></th></tr></thead>
+        <tbody>
+          {% for a in absences %}
+          <tr>
+            <td>{{ a.code.code }}</td>
+            <td>{{ a.start_date }}</td>
+            <td>{{ a.end_date }}</td>
+            <td>{% if a.start_time %}{{ a.start_time }}–{{ a.end_time }}{% else %}all day{% endif %}</td>
+            <td>{{ a.reason or "" }}</td>
+            <td><a href="/absences/{{ a.id }}/edit">Edit</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">No absences recorded.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside>
+    <section class="block">
+      <h2>At a glance</h2>
+      <dl class="kv">
+        {% set cur_rate = rates|selectattr("valid_to","none")|first %}
+        <dt>Rate</dt>
+        <dd>{{ cur_rate.rate if cur_rate else "—" }}{% if cur_rate and cur_rate.paygrade %} <span class="muted">({{ cur_rate.paygrade }})</span>{% endif %}</dd>
+        {% if person.first_name %}<dt>First name</dt><dd>{{ person.first_name }}</dd>{% endif %}
+        {% if person.position %}<dt>Position</dt><dd>{{ person.position }}</dd>{% endif %}
+        {% set cur_ds = duty_sections|selectattr("valid_to","none")|first %}
+        <dt>Duty section</dt><dd>{{ cur_ds.duty_section if cur_ds else "—" }}</dd>
+        {% set cur_prd = prds|selectattr("valid_to","none")|first %}
+        <dt>PRD</dt><dd>{{ cur_prd.prd_date if cur_prd else "—" }}</dd>
+        {% set cur_dl = drivers_licenses|selectattr("valid_to","none")|first %}
+        <dt>Drivers license</dt>
+        <dd>{% if cur_dl %}{{ "Yes" if cur_dl.has_license else "No" }}{% if cur_dl.expires_on %} <span class="muted">(expires {{ cur_dl.expires_on }})</span>{% endif %}{% else %}—{% endif %}</dd>
+      </dl>
+    </section>
+  </aside>
+</div>
+{% endblock %}

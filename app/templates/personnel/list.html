@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Personnel{% endblock %}
+{% block content %}
+{% include "personnel/_tabs.html" %}
+<h1>Active roster <span class="muted">({{ total }})</span> <a class="btn-link" href="/personnel/new">+ New person</a></h1>
+
+{% for group, rows in grouped.items() if rows %}
+  <section class="block">
+    <h2>{{ group }} <span class="muted">({{ rows|length }})</span></h2>
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>Rate</th>
+          <th>Name</th>
+          <th>DS</th>
+          <th>Position</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.rate or "—" }}</td>
+          <td><a href="/personnel/{{ r.id }}">{{ r.last_name }}{% if r.first_name %}, {{ r.first_name }}{% endif %}</a></td>
+          <td>{{ r.duty_section or "—" }}</td>
+          <td class="muted">{{ r.position or "" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endfor %}
+{% endblock %}

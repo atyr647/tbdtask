@@ -1,0 +1,6 @@
+{% set p = request.url.path %}
+<nav class="tabs">
+  <a href="/personnel"          {% if p == "/personnel" or p.startswith("/personnel/new") or (p|length > 11 and p[11].isdigit()) %}class="active"{% endif %}>Active</a>
+  <a href="/personnel/incoming" {% if p.startswith("/personnel/incoming") %}class="active"{% endif %}>Incoming</a>
+  <a href="/personnel/departed" {% if p.startswith("/personnel/departed") %}class="active"{% endif %}>Departed</a>
+</nav>

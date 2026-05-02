@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Edit absence{% endblock %}
+{% block content %}
+<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+<h1>Edit absence — {{ person.full_display }}</h1>
+
+<form method="post" action="/absences/{{ absence.id }}" class="form">
+  <label>Code
+    <select name="code_id" required>
+      {% for c in codes %}<option value="{{ c.id }}" {% if c.id == absence.code_id %}selected{% endif %}>{{ c.code }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Start date <input type="date" name="start_date" value="{{ absence.start_date.isoformat() }}" required /></label>
+  <label>End date <input type="date" name="end_date" value="{{ absence.end_date.isoformat() }}" required /></label>
+  <fieldset>
+    <legend>Partial-day window</legend>
+    <label>Start time <input type="time" name="start_time" value="{{ absence.start_time.strftime('%H:%M') if absence.start_time else '' }}" /></label>
+    <label>End time <input type="time" name="end_time" value="{{ absence.end_time.strftime('%H:%M') if absence.end_time else '' }}" /></label>
+  </fieldset>
+  <label>Reason <input name="reason" value="{{ absence.reason or '' }}" /></label>
+  <label>Notes <textarea name="notes" rows="2">{{ absence.notes or '' }}</textarea></label>
+  <div class="form-actions">
+    <button type="submit">Save</button>
+    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+<form method="post" action="/absences/{{ absence.id }}/archive" class="form-inline danger">
+  <label>Archive reason <input name="reason" placeholder="optional" /></label>
+  <button type="submit" onclick="return confirm('Archive this absence record?');">Archive</button>
+</form>
+{% endblock %}

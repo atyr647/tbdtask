@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}New task template{% endblock %}
+{% block content %}
+<p><a href="/task-templates">&lsaquo; Back to templates</a></p>
+<h1>New task template</h1>
+<form method="post" action="/task-templates" class="form">
+  {% set template = None %}
+  {% set required_qual_ids = [] %}
+  {% include "templates/_form.html" %}
+  <div class="form-actions">
+    <button type="submit">Create</button>
+    <a href="/task-templates" class="btn-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

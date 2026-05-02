@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Worklist Tracker">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f2a44"/>
+      <stop offset="1" stop-color="#0f1422"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6aa9ff"/>
+      <stop offset="1" stop-color="#3ecf8e"/>
+    </linearGradient>
+  </defs>
+  <!-- App tile -->
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+  <!-- Clipboard body -->
+  <rect x="60" y="58" width="136" height="148" rx="14"
+        fill="#e9edf6" stroke="#9ba3af" stroke-width="2"/>
+  <!-- Clipboard clip -->
+  <rect x="100" y="42" width="56" height="34" rx="8"
+        fill="#3a445c" stroke="#202840" stroke-width="2"/>
+  <rect x="114" y="50" width="28" height="14" rx="4" fill="#9ba3af"/>
+  <!-- Task lines -->
+  <g stroke="#3a445c" stroke-width="6" stroke-linecap="round">
+    <line x1="86" y1="116" x2="170" y2="116"/>
+    <line x1="86" y1="146" x2="170" y2="146"/>
+    <line x1="86" y1="176" x2="140" y2="176"/>
+  </g>
+  <!-- Checkmark badge over the bottom-right -->
+  <circle cx="190" cy="184" r="36" fill="url(#accent)"/>
+  <path d="M173 185 l11 11 l21 -25"
+        fill="none" stroke="#0f1422" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

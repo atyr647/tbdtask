@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ qual.name }} for {{ person.full_display }}{% endblock %}
+{% block content %}
+<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+<h1>{{ qual.name }} <span class="muted">— {{ person.full_display }}</span></h1>
+<p class="muted">Saving here closes the current row and inserts a new one. The history is preserved below.</p>
+
+<form method="post" action="/personnel/{{ person.id }}/quals/{{ pq.id }}" class="form">
+  <label>Effective date <input type="date" name="effective_date" /></label>
+  <label>Status
+    <select name="status">
+      {% for st in statuses %}<option value="{{ st }}" {% if st == pq.status %}selected{% endif %}>{{ st }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Started
+    <input type="datetime-local" name="started_at"
+           value="{{ pq.started_at.strftime('%Y-%m-%dT%H:%M') if pq.started_at else '' }}" />
+  </label>
+  <label>Achieved
+    <input type="datetime-local" name="achieved_at"
+           value="{{ pq.achieved_at.strftime('%Y-%m-%dT%H:%M') if pq.achieved_at else '' }}" />
+  </label>
+  <label>Notes <textarea name="notes" rows="2">{{ pq.notes or '' }}</textarea></label>
+  <div class="form-actions">
+    <button type="submit">Save</button>
+    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+<section class="block">
+  <h2>History</h2>
+  <table class="grid">
+    <thead><tr><th>Status</th><th>Valid from</th><th>Valid to</th><th>Started</th><th>Achieved</th><th>Expires</th></tr></thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.status }}</td>
+        <td>{{ h.valid_from }}</td>
+        <td>{{ h.valid_to or "current" }}</td>
+        <td>{{ h.started_at.date() if h.started_at else "—" }}</td>
+        <td>{{ h.achieved_at.date() if h.achieved_at else "—" }}</td>
+        <td>{{ h.expires_at.date() if h.expires_at else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

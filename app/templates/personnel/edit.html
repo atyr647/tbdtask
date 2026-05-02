@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ person.last_name }}{% endblock %}
+{% block content %}
+<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+<h1>Edit {{ person.full_display }}</h1>
+<p class="muted">Effective date defaults to today. Changing rate / duty section / PRD / drivers license closes the prior record and opens a new one — old values are preserved as history.</p>
+
+{% include "personnel/_rate_picker.html" %}
+<form method="post" action="/personnel/{{ person.id }}" class="form">
+  <label>Effective date <input type="date" name="effective_date" /></label>
+  <fieldset>
+    <legend>Identity</legend>
+    <label>Last name <input name="last_name" value="{{ person.last_name }}" required /></label>
+    <label>First name <input name="first_name" value="{{ person.first_name or '' }}" placeholder="useful when multiple sailors share a last name" /></label>
+    <label>Position <input name="position" value="{{ person.position or '' }}" placeholder="e.g. LPO, Watchbill Coordinator" /></label>
+    <label>Notes <textarea name="notes" rows="2">{{ person.notes or '' }}</textarea></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Rate / rank</legend>
+    <label>Category
+      <select id="rate-category">
+        <option value="">— any —</option>
+        <option value="Officer">Officer</option>
+        <option value="CWO">CWO</option>
+        <option value="Enlisted">Enlisted</option>
+      </select>
+    </label>
+    <label>Rate / rank
+      <input name="rate" list="rate-suggestions" value="{{ cur.rate.rate if cur.rate else '' }}" autocomplete="off" />
+    </label>
+    {% if cur.rate and cur.rate.paygrade %}<p class="muted small">Current paygrade: {{ cur.rate.paygrade }}</p>{% endif %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Assignment</legend>
+    <label>Duty section
+      <input type="number" name="duty_section" min="1" max="20"
+             value="{{ cur.duty_section.duty_section if cur.duty_section else '' }}" />
+    </label>
+    <label>PRD <input type="date" name="prd_date" value="{{ cur.prd.prd_date.isoformat() if cur.prd else '' }}" /></label>
+    <label>PRD change reason
+      <select name="prd_reason">
+        <option value="correction">correction</option>
+        <option value="extension">extension</option>
+        <option value="initial">initial</option>
+      </select>
+    </label>
+    <label>Drivers license
+      <input type="checkbox" name="has_drivers_license" value="1" {% if cur.drivers_license and cur.drivers_license.has_license %}checked{% endif %} />
+    </label>
+    <label>License expires <input type="date" name="drivers_license_expires" value="{{ cur.drivers_license.expires_on.isoformat() if cur.drivers_license and cur.drivers_license.expires_on else '' }}" /></label>
+  </fieldset>
+
+  <div class="form-actions">
+    <button type="submit">Save</button>
+    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+<section class="block depart-block">
+  <h2>Move to departed</h2>
+  <p class="muted small">Use this when the sailor PCSes, separates, transfers, or otherwise leaves the command. They drop off the active roster but their full history is preserved on the Departed tab.</p>
+  <form method="post" action="/personnel/{{ person.id }}/archive" class="form-inline">
+    <label>Reason
+      <select name="reason">
+        <option value="Transferred (PCS)">Transferred (PCS)</option>
+        <option value="Separated">Separated</option>
+        <option value="Discharged">Discharged</option>
+        <option value="Other">Other</option>
+      </select>
+    </label>
+    <button type="submit" class="depart-btn" onclick="return confirm('Move {{ person.full_display }} to the Departed tab?');">Move to Departed</button>
+  </form>
+</section>
+
+{% include "personnel/_rate_picker_js.html" %}
+{% endblock %}

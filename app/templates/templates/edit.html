@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ template.name }}{% endblock %}
+{% block content %}
+<p><a href="/task-templates">&lsaquo; Back to templates</a></p>
+<h1>Edit task template</h1>
+<form method="post" action="/task-templates/{{ template.id }}" class="form">
+  {% include "templates/_form.html" %}
+  <div class="form-actions">
+    <button type="submit">Save</button>
+    <a href="/task-templates" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+<form method="post" action="/task-templates/{{ template.id }}/archive" class="form-inline danger">
+  <label>Archive reason <input name="reason" /></label>
+  <button type="submit" onclick="return confirm('Archive this template? Existing instances are preserved.');">Archive</button>
+</form>
+{% endblock %}

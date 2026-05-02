@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Carry-over — {{ worklist.name }}{% endblock %}
+{% block content %}
+<p><a href="/worklists/{{ worklist.id }}">&lsaquo; Back to {{ worklist.name }}</a></p>
+<h1>Carry-over review</h1>
+<p class="muted">Tasks below were left open or in-progress in earlier weeks. Default action follows the task template's carry-over policy; override per row as needed.</p>
+
+{% if not items %}
+<p>Nothing to carry. ✓</p>
+{% else %}
+<datalist id="people-suggestions">
+  {% for p in people %}<option value="{{ p.id }}" label="{{ p.full_display }}">{{ p.full_display }}</option>{% endfor %}
+</datalist>
+<script type="application/json" id="people-data">
+{% set entries = [] %}{% for p in people %}{% set _ = entries.append({"id": p.id, "label": p.full_display}) %}{% endfor %}{{ entries|tojson }}
+</script>
+<form method="post" action="/worklists/{{ worklist.id }}/carry-over" class="form">
+  <table class="grid carry-grid">
+    <thead>
+      <tr>
+        <th>Task</th>
+        <th>Source week</th>
+        <th>Scheduled</th>
+        <th>Assigned</th>
+        <th>Policy</th>
+        <th>Action</th>
+        <th>Reassign to</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      {% set c = item.candidate %}
+      {% set iid = c.instance.id %}
+      <tr>
+        <td>
+          <a href="/tasks/{{ iid }}/edit">{{ c.instance.name }}</a>
+          {% if c.instance.notes %}<div class="muted small">{{ c.instance.notes }}</div>{% endif %}
+        </td>
+        <td>{{ item.source_label }}</td>
+        <td>{{ item.scheduled or "—" }}</td>
+        <td>{{ item.assignee_labels|join(", ") or "—" }}</td>
+        <td class="muted">{{ c.template_policy or "—" }}</td>
+        <td>
+          {% set sel = c.suggested_action %}
+          <label><input type="radio" name="action_{{ iid }}" value="carry" {% if sel == "carry" %}checked{% endif %} /> Carry as-is</label>
+          <label><input type="radio" name="action_{{ iid }}" value="reassign" {% if sel == "manual" %}checked{% endif %} /> Reassign</label>
+          <label><input type="radio" name="action_{{ iid }}" value="complete" /> Mark complete</label>
+          <label><input type="radio" name="action_{{ iid }}" value="discard" {% if sel == "discard" %}checked{% endif %} /> Discard</label>
+          <label><input type="radio" name="action_{{ iid }}" value="leave" /> Leave for next time</label>
+        </td>
+        <td>
+          <div class="combobox" data-combo>
+            <input type="text" class="combobox-input" placeholder="search to reassign…" autocomplete="off"
+                   data-combo-input data-target-name="reassign_to_{{ iid }}" />
+            <div class="combobox-results" data-combo-results></div>
+            <ul class="combobox-chips" data-combo-chips></ul>
+          </div>
+          <div class="muted small">POIC:
+            <select name="poic_{{ iid }}">
+              <option value="">—</option>
+              {% for p in people %}
+                <option value="{{ p.id }}">{{ p.full_display }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="form-actions">
+    <button type="submit">Apply selections</button>
+    <a href="/worklists/{{ worklist.id }}" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+<script>
+(function() {
+  const peopleData = JSON.parse(document.getElementById("people-data").textContent);
+  function setupCombobox(root) {
+    const input = root.querySelector("[data-combo-input]");
+    const results = root.querySelector("[data-combo-results]");
+    const chips = root.querySelector("[data-combo-chips]");
+    const targetName = input.dataset.targetName;
+    const selected = new Map();
+    function render() {
+      chips.innerHTML = "";
+      // Remove old hidden inputs
+      root.querySelectorAll("input[type=hidden][data-target-name]").forEach(n => n.remove());
+      for (const [id, label] of selected) {
+        const li = document.createElement("li");
+        li.className = "combobox-chip";
+        li.textContent = label + " ✕";
+        li.addEventListener("click", () => { selected.delete(id); render(); });
+        chips.appendChild(li);
+        const h = document.createElement("input");
+        h.type = "hidden"; h.name = targetName; h.value = id;
+        h.dataset.targetName = targetName;
+        root.appendChild(h);
+      }
+    }
+    function show(query) {
+      const q = (query || "").trim().toLowerCase();
+      results.innerHTML = "";
+      const matches = peopleData
+        .filter(p => !selected.has(String(p.id)))
+        .filter(p => !q || p.label.toLowerCase().includes(q))
+        .slice(0, 8);
+      if (!matches.length) { results.classList.remove("open"); return; }
+      for (const m of matches) {
+        const div = document.createElement("div");
+        div.className = "combobox-result";
+        div.textContent = m.label;
+        div.addEventListener("mousedown", (ev) => {
+          ev.preventDefault();
+          selected.set(String(m.id), m.label);
+          input.value = "";
+          results.classList.remove("open");
+          render();
+        });
+        results.appendChild(div);
+      }
+      results.classList.add("open");
+    }
+    input.addEventListener("focus", () => show(input.value));
+    input.addEventListener("input", () => show(input.value));
+    input.addEventListener("blur", () => setTimeout(() => results.classList.remove("open"), 150));
+  }
+  for (const root of document.querySelectorAll("[data-combo]")) setupCombobox(root);
+})();
+</script>
+<style>
+.combobox-chips { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.combobox-chip { background: var(--panel-3); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer; }
+.combobox-chip:hover { background: rgba(239,93,110,.18); }
+</style>
+{% endif %}
+{% endblock %}

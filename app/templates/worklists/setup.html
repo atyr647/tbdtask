@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Set up {{ worklist.name }}{% endblock %}
+{% block content %}
+<p><a href="/worklists">&lsaquo; All worklists</a></p>
+
+<div class="wizard-head">
+  <div>
+    <h1>Set up {{ worklist.name }}</h1>
+    <p class="muted">Week of {{ worklist.week_starting }}. Add the tasks you expect for each day, pick who's on them. Recurring tasks are already in place.</p>
+  </div>
+  <div class="wizard-actions">
+    <a class="btn-link" href="/worklists/{{ worklist.id }}">Skip — open worklist</a>
+  </div>
+</div>
+
+<div class="step-strip">
+  <span class="step done"><span class="step-num">1</span> Pick the week</span>
+  <span class="step active"><span class="step-num">2</span> Add tasks</span>
+  <span class="step"><span class="step-num">3</span> Review &amp; print</span>
+</div>
+
+<datalist id="people-suggestions"></datalist>
+<script type="application/json" id="people-data">
+{% set entries = [] %}{% for p in people %}{% set _ = entries.append({"id": p.id, "label": p.full_display}) %}{% endfor %}{{ entries|tojson }}
+</script>
+
+{% for day in view.days %}
+<section class="block setup-day">
+  {% set sev = "low" if day.percent_present < 80 else "mid" if day.percent_present < 90 else "good" %}
+  <header class="setup-day-head">
+    <h2>{{ day.weekday }} <span class="muted">{{ day.on_date.strftime("%b %-d") }}</span></h2>
+    <span class="pct {{ sev }}">{{ day.percent_present }}% present</span>
+    <span class="muted small">{{ day.present_full }}/{{ day.total }}{% if day.out_today %} · {{ day.out_today|length }} out{% endif %}</span>
+  </header>
+
+  {% if day.out_today %}
+  <div class="out-box">
+    <strong>Out:</strong>
+    {% for r in day.out_today %}
+      <span class="chip">{{ r.person.full_display }} — {{ r.code }}{% if r.partial %} ({{ r.start_time }}–{{ r.end_time }}){% endif %}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% set existing = day.person_blocks|sum(start=[], attribute='tasks') + day.unassigned_tasks %}
+  {# Dedupe: a task with multiple assignees shows up once per assignee, so
+     collect all rows per instance to render a single line with the POIC
+     name in its own column. #}
+  {% set seen_ids = namespace(v=[]) %}
+  {% set unique_instances = [] %}
+  {% for tr in existing %}
+    {% if tr.instance.id not in seen_ids.v %}
+      {% set _ = seen_ids.v.append(tr.instance.id) %}
+      {% set _ = unique_instances.append(tr.instance.id) %}
+    {% endif %}
+  {% endfor %}
+  {% if unique_instances %}
+  <table class="grid">
+    <thead><tr><th>Task</th><th>Assigned</th><th>POIC</th><th></th></tr></thead>
+    <tbody>
+      {% for iid in unique_instances %}
+      {% set rows_for = existing|selectattr('instance.id','equalto',iid)|list %}
+      {% set primary = rows_for[0] %}
+      {% set poic_row = (rows_for|selectattr('is_poic')|first) %}
+      {% set poic_label = (poic_row.assignment.person.full_display if poic_row and poic_row.assignment and poic_row.assignment.person else (poic_row.external_poic if poic_row else None)) %}
+      {% set assignee_names = [] %}
+      {% for r in rows_for %}
+        {% if r.assignment and r.assignment.person %}{% set _ = assignee_names.append(r.assignment.person.full_display) %}
+        {% elif r.external_poic %}{% set _ = assignee_names.append('(ext) ' ~ r.external_poic) %}{% endif %}
+      {% endfor %}
+      <tr>
+        <td>
+          <a href="/tasks/{{ primary.instance.id }}/edit">{{ primary.instance.name }}</a>
+          {% if primary.category_name %}<span class="cat">{{ primary.category_name }}</span>{% endif %}
+        </td>
+        <td class="muted small">{{ assignee_names|unique|join(", ") if assignee_names else "—" }}</td>
+        <td>{% if poic_label %}<span class="poic">POIC</span> {{ poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>
+          <form method="post" action="/tasks/{{ primary.instance.id }}/archive" class="form-inline-row">
+            <input type="hidden" name="reason" value="removed during setup" />
+            <button type="submit" class="ghost" onclick="return confirm('Remove this task?');">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted small">No tasks yet for {{ day.weekday }}.</p>
+  {% endif %}
+
+  <form method="post" action="/worklists/{{ worklist.id }}/tasks" class="form quick-add">
+    <input type="hidden" name="scheduled_date" value="{{ day.on_date }}" />
+    <input type="hidden" name="next" value="setup" />
+    <div class="quick-add-row">
+      <label class="grow">Task name
+        <input name="name" placeholder="e.g. Replace seatbelts on 947" required />
+      </label>
+      <label>Category
+        <select name="category_id">
+          <option value="">—</option>
+          {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="quick-add-row">
+      <div class="combobox grow" data-combo>
+        <label>Assign to (type to search)
+          <input type="text" class="combobox-input" placeholder="search by name, rank, or rate"
+                 autocomplete="off" data-combo-input data-target-name="person_ids" />
+        </label>
+        <div class="combobox-results" data-combo-results></div>
+        <ul class="combobox-chips" data-combo-chips></ul>
+      </div>
+      <label>POIC
+        <select name="poic_person_id">
+          <option value="">—</option>
+          {% for p in people %}<option value="{{ p.id }}">{{ p.full_display }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit">+ Add task to {{ day.weekday }}</button>
+    </div>
+  </form>
+</section>
+{% endfor %}
+
+<div class="wizard-finish">
+  <a class="btn-link" href="/worklists/{{ worklist.id }}">Open the finished worklist &rsaquo;</a>
+</div>
+
+<script>
+(function() {
+  const peopleData = JSON.parse(document.getElementById("people-data").textContent);
+  function setupCombobox(root) {
+    const input = root.querySelector("[data-combo-input]");
+    const results = root.querySelector("[data-combo-results]");
+    const chips = root.querySelector("[data-combo-chips]");
+    const targetName = input.dataset.targetName;
+    const selected = new Map();
+    function render() {
+      chips.innerHTML = "";
+      root.querySelectorAll("input[type=hidden][data-combo-hidden]").forEach(n => n.remove());
+      for (const [id, label] of selected) {
+        const li = document.createElement("li");
+        li.className = "combobox-chip";
+        li.textContent = label + " ✕";
+        li.title = "Click to remove";
+        li.addEventListener("click", () => { selected.delete(id); render(); });
+        chips.appendChild(li);
+        const h = document.createElement("input");
+        h.type = "hidden"; h.name = targetName; h.value = id;
+        h.dataset.comboHidden = "1";
+        root.appendChild(h);
+      }
+    }
+    function show(query) {
+      const q = (query || "").trim().toLowerCase();
+      results.innerHTML = "";
+      const matches = peopleData
+        .filter(p => !selected.has(String(p.id)))
+        .filter(p => !q || p.label.toLowerCase().includes(q))
+        .slice(0, 10);
+      if (!matches.length) { results.classList.remove("open"); return; }
+      for (const m of matches) {
+        const div = document.createElement("div");
+        div.className = "combobox-result";
+        div.textContent = m.label;
+        div.addEventListener("mousedown", (ev) => {
+          ev.preventDefault();
+          selected.set(String(m.id), m.label);
+          input.value = "";
+          results.classList.remove("open");
+          render();
+          input.focus();
+        });
+        results.appendChild(div);
+      }
+      results.classList.add("open");
+    }
+    input.addEventListener("focus", () => show(input.value));
+    input.addEventListener("input", () => show(input.value));
+    input.addEventListener("blur", () => setTimeout(() => results.classList.remove("open"), 150));
+  }
+  for (const root of document.querySelectorAll("[data-combo]")) setupCombobox(root);
+})();
+</script>
+{% endblock %}

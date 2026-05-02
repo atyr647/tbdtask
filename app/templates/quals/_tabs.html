@@ -1,0 +1,6 @@
+{% set p = request.url.path %}
+<nav class="tabs">
+  <a href="/quals"          {% if p == "/quals" %}class="active"{% endif %}>Catalog</a>
+  <a href="/quals/overview" {% if p == "/quals/overview" %}class="active"{% endif %}>Overview</a>
+  <a href="/quals/matrix"   {% if p == "/quals/matrix" %}class="active"{% endif %}>Matrix</a>
+</nav>

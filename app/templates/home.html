@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="muted">{{ today.strftime("%A, %B %-d, %Y") }}</p>
+
+<div class="split-2">
+  <section class="block">
+    <div class="dashboard-head">
+      <h2>Today's snapshot</h2>
+      <form method="get" action="/day/__placeholder__" class="day-jump" id="day-jump-form">
+        <label>Jump to day
+          <input type="date" id="day-jump-input" value="{{ today }}" />
+        </label>
+        <a class="btn-link" href="/day/{{ prev_day }}">&lsaquo; yesterday</a>
+        <a class="btn-link" href="/today">today</a>
+        <a class="btn-link" href="/day/{{ tomorrow }}">tomorrow &rsaquo;</a>
+      </form>
+    </div>
+    <div class="snapshot">
+      <div class="snapshot-pct snapshot-{% if report.percent_present < 80 %}low{% elif report.percent_present < 90 %}mid{% else %}good{% endif %}">
+        <div class="big">{{ report.percent_present }}%</div>
+        <div class="muted small">present</div>
+      </div>
+      <div class="snapshot-stats">
+        <div><strong>{{ report.total }}</strong> on roster</div>
+        <div><strong>{{ report.present_full }}</strong> present (full day)</div>
+        <div><strong>{{ report.full_absent }}</strong> out (full day)</div>
+        <div><strong>{{ report.partial_absent }}</strong> partial day</div>
+        {% if by_code %}
+        <div class="muted">
+          {% for code, n in by_code.items() %}<span class="code-chip">{{ code }}: {{ n }}</span>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <p style="margin: 0;"><a class="btn-link" href="/day/{{ next_monday }}">Next Monday</a></p>
+
+    {% if out_today %}
+    <h3>Out today ({{ out_today|length }})</h3>
+    <ul class="inline-list">
+      {% for r in out_today %}
+        <li>
+          <a href="/personnel/{{ r.person.id }}">{{ r.person.full_display }}</a>
+          <span class="muted">— {{ r.code }}{% if r.partial %} ({{ r.start_time }}–{{ r.end_time }}){% endif %}</span>
+        </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <aside>
+    {% if total_active %}
+    <section class="block alerts-banner severity-{{ 'urgent' if urgent_count else 'warn' if warn_count else 'info' }}">
+      <h2 style="color: inherit; margin: 0;">{{ total_active }} active alert{{ "s" if total_active != 1 else "" }}</h2>
+      <p style="margin: 6px 0;">
+        {% if urgent_count %}<span class="sev sev-urgent">{{ urgent_count }} urgent</span> {% endif %}
+        {% if warn_count %}<span class="sev sev-warn">{{ warn_count }} warn</span> {% endif %}
+        {% if info_count %}<span class="sev sev-info">{{ info_count }} info</span>{% endif %}
+      </p>
+      {% if banner_items %}
+      <ul class="banner-list">
+        {% for item in banner_items %}
+          <li><span class="sev sev-{{ item.alert.severity }}">{{ item.alert.severity }}</span> {{ item.label }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <p style="margin: 8px 0 0;"><a class="btn-link" href="/alerts">Open alerts</a></p>
+    </section>
+    {% else %}
+    <section class="block">
+      <h2>Alerts</h2>
+      <p>All clear. ✓</p>
+    </section>
+    {% endif %}
+
+    <section class="block">
+      <h2>Quick links</h2>
+      <ul class="inline-list">
+        {% if current_wl %}
+          <li><a href="/worklists/{{ current_wl.id }}">📋 {{ current_wl.name }}</a></li>
+        {% else %}
+          <li><a href="/worklists/new">+ New worklist</a></li>
+        {% endif %}
+        <li><a href="/worklists">All worklists</a></li>
+        <li><a href="/absences/calendar">Absence calendar</a></li>
+        <li><a href="/quals/overview">Qualification overview</a></li>
+      </ul>
+    </section>
+  </aside>
+</div>
+
+<script>
+(function() {
+  const form = document.getElementById("day-jump-form");
+  const input = document.getElementById("day-jump-input");
+  if (!form || !input) return;
+  input.addEventListener("change", () => {
+    if (!input.value) return;
+    window.location.href = "/day/" + input.value;
+  });
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    if (input.value) window.location.href = "/day/" + input.value;
+  });
+})();
+</script>
+{% endblock %}

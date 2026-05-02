@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Incoming personnel{% endblock %}
+{% block content %}
+{% include "personnel/_tabs.html" %}
+<h1>Incoming personnel <span class="muted">({{ rows|length }})</span> <a class="btn-link" href="/personnel/incoming/new">+ Add incoming</a></h1>
+<p class="muted">Track sailors en route to the command. Move them to the active roster once they arrive.</p>
+
+{% if not rows %}
+  <div class="block">
+    <p class="muted">No incoming personnel right now.</p>
+  </div>
+{% else %}
+<div class="block">
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Rate</th>
+      <th>Name</th>
+      <th>ETA</th>
+      <th>Sponsor</th>
+      <th>Orders</th>
+      <th>Itinerary</th>
+      <th>AOB</th>
+      <th>Barracks</th>
+      <th>Progress</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.rate or "—" }}</td>
+      <td><a href="/personnel/{{ r.person.id }}">{{ r.person.last_name }}</a></td>
+      <td>{{ r.arrival_date or "—" }}</td>
+      <td class="muted">{{ r.sponsor_label or "—" }}</td>
+      <td>{% if r.orders_received %}<span class="check">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if r.itinerary_received %}<span class="check">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if r.aob_scheduled %}<span class="check">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if r.barracks_assigned %}<span class="check">✓</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>
+        <span class="pct {% if r.checklist_done == r.checklist_total %}good{% elif r.checklist_done >= r.checklist_total // 2 %}mid{% else %}low{% endif %}">
+          {{ r.checklist_done }}/{{ r.checklist_total }}
+        </span>
+      </td>
+      <td>
+        <a class="btn-link" href="/personnel/{{ r.person.id }}/edit">Edit</a>
+        <form method="post" action="/personnel/{{ r.person.id }}/arrived" class="form-inline-row" style="display:inline-flex">
+          <button type="submit" class="ghost-btn" onclick="return confirm('Mark {{ r.person.full_display }} as arrived and add to the active roster?');">Arrived ✓</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

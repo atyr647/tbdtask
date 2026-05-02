@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+build/
+.pytest_cache/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+.env
+
+# Build artifacts: keep the final AppImages, throw away the intermediate
+# downloads + AppDir staging tree.
+dist/*
+!dist/*.AppImage

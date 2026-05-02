@@ -1,0 +1,11 @@
+{# Rate picker: typable input + datalist suggestions grouped by category.
+   The datalist provides suggestions; the operator can still type any
+   custom rate not in the catalog. The browser highlights matching
+   suggestions as you type. #}
+<datalist id="rate-suggestions">
+  {% for category, entries in rate_groups.items() %}
+    {% for e in entries %}
+      <option value="{{ e.code }}">{{ category }} ({{ e.paygrade }}) — {{ e.label }}</option>
+    {% endfor %}
+  {% endfor %}
+</datalist>

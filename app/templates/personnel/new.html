@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}New person{% endblock %}
+{% block content %}
+<p><a href="/personnel">&lsaquo; Back to roster</a></p>
+<h1>Add personnel</h1>
+{% include "personnel/_rate_picker.html" %}
+<form method="post" action="/personnel" class="form">
+  <fieldset>
+    <legend>Identity</legend>
+    <label>Last name <input name="last_name" required /></label>
+    <label>First name <input name="first_name" placeholder="useful when multiple sailors share a last name" /></label>
+    <label>Position <input name="position" placeholder="e.g. LPO, Watchbill Coordinator" /></label>
+  </fieldset>
+  <fieldset>
+    <legend>Rate / rank</legend>
+    <label>Category
+      <select id="rate-category">
+        <option value="">— any —</option>
+        <option value="Officer">Officer</option>
+        <option value="CWO">CWO</option>
+        <option value="Enlisted">Enlisted</option>
+      </select>
+    </label>
+    <label>Rate / rank
+      <input name="rate" list="rate-suggestions" placeholder="type or pick (e.g. CM2, BMC, CWO2, LT)" autocomplete="off" />
+    </label>
+    <p class="muted small">Paygrade and group are derived automatically. Khaki = E-7 and above + Officer/CWO. Junior = E-4 and below.</p>
+  </fieldset>
+  <fieldset>
+    <legend>Assignment</legend>
+    <label>Duty section
+      <input type="number" name="duty_section" min="1" max="20" placeholder="e.g. 1, 2, 3 …" />
+    </label>
+    <label>PRD <input type="date" name="prd_date" /></label>
+    <label>Drivers license
+      <input type="checkbox" name="has_drivers_license" value="1" />
+    </label>
+    <label>Drivers license expires <input type="date" name="drivers_license_expires" /></label>
+    <label>Notes <textarea name="notes" rows="2"></textarea></label>
+  </fieldset>
+  <div class="form-actions">
+    <button type="submit">Create</button>
+    <a href="/personnel" class="btn-link">Cancel</a>
+  </div>
+</form>
+
+{% include "personnel/_rate_picker_js.html" %}
+{% endblock %}

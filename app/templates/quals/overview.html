@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Qual overview{% endblock %}
+{% block content %}
+{% include "quals/_tabs.html" %}
+<h1>Qualification overview</h1>
+<p class="muted">Per-qual rollups across the active roster. Gaps flagged when fewer than {{ threshold }} qualified.</p>
+<form method="get" action="/quals/overview" class="form-inline">
+  <label>Gap threshold <input type="number" name="threshold" min="1" max="10" value="{{ threshold }}" style="width:70px" /></label>
+  <button type="submit">Apply</button>
+</form>
+
+<section class="block">
+  <h2>Coverage gaps</h2>
+  {% set gaps = summaries|selectattr("gap")|list %}
+  {% if gaps %}
+  <ul class="inline-list">
+    {% for s in gaps %}
+      <li class="warn"><strong>{{ s.qual.name }}</strong>: {{ s.counts.get("qualified", 0) }} qualified</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">All qualifications meet the threshold.</p>
+  {% endif %}
+</section>
+
+<section class="block">
+  <h2>Per-qualification rollup</h2>
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>Qual</th>
+        <th>Qualified</th>
+        <th>In&nbsp;progress</th>
+        <th>Dinq</th>
+        <th>Gap</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in summaries %}
+      <tr>
+        <td><a href="/quals/{{ s.qual.id }}/edit">{{ s.qual.name }}</a></td>
+        <td>{{ s.counts.get("qualified", 0) }}</td>
+        <td>{{ s.counts.get("in_progress", 0) }}</td>
+        <td>{{ s.counts.get("dinq", 0) }}</td>
+        <td>{% if s.gap %}<span class="warn">⚠</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="block">
+  <h2>Detail</h2>
+  {% for s in summaries %}
+    <details class="qual-detail">
+      <summary><strong>{{ s.qual.name }}</strong>
+        <span class="muted">— {{ s.counts.get("qualified", 0) }} qualified, {{ s.counts.get("in_progress", 0) }} in progress, {{ s.counts.get("dinq", 0) }} dinq</span>
+        {% if s.gap %}<span class="warn">gap</span>{% endif %}
+      </summary>
+      <dl class="kv">
+        <dt>Qualified</dt><dd>{{ s.qualified_names|join(", ") if s.qualified_names else "—" }}</dd>
+        <dt>In progress</dt><dd>{{ s.in_progress_names|join(", ") if s.in_progress_names else "—" }}</dd>
+        <dt>Dinq</dt><dd>{{ s.dinq_names|join(", ") if s.dinq_names else "—" }}</dd>
+      </dl>
+    </details>
+  {% endfor %}
+</section>
+{% endblock %}
