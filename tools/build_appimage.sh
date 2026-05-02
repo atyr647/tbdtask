@@ -50,6 +50,11 @@ echo "Target architecture: $ARCH"
 echo "Python build:        $PY_TRIPLE"
 echo "Wheel platform:      $PIP_PLATFORM"
 
+# pip wheel ABI tag — needs major+minor only (e.g. cp311 for 3.11.x).
+IFS=. read -r PY_MAJOR PY_MINOR _ <<< "$PY_VERSION"
+PY_PYVER="${PY_MAJOR}.${PY_MINOR}"
+PY_ABI="cp${PY_MAJOR}${PY_MINOR}"
+
 mkdir -p "$DIST"
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/share/${APP_NAME}"
@@ -75,8 +80,8 @@ python3 -m pip install \
   --no-cache-dir \
   --target "$SITE_DIR" \
   --platform "$PIP_PLATFORM" \
-  --python-version "${PY_VERSION%.*}" \
-  --implementation cp --abi "cp${PY_VERSION//./}" \
+  --python-version "$PY_PYVER" \
+  --implementation cp --abi "$PY_ABI" \
   --only-binary=:all: \
   --upgrade \
   fastapi 'uvicorn>=0.27' sqlalchemy alembic jinja2 python-multipart pydantic pydantic-core mako
@@ -117,18 +122,35 @@ fi
 
 # 4. Assemble AppImage ----------------------------------------------------
 echo "[4/4] Running appimagetool..."
-APPIMAGETOOL="$DIST/appimagetool-$ARCH"
+
+# appimagetool runs on the *build* host; download the host-arch binary.
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in
+  x86_64)  HOST_AT_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" ;;
+  aarch64) HOST_AT_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" ;;
+  *) echo "unsupported build host arch=$HOST_ARCH"; exit 1 ;;
+esac
+APPIMAGETOOL="$DIST/appimagetool-$HOST_ARCH"
 if [[ ! -x "$APPIMAGETOOL" ]]; then
-  curl -fL -o "$APPIMAGETOOL" "$AT_URL"
+  curl -fL -o "$APPIMAGETOOL" "$HOST_AT_URL"
   chmod +x "$APPIMAGETOOL"
 fi
 
+# The runtime is the small binary embedded at the head of every AppImage;
+# it mounts the SquashFS payload at launch. The runtime arch determines
+# which CPU the resulting AppImage will run on, so for a cross-build we
+# fetch a target-arch runtime explicitly.
+RUNTIME="$DIST/runtime-$ARCH"
+case "$ARCH" in
+  x86_64)  RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64" ;;
+  aarch64) RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-aarch64" ;;
+esac
+if [[ ! -f "$RUNTIME" ]]; then
+  curl -fL -o "$RUNTIME" "$RUNTIME_URL"
+fi
+
 OUT="$DIST/${APP_NAME}-${APP_VERSION}-${ARCH}.AppImage"
-# When cross-building (host != target), appimagetool needs --runtime-file
-# pointing at a target-arch runtime. The continuous build of appimagetool
-# embeds host-arch by default; to keep cross-build simple we tell it which
-# arch we want via env, which it honours when packing.
-ARCH="$ARCH" "$APPIMAGETOOL" --no-appstream "$APPDIR" "$OUT"
+ARCH="$ARCH" "$APPIMAGETOOL" --no-appstream --runtime-file "$RUNTIME" "$APPDIR" "$OUT"
 
 echo
 echo "Built: $OUT"
