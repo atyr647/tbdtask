@@ -17,6 +17,12 @@ dev = [
     "pytest>=8.0",
     "httpx>=0.27",
 ]
+# Hosted-mode dependency. Not pulled in by the AppImage build, which uses
+# the bundled SQLite. Install with ``pip install -e .[postgres]`` to run
+# the hosted/multi-tenant backend (Phase 0+).
+postgres = [
+    "psycopg[binary]>=3.2",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -8,17 +8,25 @@ monkey-patched at fixture setup so route handlers (which import
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, time as time_t
-from typing import Iterator
+import os
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+# Stop ``app.main.create_app()`` from running Alembic against the on-disk dev
+# DB during test collection. Tests use in-memory SQLite per the fixtures
+# below; the app-import side-effect would otherwise leak migrations into
+# ``data/tbdtask.db``. Must be set before any ``app.*`` import.
+os.environ.setdefault("TBDTASK_SKIP_AUTOMIGRATE", "1")
 
-from app import db as db_module
-from app import models as M
+from datetime import date, datetime, timedelta, time as time_t  # noqa: E402
+from typing import Iterator  # noqa: E402
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine, event  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app import db as db_module  # noqa: E402
+from app import models as M  # noqa: E402
 
 
 @pytest.fixture

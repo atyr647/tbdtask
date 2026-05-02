@@ -32,6 +32,36 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+from .tenancy import TenantScopedMixin
+
+
+# ---------------------------------------------------------------------------
+# Organization (tenant root)
+# ---------------------------------------------------------------------------
+
+class Organization(Base):
+    """A tenant. Every row in a tenant-scoped table FKs back to one of these.
+
+    ``slug`` is the URL-stable identifier. ``settings_json`` holds per-org
+    configuration (retention windows, allowed providers, sensitive-info
+    re-acknowledgment interval) — fully populated in later phases.
+    """
+
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    settings_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +96,7 @@ class ProvenanceMixin:
 # Provenance / import tracking
 # ---------------------------------------------------------------------------
 
-class ImportBatch(Base, TimestampMixin):
+class ImportBatch(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "import_batches"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -85,7 +115,7 @@ class ImportBatch(Base, TimestampMixin):
 # Personnel
 # ---------------------------------------------------------------------------
 
-class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "persons"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -122,7 +152,7 @@ def _effective_date_cols():
     )
 
 
-class PersonRate(Base, TimestampMixin, ProvenanceMixin):
+class PersonRate(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_rates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -140,7 +170,7 @@ class PersonRate(Base, TimestampMixin, ProvenanceMixin):
     )
 
 
-class PersonDutySection(Base, TimestampMixin, ProvenanceMixin):
+class PersonDutySection(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_duty_sections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -156,7 +186,7 @@ class PersonDutySection(Base, TimestampMixin, ProvenanceMixin):
     )
 
 
-class PersonPrd(Base, TimestampMixin, ProvenanceMixin):
+class PersonPrd(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     """Projected Rotation Date. New row per change (initial / extension / correction)."""
 
     __tablename__ = "person_prds"
@@ -172,7 +202,7 @@ class PersonPrd(Base, TimestampMixin, ProvenanceMixin):
     person: Mapped["Person"] = relationship(back_populates="prds")
 
 
-class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin):
+class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_roster_status"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -192,7 +222,7 @@ class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin):
     )
 
 
-class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin):
+class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_drivers_licenses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -209,7 +239,7 @@ class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin):
 # Qualifications
 # ---------------------------------------------------------------------------
 
-class Qualification(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Qualification(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "qualifications"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -239,7 +269,7 @@ PERSON_QUAL_STATUSES = (
 )
 
 
-class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_quals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -269,16 +299,19 @@ class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
 # Absences
 # ---------------------------------------------------------------------------
 
-class AbsenceCode(Base, TimestampMixin, SoftDeleteMixin):
+class AbsenceCode(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "absence_codes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Code is unique per-org (Phase 3 swaps the global UNIQUE for a composite
+    # one over (org_id, code)). Kept globally unique for now since the
+    # backfilled DB has only one org.
     code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
-class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "absences"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -303,16 +336,18 @@ class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
 # Crews (plumbing only for now)
 # ---------------------------------------------------------------------------
 
-class Crew(Base, TimestampMixin, SoftDeleteMixin):
+class Crew(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "crews"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Same per-org-uniqueness story as AbsenceCode.code — global UNIQUE for
+    # now, becomes (org_id, name) composite in Phase 3.
     name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
-class CrewMembership(Base, TimestampMixin):
+class CrewMembership(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "crew_memberships"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -327,10 +362,12 @@ class CrewMembership(Base, TimestampMixin):
 # Tasks
 # ---------------------------------------------------------------------------
 
-class TaskCategory(Base, TimestampMixin, SoftDeleteMixin):
+class TaskCategory(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "task_categories"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Same per-org-uniqueness story as AbsenceCode/Crew. Phase 3 swaps the
+    # global UNIQUE for (org_id, name).
     name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -343,7 +380,7 @@ CARRY_OVER_POLICIES = (
 )
 
 
-class TaskTemplate(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class TaskTemplate(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "task_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -391,7 +428,7 @@ TASK_INSTANCE_STATUSES = (
 )
 
 
-class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "worklists"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -408,7 +445,7 @@ class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
-class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "task_instances"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -441,7 +478,7 @@ class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     )
 
 
-class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin):
+class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "task_assignments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -477,7 +514,7 @@ class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin):
 # Alerts
 # ---------------------------------------------------------------------------
 
-class Alert(Base, TimestampMixin):
+class Alert(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
