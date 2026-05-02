@@ -195,15 +195,17 @@ h3 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; color: var(--text); 
 }
 .matrix .sticky-col a { color: var(--text); }
 .matrix .sticky-col a:hover { color: var(--accent); }
-/* Column striping: every other body column gets a faint tint to help the
-   eye align a row to its column without losing the cell colors of the
-   absence/qual calendars. */
-.matrix tbody td:nth-child(2n+3) { background-color: rgba(0,0,0,.018); }
-.matrix td.q  { background: var(--good-soft); color: var(--good); text-align: center; font-weight: 700; }
-.matrix td.d  { background: var(--bad-soft); color: var(--bad); text-align: center; font-weight: 700; }
-.matrix td.ip { background: var(--warn-soft); color: var(--warn); text-align: center; font-weight: 700; }
-.matrix td.x  { background: #eef1f7; color: var(--muted); text-align: center; }
-.matrix td.w  { background: rgba(41,97,255,.10); color: var(--accent); text-align: center; }
+/* Column + row striping: faint tints help the eye align cells. The cell
+   colour rules above use !important so coloured statuses always win. */
+.matrix tbody td:nth-child(2n+3) { background-color: rgba(20,30,70,.025); }
+.matrix:not(.calendar) tbody tr:nth-child(even) td { background-color: rgba(20,30,70,.030); }
+.matrix:not(.calendar) tbody tr:nth-child(even) td.sticky-col { background: var(--panel-2); }
+.matrix:not(.calendar) tbody tr:nth-child(odd) td.sticky-col { background: var(--panel); }
+.matrix td.q  { background: var(--good-soft) !important; color: var(--good); text-align: center; font-weight: 700; }
+.matrix td.d  { background: var(--bad-soft)  !important; color: var(--bad); text-align: center; font-weight: 700; }
+.matrix td.ip { background: var(--warn-soft) !important; color: var(--warn); text-align: center; font-weight: 700; }
+.matrix td.x  { background: #eef1f7 !important; color: var(--muted); text-align: center; }
+.matrix td.w  { background: rgba(41,97,255,.10) !important; color: var(--accent); text-align: center; }
 .matrix td.a  { text-align: center; color: var(--muted); }
 
 /* Banner --------------------------------------------------------------- */
@@ -477,11 +479,14 @@ details.prd-popover[open] > summary { background: var(--accent); color: #fff; bo
   display: grid; gap: 8px; min-width: 200px;
 }
 .prd-popover-body label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
-.prd-popover-body input[type="date"] {
+.prd-popover-body input[type="date"],
+.prd-popover-body textarea {
   background: var(--panel); color: var(--text); border: 1px solid var(--border);
-  border-radius: 7px; padding: 7px 10px; font: inherit;
+  border-radius: 7px; padding: 7px 10px; font: inherit; resize: vertical;
 }
-.prd-popover-body input[type="date"]:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(40,86,231,.18); }
+.prd-popover-body textarea { min-width: 280px; min-height: 56px; }
+.prd-popover-body input[type="date"]:focus,
+.prd-popover-body textarea:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(40,86,231,.18); }
 .prd-popover-actions { display: flex; gap: 6px; }
 .prd-popover-actions button { padding: 6px 12px; font-size: 12px; }
 

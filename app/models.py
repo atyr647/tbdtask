@@ -487,6 +487,7 @@ class Alert(Base, TimestampMixin):
     payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     dismissed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    snoozed_until: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 

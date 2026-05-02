@@ -77,12 +77,34 @@ def dismiss_alert(alert_id: int):
 
 
 @router.post("/alerts/{alert_id}/resolve")
-def resolve_alert(alert_id: int):
+def resolve_alert(alert_id: int, note: Optional[str] = Form(None)):
+    """Mark an alert as resolved. Optional note is appended to the alert's
+    notes field so the audit trail explains why."""
     with SessionLocal() as s:
         a = s.get(M.Alert, alert_id)
         if not a:
             raise HTTPException(404)
         a.resolved_at = datetime.now()
+        if note:
+            existing = (a.notes or "").rstrip()
+            a.notes = f"{existing}\n{note.strip()}" if existing else note.strip()
+        s.commit()
+    return RedirectResponse("/alerts", status_code=303)
+
+
+@router.post("/alerts/{alert_id}/snooze")
+def snooze_alert(alert_id: int, until: str = Form(...)):
+    """Push an alert out until a chosen date. The alert disappears from the
+    active queue and reappears on/after that date."""
+    try:
+        until_date = date.fromisoformat(until)
+    except ValueError:
+        raise HTTPException(400, "expected YYYY-MM-DD for until")
+    with SessionLocal() as s:
+        a = s.get(M.Alert, alert_id)
+        if not a:
+            raise HTTPException(404)
+        a.snoozed_until = until_date
         s.commit()
     return RedirectResponse("/alerts", status_code=303)
 

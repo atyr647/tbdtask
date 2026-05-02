@@ -82,11 +82,33 @@
           </form>
           {% endif %}
           {% endif %}
+        <details class="prd-popover">
+          <summary class="ghost-btn">Snooze</summary>
+          <form method="post" action="/alerts/{{ a.id }}/snooze" class="prd-popover-body">
+            <label>Snooze until
+              <input type="date" name="until" required autofocus />
+            </label>
+            <p class="muted small" style="margin:0">The alert reappears on this date.</p>
+            <div class="prd-popover-actions">
+              <button type="submit">Snooze</button>
+              <button type="button" class="ghost-btn" onclick="this.closest('details').open=false">Cancel</button>
+            </div>
+          </form>
+        </details>
+        <details class="prd-popover">
+          <summary class="ghost-btn">Resolve</summary>
+          <form method="post" action="/alerts/{{ a.id }}/resolve" class="prd-popover-body">
+            <label>Resolution note (optional)
+              <textarea name="note" rows="2" placeholder="What did you do? e.g. Spoke with PSD, orders requested" autofocus></textarea>
+            </label>
+            <div class="prd-popover-actions">
+              <button type="submit">Mark resolved</button>
+              <button type="button" class="ghost-btn" onclick="this.closest('details').open=false">Cancel</button>
+            </div>
+          </form>
+        </details>
         <form method="post" action="/alerts/{{ a.id }}/dismiss" class="form-inline-row">
           <button type="submit" class="ghost-btn">Dismiss</button>
-        </form>
-        <form method="post" action="/alerts/{{ a.id }}/resolve" class="form-inline-row">
-          <button type="submit" class="ghost-btn">Resolve</button>
         </form>
         {% endif %}
       </td>

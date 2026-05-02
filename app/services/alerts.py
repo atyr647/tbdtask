@@ -194,12 +194,18 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
 
 
 def active_alerts(session: Session) -> list[M.Alert]:
+    today = date.today()
     return list(
         session.scalars(
             select(M.Alert)
-            .where(M.Alert.dismissed_at.is_(None), M.Alert.resolved_at.is_(None))
+            .where(
+                M.Alert.dismissed_at.is_(None),
+                M.Alert.resolved_at.is_(None),
+                # Snoozed alerts disappear from the active queue until the
+                # snooze date passes, then they reappear.
+                (M.Alert.snoozed_until.is_(None) | (M.Alert.snoozed_until <= today)),
+            )
             .order_by(
-                # Order by severity (urgent first), then created_at desc.
                 _severity_order(M.Alert.severity).desc(),
                 M.Alert.created_at.desc(),
             )

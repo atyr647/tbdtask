@@ -62,6 +62,7 @@ _COLUMN_ADDITIONS = [
     ("persons", "aob_scheduled", "BOOLEAN NOT NULL DEFAULT 0"),
     ("persons", "barracks_assigned", "BOOLEAN NOT NULL DEFAULT 0"),
     ("persons", "position", "VARCHAR(128)"),
+    ("alerts", "snoozed_until", "DATE"),
 ]
 
 

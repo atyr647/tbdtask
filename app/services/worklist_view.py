@@ -144,10 +144,24 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
         report = get_day_report(session, d)
         absence_lookup[d] = {r.person.id: r for r in report.rows}
         out = [r for r in report.rows if r.absence is not None]
-        out_summary = [
-            f"{r.person.full_display} ({r.code}{f' {r.start_time}-{r.end_time}' if r.partial else ''})"
-            for r in out
-        ]
+        out_summary: list[str] = []
+        for r in out:
+            a = r.absence
+            # Build a span string that always tells the operator how long
+            # the absence lasts. Partial day -> time range; multi-day full
+            # absence -> date range; single-day full -> the date itself.
+            if r.partial and r.start_time and r.end_time:
+                span = f"{r.start_time.strftime('%H%M')}-{r.end_time.strftime('%H%M')}"
+            elif a and a.start_date and a.end_date and a.start_date != a.end_date:
+                span = f"{a.start_date.strftime('%-m/%-d')}-{a.end_date.strftime('%-m/%-d')}"
+            elif a and a.start_date:
+                span = a.start_date.strftime("%-m/%-d")
+            else:
+                span = ""
+            label = f"{r.person.full_display} — {r.code}"
+            if span:
+                label += f" {span}"
+            out_summary.append(label)
         headers.append(GridDayHeader(
             on_date=d, weekday=WEEKDAY_NAMES[d.weekday()],
             out_count=len(out), present_count=report.total - len(out),
