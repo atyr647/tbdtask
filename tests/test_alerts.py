@@ -103,7 +103,7 @@ def test_recompute_resolves_stale_prd_alert_when_data_changes(session):
     ).first()
     cur.valid_to = _today()
     session.add(M.PersonPrd(person_id=p.id, prd_date=_today() + timedelta(days=200),
-                            change_reason="extension", valid_from=_today()))
+                            change_reason="extension", valid_from=_today(), org_id=1))
     session.commit()
     recompute(session); session.commit()
 
@@ -156,7 +156,7 @@ def test_qual_expires_at_set_from_validity_period_days(session):
     pq = M.PersonQual(
         person_id=p.id, qual_id=q.id, status="qualified",
         achieved_at=achieved, expires_at=expected_expiry,
-        valid_from=_today(),
+        valid_from=_today(), org_id=1,
     )
     session.add(pq)
     session.commit()
@@ -175,7 +175,7 @@ def test_qual_with_no_validity_has_no_expiry(session):
     pq = M.PersonQual(
         person_id=p.id, qual_id=q.id, status="qualified",
         achieved_at=achieved, expires_at=None,
-        valid_from=_today(),
+        valid_from=_today(), org_id=1,
     )
     session.add(pq)
     session.commit()

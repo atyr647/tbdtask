@@ -2,7 +2,7 @@
 Seed a populated SQLite database for demos and screenshots.
 
 Creates fictional personnel, qualifications, an in-progress weekly worklist
-with tasks and assignments, a few absences (full + partial day), PRDs that
+with tasks and assignments, a few absences (full + partial day), departure dates that
 trigger alerts, an expiring qualification, and a recurring task template.
 
 Run on a fresh install (or after deleting data/tbdtask.db) to get a populated
@@ -20,76 +20,69 @@ from app.services.task_generator import generate_for_worklist
 from app.services.alerts import recompute as recompute_alerts
 
 
-# (rate, last_name, group_label) — fictional Navy-style roster.
+# (title, last_name, group_label) — fictional civilian roster.
 ROSTER = [
-    # Khakis
-    ("CWO2", "Reyes", "Khakis"),
-    ("BMC", "Holland", "Khakis"),
-    ("BMC(Sel)", "Brennan", "Khakis"),
-    # E-6
-    ("EN1", "Banks", "E6"),
-    ("BM1", "Wallace", "E6"),
-    ("EN1", "Spencer", "E6"),
-    ("CM1", "Hartman", "E6"),
-    ("QM1", "Carrington", "E6"),
-    # E-5
-    ("ET2", "Mason", "E5"),
-    ("EN2", "Foster", "E5"),
-    ("CM2", "Tanner", "E5"),
-    ("CM2", "Sandoval", "E5"),
-    ("BM2", "Avalos", "E5"),
-    ("EN2", "Vega", "E5"),
-    ("EN2", "Juarez", "E5"),
-    ("GM2", "Garrison", "E5"),
-    ("BM2", "Garcia", "E5"),
-    # Junior
-    ("MM3", "Sutton", "Junior"),
-    ("MM3", "Pearce", "Junior"),
-    ("BM3", "Tate", "Junior"),
-    ("ITSN", "Estrada", "Junior"),
-    ("BMSN", "Riley", "Junior"),
-    ("SN", "Mendoza", "Junior"),
-    ("SN", "Beck", "Junior"),
-    ("SN", "Adler", "Junior"),
-    ("SN", "Ellis", "Junior"),
-    ("SN", "Greer", "Junior"),
-    ("SN", "Townsend", "Junior"),
-    ("SN", "Sloane", "Junior"),
-    ("SN", "Hayward", "Junior"),
-    ("SN", "Acevedo", "Junior"),
-    ("ENFN", "Yates", "Junior"),
-    ("SN", "Sims", "Junior"),
-    ("BMSR", "Olson", "Junior"),
-    ("CMCR", "Marsh", "Junior"),
-    ("CM2", "Reilly", "Junior"),
+    ("Director", "Reyes", "Leadership"),
+    ("Manager", "Holland", "Leadership"),
+    ("Supervisor", "Brennan", "Senior"),
+    ("Team Lead", "Banks", "Senior"),
+    ("Team Lead", "Wallace", "Senior"),
+    ("Coordinator", "Spencer", "Professional"),
+    ("Planner", "Hartman", "Professional"),
+    ("Scheduler", "Carrington", "Professional"),
+    ("Analyst", "Mason", "Professional"),
+    ("Technician", "Foster", "Professional"),
+    ("Coordinator", "Tanner", "Professional"),
+    ("Coordinator", "Sandoval", "Professional"),
+    ("Operator", "Avalos", "Associate"),
+    ("Technician", "Vega", "Professional"),
+    ("Technician", "Juarez", "Professional"),
+    ("Specialist", "Garrison", "Professional"),
+    ("Operator", "Garcia", "Associate"),
+    ("Associate", "Sutton", "Associate"),
+    ("Associate", "Pearce", "Associate"),
+    ("Assistant", "Tate", "Associate"),
+    ("Assistant", "Estrada", "Associate"),
+    ("Associate", "Riley", "Associate"),
+    ("Associate", "Mendoza", "Associate"),
+    ("Associate", "Beck", "Associate"),
+    ("Associate", "Adler", "Associate"),
+    ("Associate", "Ellis", "Associate"),
+    ("Associate", "Greer", "Associate"),
+    ("Associate", "Townsend", "Associate"),
+    ("Associate", "Sloane", "Associate"),
+    ("Associate", "Hayward", "Associate"),
+    ("Associate", "Acevedo", "Associate"),
+    ("Assistant", "Yates", "Associate"),
+    ("Associate", "Sims", "Associate"),
+    ("Intern", "Olson", "Associate"),
+    ("Intern", "Marsh", "Associate"),
+    ("Coordinator", "Reilly", "Professional"),
 ]
 
 PAYGRADE = {
-    "CWO2": "W-2", "BMC": "E-7", "BMC(Sel)": "E-6",
-    "BM1": "E-6", "EN1": "E-6", "CM1": "E-6", "QM1": "E-6", "ET1": "E-6",
-    "BM2": "E-5", "EN2": "E-5", "CM2": "E-5", "GM2": "E-5", "ET2": "E-5",
-    "BM3": "E-4", "EN3": "E-4", "CM3": "E-4", "MM3": "E-4",
-    "SN": "E-3", "BMSN": "E-3", "ITSN": "E-3", "ENFN": "E-3",
-    "BMSR": "E-1", "CMCR": "E-1",
+    "Director": "L5", "Manager": "L4", "Supervisor": "L3", "Team Lead": "L3",
+    "Coordinator": "L2", "Planner": "L2", "Scheduler": "L2", "Analyst": "L2",
+    "Technician": "L2", "Specialist": "L2", "Operator": "L1", "Associate": "L1",
+    "Assistant": "L1", "Intern": "L0",
 }
 
-# Qualification catalog — same shape as the legacy structure but renamed
-# generically: WC (workcenter), DS (duty section), BPT (beach party team
-# style), Vehicles.
+# Qualification catalog — same shape as the production structure, but with
+# civilian certification names.
 QUALS = [
-    ("Craftsman", "WC"), ("3M", "WC"), ("RPPO", "WC"), ("Workcenter", "WC"),
-    ("POOW", "DS"), ("Rover", "DS"),
-    ("SUROB", "BPT"), ("TC", "BPT"), ("Flank", "BPT"), ("RTO", "BPT"),
-    ("SALPO", "BPT"), ("SALO", "BPT"), ("BPTC", "BPT"),
-    ("HMMWV", "Vehicles"), ("MTVR", "Vehicles"), ("DOZER", "Vehicles"),
-    ("LARC Crew", "Vehicles"), ("LARC Eng.", "Vehicles"), ("LARC Cdr.", "Vehicles"),
+    ("Safety Certified", "Core"), ("Quality Review", "Core"), ("Purchasing", "Core"),
+    ("Team Operations", "Core"), ("Front Desk", "Coverage"), ("Field Rover", "Coverage"),
+    ("Site Survey", "Field"), ("Traffic Control", "Field"), ("Communications", "Field"),
+    ("Incident Lead", "Field"), ("Vehicle", "Equipment"), ("Forklift", "Equipment"),
+    ("Bulldozer", "Equipment"), ("Boat Crew", "Equipment"), ("Boat Engineer", "Equipment"),
+    ("Boat Lead", "Equipment"),
 ]
-PINNED = {"3M", "HMMWV", "MTVR", "DOZER", "LARC Crew", "LARC Eng.", "LARC Cdr."}
+PINNED = {"Quality Review", "Vehicle", "Forklift", "Bulldozer", "Boat Crew", "Boat Engineer", "Boat Lead"}
 
 
 ABSENCE_CODES = [
     ("Leave", None),
-    ("TAD", "Temporary additional duty"),
+    ("Travel", "Work travel / offsite assignment"),
     ("School", "School / formal training"),
     ("Medical", None),
     ("Appt", "Appointment (often partial day)"),
@@ -168,14 +161,14 @@ def main() -> None:
         # Pick named actors by last_name for readable references below.
         by_last = {p.last_name: p for p in people}
 
-        # PRDs hitting each alert window
+        # Planned departure dates hitting each alert window
         s.add(M.PersonPrd(person_id=by_last["Tanner"].id, prd_date=today + timedelta(days=5),
                           change_reason="initial", valid_from=today))
         s.add(M.PersonPrd(person_id=by_last["Sandoval"].id, prd_date=today + timedelta(days=25),
                           change_reason="initial", valid_from=today))
         s.add(M.PersonPrd(person_id=by_last["Foster"].id, prd_date=today + timedelta(days=50),
                           change_reason="initial", valid_from=today))
-        # 10 months out — triggers the order negotiation window alert
+        # 10 months out — triggers the departure-planning window alert
         s.add(M.PersonPrd(person_id=by_last["Vega"].id, prd_date=today + timedelta(days=300),
                           change_reason="initial", valid_from=today))
 
@@ -191,13 +184,13 @@ def main() -> None:
             quals[name] = q
 
         # Make Tanner broadly qualified, including HMMWV expiring in 12 days
-        for qname in ("Craftsman", "3M", "RPPO", "POOW", "Rover",
-                      "SUROB", "TC", "Flank", "HMMWV", "DOZER",
-                      "LARC Crew", "LARC Eng."):
+        for qname in ("Safety Certified", "Quality Review", "Purchasing", "Front Desk", "Field Rover",
+                      "Site Survey", "Traffic Control", "Communications", "Vehicle", "Bulldozer",
+                      "Boat Crew", "Boat Engineer"):
             q = quals[qname]
             ach = datetime.now() - timedelta(days=200)
             exp = None
-            if qname == "HMMWV":
+            if qname == "Vehicle":
                 ach = datetime.now() - timedelta(days=350)
                 exp = datetime.now() + timedelta(days=12)
             s.add(M.PersonQual(
@@ -207,11 +200,11 @@ def main() -> None:
 
         # A few in-progress and dinq examples
         for last, qname, status in [
-            ("Sandoval", "Craftsman", "in_progress"),
-            ("Sandoval", "POOW", "in_progress"),
-            ("Vega", "POOW", "in_progress"),
-            ("Mason", "Craftsman", "dinq"),
-            ("Marsh", "3M", "dinq"),
+            ("Sandoval", "Safety Certified", "in_progress"),
+            ("Sandoval", "Front Desk", "in_progress"),
+            ("Vega", "Front Desk", "in_progress"),
+            ("Mason", "Safety Certified", "dinq"),
+            ("Marsh", "Quality Review", "dinq"),
         ]:
             s.add(M.PersonQual(
                 person_id=by_last[last].id, qual_id=quals[qname].id,

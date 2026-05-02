@@ -46,7 +46,7 @@
   <h2>Assignments ({{ assignments|length }})</h2>
   {% if assignments %}
   <table class="grid">
-    <thead><tr><th>Person</th><th>POIC</th><th>Completed</th><th>Notes</th><th></th></tr></thead>
+    <thead><tr><th>Person</th><th>Lead</th><th>Completed</th><th>Notes</th><th></th></tr></thead>
     <tbody>
       {% for a in assignments %}
       <tr>
@@ -56,7 +56,7 @@
         <td class="muted">{{ a.completion_notes or "" }}</td>
         <td>
           <form method="post" action="/tasks/{{ instance.id }}/assignments/{{ a.id }}" class="form-inline-row">
-            <label><input type="checkbox" name="is_poic" value="1" {% if a.is_poic %}checked{% endif %} /> POIC</label>
+            <label><input type="checkbox" name="is_poic" value="1" {% if a.is_poic %}checked{% endif %} /> Lead</label>
             <label><input type="checkbox" name="completed" value="1" {% if a.completed %}checked{% endif %} /> done</label>
             <input name="completion_notes" value="{{ a.completion_notes or '' }}" placeholder="notes" />
             <button type="submit">Save</button>
@@ -76,9 +76,9 @@
   {% if not (worklist and worklist.locked) %}
   {% if suggestions %}
   <h3>Suggested candidates</h3>
-  <p class="muted">Filtered to people meeting this task's required quals, license, and duty section, available on the scheduled day.</p>
+  <p class="muted">Filtered to people meeting this task's required qualifications, license, and team/group, available on the scheduled day.</p>
   <table class="grid">
-    <thead><tr><th>Candidate</th><th>Rate</th><th>DS</th><th>License</th><th>Quals met</th><th>Availability</th><th></th></tr></thead>
+    <thead><tr><th>Candidate</th><th>Title</th><th>Team</th><th>License</th><th>Qualifications met</th><th>Availability</th><th></th></tr></thead>
     <tbody>
       {% for c in suggestions %}
       <tr>
@@ -96,7 +96,7 @@
           <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form-inline-row">
             <input type="hidden" name="person_id" value="{{ c.person.id }}" />
             <input type="hidden" name="is_poic" value="1" />
-            <button type="submit" class="ghost-btn">Assign as POIC</button>
+            <button type="submit" class="ghost-btn">Assign as lead</button>
           </form>
         </td>
       </tr>
@@ -109,14 +109,14 @@
   <form method="post" action="/tasks/{{ instance.id }}/assignments" class="form">
     <label>Person
       <select name="person_id">
-        <option value="">— external POIC instead —</option>
+        <option value="">— external lead instead —</option>
         {% for p in people %}<option value="{{ p.id }}">{{ p.full_display }}</option>{% endfor %}
       </select>
     </label>
-    <label>External POIC name
+    <label>External lead name
       <input name="external_poic_name" placeholder="if not on the roster" />
     </label>
-    <label><input type="checkbox" name="is_poic" value="1" /> Mark as POIC for this task</label>
+    <label><input type="checkbox" name="is_poic" value="1" /> Mark as lead for this task</label>
     <div class="form-actions"><button type="submit">Add</button></div>
   </form>
   {% endif %}

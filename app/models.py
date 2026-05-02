@@ -151,9 +151,13 @@ class Identity(Base):
 class OrgMembership(Base):
     """Links a ``UserAccount`` to an ``Organization`` with a status.
 
-    ``role_template_id`` is added in Phase 2. Until then, every active
-    member has the same effective permissions (i.e. "logged in") — real
-    authorization gates land with the permission catalog.
+    Roles attach via the ``membership_roles`` join table (Phase 2). A
+    membership can hold multiple roles, and each role-grant can be
+    org-wide or scoped to a specific workcenter (and its descendants).
+    Until Phase 2's permission gates ship, every active member has the
+    same effective permissions ("logged in"); the catalog and the
+    ``@require`` decorator land together so tests can pin behaviour
+    end-to-end.
     """
 
     __tablename__ = "org_memberships"
@@ -173,6 +177,9 @@ class OrgMembership(Base):
 
     user: Mapped["UserAccount"] = relationship(back_populates="memberships")
     organization: Mapped["Organization"] = relationship()
+    role_grants: Mapped[list["MembershipRole"]] = relationship(
+        back_populates="membership", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         # A user can have at most one membership per org; multi-org users
@@ -228,10 +235,12 @@ class OrgInvite(Base):
 
     Invite tokens are stored hashed so a DB leak doesn't expose live
     invitations. The signed token (sent to the invitee out-of-band) is
-    never persisted in plaintext. ``intended_email`` is optional — when
-    set, the accept flow refuses to bind the invite to any other user.
-    Phase 2 builds the admin UI that creates these; Phase 1 only ships
-    the model + accept endpoint so users with no orgs can be onboarded.
+    never persisted in plaintext. ``intended_email`` is required — the
+    accept flow refuses to bind the invite to any other user.
+
+    The admin also provides the person's name and rate/title so that on
+    acceptance a ``Person`` record is auto-created. The invitee then only
+    needs to fill in their PRD and other details.
     """
 
     __tablename__ = "org_invites"
@@ -247,6 +256,12 @@ class OrgInvite(Base):
     # if the redeeming user's canonical email differs. Prevents a leaked
     # invite from being claimed by anyone but the intended recipient.
     intended_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    # Personnel details the admin provides so the Person record is
+    # auto-created on acceptance. The invitee fills in PRD, arrival, etc.
+    first_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    rate: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    paygrade: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
     created_by_user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("user_accounts.id"), nullable=True
     )
@@ -288,6 +303,206 @@ class AuthEvent(Base):
     user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), nullable=False, index=True
+    )
+
+
+# ---------------------------------------------------------------------------
+# Authorization (Phase 2): workcenters, roles, permission grants
+# ---------------------------------------------------------------------------
+
+class Workcenter(Base):
+    """A nested grouping inside an org used for permission scoping.
+
+    Workcenters live alongside the personnel/qual data that already
+    carries ``org_id``; a workcenter is itself tenant-scoped via the
+    explicit ``org_id`` column (Phase 2 introduces the table after the
+    Phase 0 backfill, so it doesn't go through ``TenantScopedMixin``;
+    Phase 3 brings RLS uniformly).
+
+    Nesting is a self-referencing FK; depth is unbounded but the
+    permission walker caps lookups at a small depth in practice (LCPO
+    ► LPO ► DLPO ► Member is typical). A grant on a parent workcenter
+    is honoured for descendants: see
+    ``app.auth.authorization.has_permission``.
+
+    Soft-archive only — historical workcenter associations stay valid
+    for audit even after the workcenter is decommissioned.
+    """
+
+    __tablename__ = "workcenters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("workcenters.id"), nullable=True, index=True
+    )
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )
+
+    parent: Mapped[Optional["Workcenter"]] = relationship(
+        remote_side=[id], foreign_keys=[parent_id]
+    )
+
+    __table_args__ = (
+        # Slug is unique within an org. Different orgs can both have
+        # "deck" without clashing.
+        UniqueConstraint("org_id", "slug", name="uq_workcenter_org_slug"),
+    )
+
+
+class Role(Base):
+    """A named bundle of permissions, scoped to one organization.
+
+    Each org gets its own seeded copy of every entry in
+    ``app.auth.permissions.ROLE_TEMPLATES`` at org-creation time so
+    admins can edit, rename, or extend role definitions per-tenant
+    without affecting other orgs.
+
+    ``template_slug`` records the seed template the row was minted from
+    (or ``NULL`` for custom roles authored in the admin UI). Used only
+    for migrations + audit; it is *not* the primary key, and renaming a
+    role doesn't change it. The slug is what the runtime authorization
+    layer uses to look up "is this the org_owner role?" for invariants
+    like "an org always has at least one owner".
+
+    ``builtin`` rows can be edited but not deleted — admins might rename
+    "LPO" to fit local culture but should never be able to remove the
+    seeded baseline. Custom roles (``builtin=False``) are fully
+    deletable when no membership references them.
+    """
+
+    __tablename__ = "roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    template_slug: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    builtin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    workcenter_scopable: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )
+
+    permissions: Mapped[list["RolePermission"]] = relationship(
+        back_populates="role", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        # Role names unique per-org. Rename collisions are an admin-UI
+        # validation, but the constraint is the durable defence.
+        UniqueConstraint("org_id", "name", name="uq_role_org_name"),
+        # Built-in roles: at most one row per (org, template_slug) so
+        # the seed step is naturally idempotent. Custom roles have
+        # template_slug NULL and aren't subject to this constraint;
+        # SQLite doesn't enforce uniqueness on NULL columns by default,
+        # which is what we want here.
+        UniqueConstraint(
+            "org_id", "template_slug", name="uq_role_org_template_slug"
+        ),
+    )
+
+
+class RolePermission(Base):
+    """One permission grant on a role.
+
+    The ``permission_code`` is one of the strings from
+    ``app.auth.permissions.PERMISSIONS``. Tests assert every row matches
+    a known code; the route handler that edits roles validates against
+    the catalog before insertion.
+
+    No ``org_id`` column: the row inherits scope from its role.
+    """
+
+    __tablename__ = "role_permissions"
+
+    role_id: Mapped[int] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    )
+    permission_code: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    role: Mapped["Role"] = relationship(back_populates="permissions")
+
+
+class MembershipRole(Base):
+    """Attach a role to an org membership, optionally workcenter-scoped.
+
+    ``workcenter_id`` is NULL for org-wide grants. When set, the grant
+    applies to that workcenter and all of its descendants — see the
+    walker in ``app.auth.authorization``.
+
+    Composite uniqueness: a membership can have the same role granted
+    org-wide AND scoped to a specific workcenter (sometimes useful for
+    e.g. "DLPO over the org but specifically also a Member of Deck"),
+    but the same (membership, role, workcenter) tuple can't repeat.
+    """
+
+    __tablename__ = "membership_roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    membership_id: Mapped[int] = mapped_column(
+        ForeignKey("org_memberships.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role_id: Mapped[int] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    workcenter_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("workcenters.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    granted_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user_accounts.id"), nullable=True
+    )
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+
+    membership: Mapped["OrgMembership"] = relationship(back_populates="role_grants")
+    role: Mapped["Role"] = relationship()
+    workcenter: Mapped[Optional["Workcenter"]] = relationship()
+
+    __table_args__ = (
+        # SQLite doesn't enforce uniqueness on rows whose NULLable column
+        # is NULL, which is exactly the behaviour we want here:
+        # multiple workcenter-scoped grants of the same role to the same
+        # membership are allowed (one per workcenter), and at most one
+        # org-wide grant of that role.
+        UniqueConstraint(
+            "membership_id",
+            "role_id",
+            "workcenter_id",
+            name="uq_membership_role_scope",
+        ),
     )
 
 
@@ -768,3 +983,55 @@ class Setting(Base, TimestampMixin):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Data audit log (Phase 4)
+# ---------------------------------------------------------------------------
+
+class DataAuditEvent(Base, TenantScopedMixin):
+    """Immutable record of who changed what tenant data and when.
+
+    Each row captures a single write operation (create/update/delete/archive)
+    on a tenant-scoped table. The ``action`` field identifies the operation
+    type; ``table_name`` and ``row_id`` identify the target; ``before_json``
+    and ``after_json`` carry the old/new values (null for create/delete).
+
+    Rows are INSERT-only at the application layer; Phase 3 RLS enforces
+    INSERT-only at the DB level.
+    """
+
+    __tablename__ = "data_audit_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    """One of: create, update, delete, archive, unarchive, lock, amend."""
+
+    table_name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    """The database table that was modified (e.g. 'persons', 'absences')."""
+
+    row_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    """Primary key of the modified row."""
+
+    actor_membership_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("org_memberships.id"), nullable=True
+    )
+    """The org membership that performed the action. Null for system actions."""
+
+    before_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    """Snapshot of the row before the change (null for create)."""
+
+    after_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    """Snapshot of the row after the change (null for delete)."""
+
+    detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    """Additional context: field-level diffs, route path, user agent, etc."""
+
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False, index=True
+    )
+
+    __table_args__ = (
+        Index("ix_data_audit_table_row", "table_name", "row_id"),
+        Index("ix_data_audit_actor", "actor_membership_id"),
+    )

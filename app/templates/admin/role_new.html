@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}New role — Admin{% endblock %}
+{% block content %}
+<section class="admin-section">
+  <h1>Create a custom role</h1>
+  <p><a href="/admin/roles">&larr; Back to roles</a></p>
+
+  <form method="post" action="/admin/roles">
+    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+    <label>
+      Name
+      <input type="text" name="name" required maxlength="128" />
+    </label>
+    <label>
+      Description
+      <textarea name="description" rows="3" maxlength="1000"></textarea>
+    </label>
+    <label>
+      <input type="checkbox" name="workcenter_scopable" value="1" checked />
+      Allow grants of this role to be scoped to a specific workcenter
+    </label>
+
+    <fieldset class="permission-set">
+      <legend>Permissions</legend>
+      {% for perm in permissions %}
+        <label class="perm-checkbox">
+          <input type="checkbox" name="permissions" value="{{ perm.code }}" />
+          <strong>{{ perm.label }}</strong> — <small>{{ perm.code }}</small>
+          <br /><small>{{ perm.description }}</small>
+        </label>
+      {% endfor %}
+    </fieldset>
+
+    <button type="submit">Create role</button>
+  </form>
+</section>
+{% endblock %}

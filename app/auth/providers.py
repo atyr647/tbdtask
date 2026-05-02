@@ -148,6 +148,18 @@ def get_client(provider: str):
 APPLE_PRIVATE_RELAY_DOMAIN = "@privaterelay.appleid.com"
 
 
+class PrivateRelayBlocked(Exception):
+    """Raised when Apple returns a private-relay email.
+
+    The relay address proves the user controls Apple's forwarding, not the
+    underlying mailbox. We refuse to create accounts with relay addresses
+    because they block invite acceptance (email matching) and identity
+    linking. The user must update their Apple ID settings to share their
+    real email, or sign in with a different provider.
+    """
+    pass
+
+
 @dataclass(frozen=True)
 class NormalizedIdentity:
     provider: str
@@ -162,10 +174,9 @@ class NormalizedIdentity:
 def normalize_userinfo(provider: str, claims: dict) -> NormalizedIdentity:
     """Convert raw IdP claims into the dataclass the auth flow consumes.
 
-    Critically: an Apple private-relay address is ALWAYS treated as
-    ``email_verified=False`` here, even if Apple says verified. The relay
-    address proves the user controls Apple's relay forwarding, not the
-    underlying mailbox, so it's unsafe as a linking signal.
+    Raises ``PrivateRelayBlocked`` if Apple returns a private-relay email.
+    We refuse to create accounts with relay addresses because they block
+    invite acceptance (email matching) and identity linking.
     """
     if provider not in ("apple", "google", "microsoft"):
         raise ValueError(f"unknown provider {provider!r}")
@@ -190,7 +201,10 @@ def normalize_userinfo(provider: str, claims: dict) -> NormalizedIdentity:
         and email
         and email.lower().endswith(APPLE_PRIVATE_RELAY_DOMAIN)
     ):
-        email_verified = False
+        raise PrivateRelayBlocked(
+            "Apple is hiding your real email. Sign in with Google or Microsoft, "
+            "or update your Apple ID settings to share your real email."
+        )
 
     display_name = (
         claims.get("name")

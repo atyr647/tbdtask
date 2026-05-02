@@ -1,17 +1,38 @@
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from ..auth.authorization import require
+from ..auth.permissions import (
+    P_ABSENCES_ARCHIVE,
+    P_ABSENCES_VIEW,
+    P_ABSENCES_WRITE,
+)
+from ..auth.sensitive_info import scan_text
 from ..db import SessionLocal
 from .. import models as M
 from ..services.absence_calendar import build_calendar
 from ..templating import render
 
 router = APIRouter()
+
+
+def _sensitive_warnings(*texts: Optional[str]) -> list[str]:
+    seen: set[str] = set()
+    warnings = []
+    for t in texts:
+        if not t:
+            continue
+        report = scan_text(t)
+        for m in report.matches:
+            if m.label not in seen:
+                seen.add(m.label)
+                warnings.append(m.label)
+    return warnings
 
 
 def _codes(s):
@@ -32,7 +53,7 @@ def _parse_time(value: Optional[str]) -> Optional[time]:
 
 
 @router.get("/absences")
-def list_absences(request: Request):
+def list_absences(request: Request, _: None = Depends(require(P_ABSENCES_VIEW))):
     today = date.today()
     with SessionLocal() as s:
         upcoming = list(
@@ -60,6 +81,7 @@ def absence_calendar(
     request: Request,
     start: Optional[str] = None,
     days: int = 28,
+    _: None = Depends(require(P_ABSENCES_VIEW)),
 ):
     if days < 7 or days > 120:
         days = 28
@@ -87,7 +109,11 @@ def absence_calendar(
 
 
 @router.get("/personnel/{person_id}/absences/new")
-def new_absence_form_for_person(person_id: int, request: Request):
+def new_absence_form_for_person(
+    person_id: int,
+    request: Request,
+    _: None = Depends(require(P_ABSENCES_WRITE)),
+):
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
         if not p:
@@ -97,7 +123,7 @@ def new_absence_form_for_person(person_id: int, request: Request):
 
 
 @router.get("/absences/new")
-def new_absence_form(request: Request):
+def new_absence_form(request: Request, _: None = Depends(require(P_ABSENCES_WRITE))):
     with SessionLocal() as s:
         codes = _codes(s)
         people = list(
@@ -111,16 +137,48 @@ def new_absence_form(request: Request):
 
 
 @router.post("/absences")
-def create_absence(
-    person_id: int = Form(...),
-    code_id: int = Form(...),
-    start_date: str = Form(...),
-    end_date: str = Form(...),
-    start_time: Optional[str] = Form(None),
-    end_time: Optional[str] = Form(None),
-    reason: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
+async def create_absence(
+    request: Request,
+    _: None = Depends(require(P_ABSENCES_WRITE)),
 ):
+    form = await request.form()
+    person_id = int(form.get("person_id") or 0)
+    code_id = int(form.get("code_id") or 0)
+    start_date = form.get("start_date") or ""
+    end_date = form.get("end_date") or ""
+    start_time = form.get("start_time") or None
+    end_time = form.get("end_time") or None
+    reason = form.get("reason") or None
+    notes = form.get("notes") or None
+
+    # Phase 6: scan reason/notes for PII/CUI patterns.
+    field_warnings = _sensitive_warnings(reason, notes)
+    if field_warnings and not form.get("sensitive_ack"):
+        with SessionLocal() as s:
+            codes = _codes(s)
+            people = list(
+                s.scalars(
+                    select(M.Person)
+                    .where(M.Person.active == True)
+                    .order_by(M.Person.display_order)
+                ).all()
+            )
+        return render(
+            request, "absences/new.html",
+            person=None, codes=codes, all_people=people,
+            sensitive_warnings=field_warnings,
+            form_data={
+                "person_id": person_id,
+                "code_id": code_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "start_time": start_time,
+                "end_time": end_time,
+                "reason": reason,
+                "notes": notes,
+            },
+        )
+
     with SessionLocal() as s:
         if not s.get(M.Person, person_id) or not s.get(M.AbsenceCode, code_id):
             raise HTTPException(404)
@@ -135,8 +193,8 @@ def create_absence(
             end_date=ed,
             start_time=_parse_time(start_time),
             end_time=_parse_time(end_time),
-            reason=(reason or None),
-            notes=(notes or None),
+            reason=reason,
+            notes=notes,
         )
         s.add(a)
         s.commit()
@@ -144,7 +202,11 @@ def create_absence(
 
 
 @router.get("/absences/{absence_id}/edit")
-def edit_absence_form(absence_id: int, request: Request):
+def edit_absence_form(
+    absence_id: int,
+    request: Request,
+    _: None = Depends(require(P_ABSENCES_WRITE)),
+):
     with SessionLocal() as s:
         a = s.get(M.Absence, absence_id)
         if not a:
@@ -155,20 +217,36 @@ def edit_absence_form(absence_id: int, request: Request):
 
 
 @router.post("/absences/{absence_id}")
-def update_absence(
+async def update_absence(
     absence_id: int,
-    code_id: int = Form(...),
-    start_date: str = Form(...),
-    end_date: str = Form(...),
-    start_time: Optional[str] = Form(None),
-    end_time: Optional[str] = Form(None),
-    reason: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
+    request: Request,
+    _: None = Depends(require(P_ABSENCES_WRITE)),
 ):
+    form = await request.form()
+    code_id = int(form.get("code_id") or 0)
+    start_date = form.get("start_date") or ""
+    end_date = form.get("end_date") or ""
+    start_time = form.get("start_time") or None
+    end_time = form.get("end_time") or None
+    reason = form.get("reason") or None
+    notes = form.get("notes") or None
+
     with SessionLocal() as s:
         a = s.get(M.Absence, absence_id)
         if not a:
             raise HTTPException(404)
+
+        # Phase 6: scan reason/notes for PII/CUI patterns.
+        field_warnings = _sensitive_warnings(reason, notes)
+        if field_warnings and not form.get("sensitive_ack"):
+            p = s.get(M.Person, a.person_id)
+            codes = _codes(s)
+            return render(
+                request, "absences/edit.html",
+                absence=a, person=p, codes=codes,
+                sensitive_warnings=field_warnings,
+            )
+
         sd = date.fromisoformat(start_date)
         ed = date.fromisoformat(end_date)
         if ed < sd:
@@ -178,15 +256,19 @@ def update_absence(
         a.end_date = ed
         a.start_time = _parse_time(start_time)
         a.end_time = _parse_time(end_time)
-        a.reason = (reason or None)
-        a.notes = (notes or None)
+        a.reason = reason
+        a.notes = notes
         person_id = a.person_id
         s.commit()
     return RedirectResponse(f"/personnel/{person_id}", status_code=303)
 
 
 @router.post("/absences/{absence_id}/archive")
-def archive_absence(absence_id: int, reason: str = Form("")):
+def archive_absence(
+    absence_id: int,
+    reason: str = Form(""),
+    _: None = Depends(require(P_ABSENCES_ARCHIVE)),
+):
     with SessionLocal() as s:
         a = s.get(M.Absence, absence_id)
         if not a:

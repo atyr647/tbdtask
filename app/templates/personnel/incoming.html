@@ -3,7 +3,7 @@
 {% block content %}
 {% include "personnel/_tabs.html" %}
 <h1>Incoming personnel <span class="muted">({{ rows|length }})</span> <a class="btn-link" href="/personnel/incoming/new">+ Add incoming</a></h1>
-<p class="muted">Track sailors en route to the command. Move them to the active roster once they arrive.</p>
+<p class="muted">Track people joining the organization. Move them to the active roster once they arrive.</p>
 
 {% if not rows %}
   <div class="block">
@@ -14,14 +14,14 @@
 <table class="grid">
   <thead>
     <tr>
-      <th>Rate</th>
+      <th>Title</th>
       <th>Name</th>
       <th>ETA</th>
-      <th>Sponsor</th>
-      <th>Orders</th>
-      <th>Itinerary</th>
-      <th>AOB</th>
-      <th>Barracks</th>
+      <th>Onboarding buddy</th>
+      <th>Offer docs</th>
+      <th>Schedule</th>
+      <th>Orientation</th>
+      <th>Workspace</th>
       <th>Progress</th>
       <th></th>
     </tr>

@@ -4,10 +4,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
+from ..auth.authorization import require
+from ..auth.permissions import (
+    P_TASKS_ARCHIVE,
+    P_TASKS_VIEW,
+    P_TASKS_WRITE,
+)
 from ..db import SessionLocal
 from .. import models as M
 from ..services.recurrence import describe
@@ -61,7 +67,7 @@ def _parse_recurrence(form) -> Optional[dict]:
 
 
 @router.get("/task-templates")
-def list_templates(request: Request):
+def list_templates(request: Request, _: None = Depends(require(P_TASKS_VIEW))):
     with SessionLocal() as s:
         templates = list(
             s.scalars(
@@ -79,7 +85,7 @@ def list_templates(request: Request):
 
 
 @router.get("/task-templates/new")
-def new_template_form(request: Request):
+def new_template_form(request: Request, _: None = Depends(require(P_TASKS_WRITE))):
     with SessionLocal() as s:
         cats = list(s.scalars(
             select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
@@ -97,7 +103,10 @@ def new_template_form(request: Request):
 
 
 @router.post("/task-templates")
-async def create_template(request: Request):
+async def create_template(
+    request: Request,
+    _: None = Depends(require(P_TASKS_WRITE)),
+):
     form = await request.form()
     name = (form.get("name") or "").strip()
     if not name:
@@ -128,7 +137,11 @@ async def create_template(request: Request):
 
 
 @router.get("/task-templates/{template_id}/edit")
-def edit_template_form(template_id: int, request: Request):
+def edit_template_form(
+    template_id: int,
+    request: Request,
+    _: None = Depends(require(P_TASKS_WRITE)),
+):
     with SessionLocal() as s:
         tmpl = s.get(M.TaskTemplate, template_id)
         if not tmpl:
@@ -153,7 +166,11 @@ def edit_template_form(template_id: int, request: Request):
 
 
 @router.post("/task-templates/{template_id}")
-async def update_template(template_id: int, request: Request):
+async def update_template(
+    template_id: int,
+    request: Request,
+    _: None = Depends(require(P_TASKS_WRITE)),
+):
     form = await request.form()
     with SessionLocal() as s:
         tmpl = s.get(M.TaskTemplate, template_id)
@@ -184,7 +201,11 @@ async def update_template(template_id: int, request: Request):
 
 
 @router.post("/task-templates/{template_id}/archive")
-def archive_template(template_id: int, reason: str = Form("")):
+def archive_template(
+    template_id: int,
+    reason: str = Form(""),
+    _: None = Depends(require(P_TASKS_ARCHIVE)),
+):
     with SessionLocal() as s:
         tmpl = s.get(M.TaskTemplate, template_id)
         if not tmpl:

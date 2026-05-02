@@ -58,8 +58,43 @@ in. New features add or update rows in the same diff.
 
 ## Out of scope (Phase 1)
 
-* Authorization above "logged in" — Phase 2's permission catalog.
 * Audit log for tenant data writes — Phase 4.
 * Notification leakage — Phase 4.
 * Sensitive-info acknowledgment + soft-warn regex — Phase 6.
-* Dependency scanning, restore drills, monitoring — Phase 7.
+
+## Authorization (Phase 2)
+
+| Threat | Mitigation | Test |
+|---|---|---|
+| Permission escalation via unknown code | Closed `Permission` enum; `is_known_permission()` rejects anything not declared. Custom roles can only grant from the catalog. | `test_phase2_admin.py::TestRoleCatalogDefence` |
+| Workcenter-scoped bypass — user accesses sibling workcenter | `workcenter_ancestors()` walks the tree; permission check only matches grants on the target or an ancestor. | `test_phase2_authz.py::TestWorkcenterScopedDependency` |
+| Cycle in workcenter hierarchy causes infinite loop | Ancestor walker stops at the first repeated id; re-parenting validates the new parent is not a descendant. | `test_phase2_admin.py::TestWorkcenterReparentValidation` |
+| Last owner lockout — org loses its sole owner | `_last_owner_id()` refuses to revoke `org_owner` from the only remaining owner. Admin UI blocks the action. | `test_phase2_admin.py::TestLastOwnerGuard` |
+| Role template drift — migration seeds diverge from Python catalog | Parity test compares migration `_TEMPLATE_SEEDS` against `ROLE_TEMPLATES` at runtime. | `test_phase2_authz.py::TestMigrationSeedParity` |
+| Ad-hoc DB session in `@require` leaks tenant context | `@require` opens its own `SessionLocal()`; `tenant_context` is a contextvar, so the ad-hoc session still sees the active org filter. | `test_phase2_authz.py::TestRequireDependency` |
+
+## Deployment hardening (Phase 7)
+
+| Threat | Mitigation | Test |
+|---|---|---|
+| Client spoofs IP via ``x-forwarded-for`` to bypass rate limits | `TrustedProxyMiddleware` strips forwarded headers when the direct connection is not from a trusted proxy CIDR. Default: loopback only; production proxies must be configured explicitly. | `test_phase7_deploy.py::TestClientIP::test_untrusted_direct_ignores_forwarded` |
+| Client forges ``x-forwarded-proto=https`` to trigger HSTS on plain HTTP | Same middleware strips ``x-forwarded-proto`` for untrusted connections. HSTS only emitted when the proxy is trusted. | `test_phase7_deploy.py::TestTrustedProxyParsing` |
+| Container runs as root, escalating a breakout | Dockerfile uses `USER appuser` (UID 1000). Base image pinned by SHA256 digest. | `Dockerfile` |
+| Dependency supply-chain attack (malicious wheel) | `pip-audit` scans for known CVEs. `pip-compile --generate-hashes` pins wheels by hash. | `Makefile audit` target |
+| Data loss with no backup | `tools/backup.sh` creates WAL-aware SQLite copies or Postgres dumps. `tools/restore.sh` performs pre-restore backup. | Manual drill (documented in README) |
+| Multi-worker rate limiter ineffective (per-worker counters) | `RedisLimiter` shares counters across workers via Redis. Activated by setting `REDIS_URL`. In-process fallback for single-worker. | `app/auth/rate_limit.py` |
+
+## Data audit (Phase 4)
+
+| Threat | Mitigation | Test |
+|---|---|---|
+| Unauthorized data modification goes undetected | `DataAuditEvent` records every write on tenant-scoped tables: actor, action, table, row, before/after snapshots. Admins can review the audit trail. | `test_phase4_audit.py::TestRecordAuditEvent` |
+| Audit trail tampered after the fact | Audit rows are INSERT-only at the app layer. Phase 3 RLS enforces INSERT-only at the DB level. No UPDATE/DELETE route targets the audit table. | `app/services/audit.py` design |
+| Significant changes (archive, delete) happen without admin awareness | Notification fan-out creates in-app alerts for org admins/owners when archive, delete, lock, or amend actions occur. | `test_phase4_audit.py::TestNotificationFanOut` |
+
+## Sensitive-info awareness (Phase 6)
+
+| Threat | Mitigation | Test |
+|---|---|---|
+| Operators accidentally enter PII/CUI in operational notes | Regex-based scanner detects SSN patterns, phone numbers, emails, DOB context, medical references, clearance mentions, and financial account patterns in free-text fields. | `test_phase6_sensitive_info.py` |
+| Operators ignore sensitive-info warnings | Server-side gate requires explicit acknowledgment checkbox when patterns are detected. Form submission is blocked until the operator confirms compliance with data-handling policy. | `app/routes/personnel.py` + `app/routes/absences.py` |

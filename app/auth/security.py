@@ -1,8 +1,8 @@
-"""Auth-layer security primitives: CSRF, rate limiting, secure headers.
+"""Auth-layer security primitives: CSRF, secure headers.
 
-Phase 1.5 hard-gate components. The CSRF token + rate limiter + headers
-middleware all land here so they can be reviewed and tested as a single
-unit before any state-changing route ships.
+Phase 1.5 hard-gate components. The CSRF token + headers middleware all
+land here so they can be reviewed and tested as a single unit before any
+state-changing route ships.
 
 Design notes:
 
@@ -10,10 +10,6 @@ Design notes:
   request body. Both the form and a same-name cookie carry the token; the
   middleware checks they match AND the signature is valid for the current
   session. This survives subdomain isolation and works with HTMX.
-* Rate limiting is an in-process fixed-window counter. Production
-  deployments behind a reverse proxy or with multiple workers will move
-  this to Redis in Phase 7; the API stays the same so callers don't have
-  to change.
 * Secure headers are applied by middleware so no individual route handler
   can forget. CSP starts strict; per-route relaxations (e.g. for inline
   styles) are explicit.
@@ -22,10 +18,6 @@ from __future__ import annotations
 
 import os
 import secrets
-import time
-from collections import defaultdict
-from dataclasses import dataclass, field
-from threading import Lock
 from typing import Optional
 
 from itsdangerous import BadSignature, URLSafeTimedSerializer
@@ -85,7 +77,10 @@ def signer(salt: str) -> URLSafeTimedSerializer:
 # Tokens last as long as a session would; the cookie is rotated on session
 # rotation, but the token signature has its own expiration as a defence in
 # depth.
-CSRF_COOKIE_NAME = "__Host-tbdtask_csrf"
+if os.environ.get("TBDTASK_INSECURE_LOCAL_COOKIES", "0") == "1":
+    CSRF_COOKIE_NAME = "tbdtask_csrf_local"
+else:
+    CSRF_COOKIE_NAME = "__Host-tbdtask_csrf"
 CSRF_FORM_FIELD = "csrf_token"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 CSRF_TOKEN_TTL_SECONDS = 60 * 60 * 24  # 24h
@@ -131,54 +126,6 @@ def validate_oidc_state(token: str) -> Optional[dict]:
         return signer("oidc-state").loads(token, max_age=OIDC_STATE_TTL_SECONDS)
     except BadSignature:
         return None
-
-
-# ---------------------------------------------------------------------------
-# Rate limiting (in-process fixed-window)
-# ---------------------------------------------------------------------------
-
-@dataclass
-class _Bucket:
-    window_start: float = 0.0
-    count: int = 0
-
-
-@dataclass
-class RateLimiter:
-    """Thread-safe fixed-window counter keyed by ``(scope, key)``.
-
-    Phase 1 uses this for auth endpoints; Phase 7 swaps the storage for
-    Redis without changing this surface. ``check`` returns True if the
-    request is allowed and bumps the counter; False if it would exceed
-    the limit.
-    """
-
-    limit: int
-    window_seconds: int
-    _buckets: dict = field(default_factory=lambda: defaultdict(_Bucket))
-    _lock: Lock = field(default_factory=Lock)
-
-    def check(self, scope: str, key: str) -> bool:
-        now = time.monotonic()
-        with self._lock:
-            bucket = self._buckets[(scope, key)]
-            if now - bucket.window_start >= self.window_seconds:
-                bucket.window_start = now
-                bucket.count = 0
-            bucket.count += 1
-            return bucket.count <= self.limit
-
-    def reset(self) -> None:
-        """Wipe state. Used by tests; never call from production code."""
-        with self._lock:
-            self._buckets.clear()
-
-
-# Auth endpoints: 10 attempts per IP per 5-minute window. Generous enough
-# for a flaky redirect dance, tight enough that a brute-force loop hits
-# the wall fast. Per-account limits would require knowing the user before
-# the IdP returns, which we don't have for login start.
-AUTH_RATE_LIMITER = RateLimiter(limit=10, window_seconds=300)
 
 
 # ---------------------------------------------------------------------------

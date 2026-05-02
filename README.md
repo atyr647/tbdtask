@@ -85,6 +85,40 @@ Run the test suite with:
 
 ```sh
 python -m pytest tests/
+# or:
+make test
+```
+
+## Hosted deployment (Docker)
+
+```sh
+# Copy and fill in environment variables
+cp .env.example .env
+# Build and run
+docker compose up -d
+```
+
+The container runs as a non-root user, exposes `/healthz` for liveness
+probes, and validates `x-forwarded-*` headers against trusted proxy CIDRs.
+See `docs/security/` for the full threat model and controls catalog.
+
+## Backup & restore
+
+```sh
+# Backup
+make backup                              # SQLite: copies data/tbdtask.db
+tools/backup.sh                          # also supports Postgres via pg_dump
+
+# Restore (creates a pre-restore backup first)
+make restore BACKUP_FILE=data/backups/tbdtask-20240101-120000.db
+tools/restore.sh data/backups/tbdtask-20240101-120000.db
+```
+
+## Dependency scanning
+
+```sh
+make audit                               # pip-audit scans for known CVEs
+make freeze                              # generate pinned requirements.txt
 ```
 
 ## Build the AppImage

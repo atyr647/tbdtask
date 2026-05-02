@@ -57,6 +57,7 @@ def generate_for_worklist(session: Session, worklist: M.Worklist, days: int = 7)
                 status="open",
                 hours=tmpl.estimated_hours,
                 notes=tmpl.notes,
+                org_id=worklist.org_id,
             )
             session.add(inst)
             created += 1

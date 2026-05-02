@@ -1,11 +1,18 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from ..auth.authorization import require
+from ..auth.permissions import (
+    P_PERSONNEL_ARCHIVE,
+    P_PERSONNEL_VIEW,
+    P_PERSONNEL_WRITE,
+)
+from ..auth.sensitive_info import scan_text
 from ..db import SessionLocal
 from .. import models as M
 from ..data import ranks as rank_catalog
@@ -13,6 +20,21 @@ from ..services import effective as eff
 from ..templating import render
 
 router = APIRouter(prefix="/personnel")
+
+def _sensitive_warnings(*texts: Optional[str]) -> list[str]:
+    """Return human-readable warning labels for any detected PII/CUI
+    patterns across the given text fields."""
+    seen: set[str] = set()
+    warnings = []
+    for t in texts:
+        if not t:
+            continue
+        report = scan_text(t)
+        for m in report.matches:
+            if m.label not in seen:
+                seen.add(m.label)
+                warnings.append(m.label)
+    return warnings
 
 ROSTER_STATUS_VALUES = ("active", "departed")
 DUTY_SECTIONS = (1, 2, 3, 4, 5, 6)
@@ -45,7 +67,7 @@ def _current_status(person: M.Person) -> Optional[str]:
 
 
 @router.get("")
-def list_personnel(request: Request):
+def list_personnel(request: Request, _: None = Depends(require(P_PERSONNEL_VIEW))):
     with SessionLocal() as s:
         people = s.scalars(
             select(M.Person)
@@ -76,13 +98,13 @@ def list_personnel(request: Request):
                 "group": _group_for(rate, paygrade),
                 "notes": p.notes,
             })
-    groups = ["Khakis", "E6", "E5", "Junior", "Other"]
+    groups = ["Leadership", "Senior", "Professional", "Associate", "Other"]
     grouped = {g: [r for r in rows if r["group"] == g] for g in groups}
     return render(request, "personnel/list.html", grouped=grouped, total=len(rows))
 
 
 @router.get("/incoming")
-def list_incoming(request: Request):
+def list_incoming(request: Request, _: None = Depends(require(P_PERSONNEL_VIEW))):
     with SessionLocal() as s:
         people = list(s.scalars(
             select(M.Person)
@@ -118,7 +140,7 @@ def list_incoming(request: Request):
 
 
 @router.get("/departed")
-def list_departed(request: Request):
+def list_departed(request: Request, _: None = Depends(require(P_PERSONNEL_VIEW))):
     with SessionLocal() as s:
         people = list(s.scalars(
             select(M.Person)
@@ -139,7 +161,7 @@ def list_departed(request: Request):
 
 
 @router.get("/incoming/new")
-def new_incoming_form(request: Request):
+def new_incoming_form(request: Request, _: None = Depends(require(P_PERSONNEL_WRITE))):
     with SessionLocal() as s:
         sponsors = list(s.scalars(
             select(M.Person)
@@ -153,7 +175,7 @@ def new_incoming_form(request: Request):
 
 
 @router.post("/incoming")
-async def create_incoming(request: Request):
+async def create_incoming(request: Request, _: None = Depends(require(P_PERSONNEL_WRITE))):
     form = await request.form()
     today = date.today()
     last_name = (form.get("last_name") or "").strip()
@@ -195,7 +217,11 @@ async def create_incoming(request: Request):
 
 
 @router.post("/{person_id}/checklist")
-async def update_checklist(person_id: int, request: Request):
+async def update_checklist(
+    person_id: int,
+    request: Request,
+    _: None = Depends(require(P_PERSONNEL_WRITE)),
+):
     form = await request.form()
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
@@ -214,7 +240,7 @@ async def update_checklist(person_id: int, request: Request):
 
 
 @router.post("/{person_id}/arrived")
-def mark_arrived(person_id: int):
+def mark_arrived(person_id: int, _: None = Depends(require(P_PERSONNEL_WRITE))):
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
         if not p:
@@ -229,7 +255,7 @@ def mark_arrived(person_id: int):
 
 
 @router.get("/new")
-def new_person_form(request: Request):
+def new_person_form(request: Request, _: None = Depends(require(P_PERSONNEL_WRITE))):
     return render(
         request,
         "personnel/new.html",
@@ -239,18 +265,45 @@ def new_person_form(request: Request):
 
 
 @router.post("")
-def create_person(
-    last_name: str = Form(...),
-    first_name: Optional[str] = Form(None),
-    rate: Optional[str] = Form(None),
-    duty_section: Optional[int] = Form(None),
-    prd_date: Optional[str] = Form(None),
-    has_drivers_license: Optional[str] = Form(None),
-    drivers_license_expires: Optional[str] = Form(None),
-    roster_status: str = Form("active"),
-    position: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
+async def create_person(
+    request: Request,
+    _: None = Depends(require(P_PERSONNEL_WRITE)),
 ):
+    form = await request.form()
+    last_name = (form.get("last_name") or "").strip()
+    if not last_name:
+        raise HTTPException(400, "last name is required")
+    first_name = (form.get("first_name") or None) and (form.get("first_name") or "").strip()
+    rate = (form.get("rate") or None) and (form.get("rate") or "").strip()
+    position = (form.get("position") or None) and (form.get("position") or "").strip()
+    notes = form.get("notes") or None
+    duty_section = form.get("duty_section")
+    prd_date = form.get("prd_date") or None
+    has_drivers_license = form.get("has_drivers_license")
+    drivers_license_expires = form.get("drivers_license_expires") or None
+    roster_status = form.get("roster_status") or "active"
+
+    # Phase 6: scan notes for PII/CUI patterns. If found, require
+    # explicit acknowledgment via the ``sensitive_ack`` checkbox.
+    notes_warnings = _sensitive_warnings(notes)
+    if notes_warnings and not form.get("sensitive_ack"):
+        return render(
+            request, "personnel/new.html",
+            duty_sections=DUTY_SECTIONS,
+            rate_groups=rank_catalog.by_category(),
+            sensitive_warnings=notes_warnings,
+            form_data={
+                "last_name": last_name,
+                "first_name": first_name,
+                "rate": rate,
+                "position": position,
+                "notes": notes,
+                "duty_section": duty_section,
+                "prd_date": prd_date,
+                "roster_status": roster_status,
+            },
+        )
+
     today = date.today()
     with SessionLocal() as s:
         full_display = f"{rate} {last_name}".strip() if rate else last_name
@@ -258,19 +311,19 @@ def create_person(
             select(M.Person.display_order).order_by(M.Person.display_order.desc()).limit(1)
         ) or 0
         p = M.Person(
-            last_name=last_name.strip(),
-            first_name=(first_name or None) and first_name.strip(),
+            last_name=last_name,
+            first_name=first_name,
             full_display=full_display.strip(),
-            position=(position or None) and position.strip(),
-            notes=(notes or None),
+            position=position,
+            notes=notes,
             display_order=last_pos + 1,
         )
         s.add(p)
         s.flush()
         if rate:
             s.add(M.PersonRate(
-                person_id=p.id, rate=rate.strip(),
-                paygrade=rank_catalog.paygrade_for(rate.strip()),
+                person_id=p.id, rate=rate,
+                paygrade=rank_catalog.paygrade_for(rate),
                 valid_from=today,
             ))
         if duty_section:
@@ -299,7 +352,11 @@ def create_person(
 
 
 @router.get("/{person_id}")
-def show_person(person_id: int, request: Request):
+def show_person(
+    person_id: int,
+    request: Request,
+    _: None = Depends(require(P_PERSONNEL_VIEW)),
+):
     from ..services.personnel_stats import stats_for
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
@@ -340,7 +397,11 @@ def show_person(person_id: int, request: Request):
 
 
 @router.get("/{person_id}/edit")
-def edit_person_form(person_id: int, request: Request):
+def edit_person_form(
+    person_id: int,
+    request: Request,
+    _: None = Depends(require(P_PERSONNEL_WRITE)),
+):
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
         if not p:
@@ -357,38 +418,54 @@ def edit_person_form(person_id: int, request: Request):
 
 
 @router.post("/{person_id}")
-def update_person(
+async def update_person(
     person_id: int,
-    last_name: str = Form(...),
-    first_name: Optional[str] = Form(None),
-    position: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
-    rate: Optional[str] = Form(None),
-    duty_section: Optional[int] = Form(None),
-    prd_date: Optional[str] = Form(None),
-    prd_reason: str = Form("correction"),
-    has_drivers_license: Optional[str] = Form(None),
-    drivers_license_expires: Optional[str] = Form(None),
-    roster_status: str = Form("active"),
-    effective_date: Optional[str] = Form(None),
+    request: Request,
+    _: None = Depends(require(P_PERSONNEL_WRITE)),
 ):
+    form = await request.form()
+    last_name = (form.get("last_name") or "").strip()
+    first_name = (form.get("first_name") or None) and (form.get("first_name") or "").strip()
+    position = (form.get("position") or None) and (form.get("position") or "").strip()
+    notes = form.get("notes") or None
+    rate = (form.get("rate") or None) and (form.get("rate") or "").strip()
+    duty_section = form.get("duty_section")
+    prd_date = form.get("prd_date") or None
+    prd_reason = form.get("prd_reason") or "correction"
+    has_drivers_license = form.get("has_drivers_license")
+    drivers_license_expires = form.get("drivers_license_expires") or None
+    roster_status = form.get("roster_status") or "active"
+    effective_date = form.get("effective_date") or None
+
     eff_date = date.fromisoformat(effective_date) if effective_date else date.today()
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
         if not p:
             raise HTTPException(404, "person not found")
-        p.last_name = last_name.strip()
-        p.first_name = (first_name or None) and first_name.strip()
-        p.position = (position or None) and position.strip()
-        p.notes = (notes or None)
-        # Recompute full_display from current rate (may have just changed below).
-        new_rate = rate.strip() if rate else None
-        p.full_display = (f"{new_rate} {p.last_name}".strip() if new_rate else p.last_name)
 
-        if new_rate:
+        # Phase 6: scan notes for PII/CUI patterns.
+        notes_warnings = _sensitive_warnings(notes)
+        if notes_warnings and not form.get("sensitive_ack"):
+            cur = _current(p)
+            return render(
+                request, "personnel/edit.html",
+                person=p, cur=cur,
+                duty_sections=DUTY_SECTIONS,
+                rate_groups=rank_catalog.by_category(),
+                sensitive_warnings=notes_warnings,
+            )
+
+        p.last_name = last_name
+        p.first_name = first_name
+        p.position = position
+        p.notes = notes
+        # Recompute full_display from current rate (may have just changed below).
+        p.full_display = (f"{rate} {p.last_name}".strip() if rate else p.last_name)
+
+        if rate:
             eff.set_new_value(
                 s, M.PersonRate, person_id=p.id, effective_date=eff_date,
-                fields={"rate": new_rate, "paygrade": rank_catalog.paygrade_for(new_rate)},
+                fields={"rate": rate, "paygrade": rank_catalog.paygrade_for(rate)},
                 no_op_if_unchanged=("rate", "paygrade"),
             )
         if duty_section:
@@ -424,7 +501,11 @@ def update_person(
 
 
 @router.post("/{person_id}/archive")
-def archive_person(person_id: int, reason: str = Form("")):
+def archive_person(
+    person_id: int,
+    reason: str = Form(""),
+    _: None = Depends(require(P_PERSONNEL_ARCHIVE)),
+):
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
         if not p:

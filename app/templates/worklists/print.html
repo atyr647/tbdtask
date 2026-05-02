@@ -21,7 +21,7 @@
   <thead>
     <tr>
       <th class="who-col">Person</th>
-      <th class="ds-col">DS</th>
+      <th class="ds-col">Team</th>
       {% for h in grid.headers %}
         <th class="day-col">
           <div class="day-name">{{ h.weekday }}</div>
@@ -53,7 +53,7 @@
           <ul class="task-list">
             {% for tr in cell.tasks %}
               <li>
-                {% if tr.is_poic %}<span class="poic">POIC</span>{% endif %}
+                {% if tr.is_poic %}<span class="poic">Lead</span>{% endif %}
                 {{ tr.instance.name }}
                 {% if tr.category_name %}<em class="cat">({{ tr.category_name }})</em>{% endif %}
                 {% if tr.other_assignees %}<span class="shared">w/ {{ tr.other_assignees|join(", ") }}</span>{% endif %}
@@ -104,7 +104,7 @@
               {% for tr in rows %}
                 <li>
                   {{ tr.instance.name }}
-                  {% if tr.external_poic %}<em>POIC: {{ tr.external_poic }}</em>{% endif %}
+                  {% if tr.external_poic %}<em>Lead: {{ tr.external_poic }}</em>{% endif %}
                   {% if tr.category_name %}<em class="cat">({{ tr.category_name }})</em>{% endif %}
                 </li>
               {% endfor %}

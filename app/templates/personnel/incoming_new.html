@@ -19,16 +19,17 @@
   </fieldset>
 
   <fieldset>
-    <legend>Rate / rank</legend>
+    <legend>Title</legend>
     <label>Category
       <select id="rate-category">
         <option value="">— any —</option>
-        <option value="Officer">Officer</option>
-        <option value="CWO">CWO</option>
-        <option value="Enlisted">Enlisted</option>
+        <option value="Leadership">Leadership</option>
+        <option value="Operations">Operations</option>
+        <option value="Technical">Technical</option>
+        <option value="Support">Support</option>
       </select>
     </label>
-    <label>Rate / rank
+    <label>Title
       <input name="rate" list="rate-suggestions" placeholder="type or pick" autocomplete="off" />
     </label>
   </fieldset>
@@ -37,8 +38,8 @@
     <legend>Arrival</legend>
     <label>Estimated arrival date <input type="date" name="arrival_date" /></label>
     <div class="combobox" data-combo>
-      <label>Sponsor (search current personnel)
-        <input type="text" class="combobox-input" placeholder="search by name, rank, or rate"
+      <label>Onboarding buddy (search current personnel)
+        <input type="text" class="combobox-input" placeholder="search by name or title"
                autocomplete="off" data-combo-input data-target-name="sponsor_person_id" data-single="1" />
       </label>
       <div class="combobox-results" data-combo-results></div>
@@ -48,10 +49,10 @@
 
   <fieldset>
     <legend>In-processing checklist</legend>
-    <label><input type="checkbox" name="orders_received" value="1" /> Orders received</label>
-    <label><input type="checkbox" name="itinerary_received" value="1" /> Itinerary received</label>
-    <label><input type="checkbox" name="aob_scheduled" value="1" /> AOB scheduled</label>
-    <label><input type="checkbox" name="barracks_assigned" value="1" /> Barracks room assigned</label>
+    <label><input type="checkbox" name="orders_received" value="1" /> Offer documents received</label>
+    <label><input type="checkbox" name="itinerary_received" value="1" /> Start schedule received</label>
+    <label><input type="checkbox" name="aob_scheduled" value="1" /> Orientation scheduled</label>
+    <label><input type="checkbox" name="barracks_assigned" value="1" /> Workspace assigned</label>
   </fieldset>
 
   <label>Notes <textarea name="notes" rows="2"></textarea></label>

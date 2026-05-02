@@ -22,6 +22,7 @@
   <thead>
     <tr>
       <th class="sticky-col">Person</th>
+      <th>Title</th>
       {% for q in quals %}
         <th>{{ q.name }}</th>
       {% endfor %}
@@ -30,7 +31,8 @@
   <tbody>
     {% for row in grid %}
     <tr>
-      <td class="sticky-col"><a href="/personnel/{{ row.person.id }}">{{ row.person.full_display }}</a></td>
+      <td class="sticky-col"><a href="/personnel/{{ row.person.id }}">{{ row.display_name }}</a></td>
+      <td>{{ row.title or "—" }}</td>
       {% for cell in row.cells %}
         {% if cell == "qualified" %}<td class="q">Q</td>
         {% elif cell == "dinq" %}<td class="d">D</td>

@@ -25,7 +25,7 @@ from typing import Iterator  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine, event  # noqa: E402
+from sqlalchemy import create_engine, event, text  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
@@ -35,9 +35,8 @@ from app import models as M  # noqa: E402
 
 @pytest.fixture
 def engine():
-    # An in-memory SQLite per test, shared across threads (StaticPool keeps
-    # one connection so the test thread + FastAPI's worker thread agree on
-    # the same database).
+    # An in-memory SQLite per test, fully isolated from other
+    # tests and from the dev DB.
     eng = create_engine(
         "sqlite:///:memory:",
         future=True,
@@ -52,6 +51,18 @@ def engine():
         cur.close()
 
     db_module.Base.metadata.create_all(eng)
+
+    # Phase 3: seed a default org so the NOT NULL org_id constraint
+    # is satisfiable. Tests that care about multi-tenancy create their
+    # own orgs; everyone else uses this one.
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO organizations (slug, name) "
+                "VALUES ('default', 'Default Organization')"
+            )
+        )
+
     yield eng
     eng.dispose()
 
@@ -101,36 +112,36 @@ def client(engine, session_factory, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def make_person(session, last_name="Doe", rate="BM3", duty_section=2,
-                paygrade="E-4", display_order=0):
+                paygrade="E-4", display_order=0, org_id=1):
     today = date.today()
     p = M.Person(last_name=last_name, full_display=f"{rate} {last_name}",
-                 display_order=display_order)
+                 display_order=display_order, org_id=org_id)
     session.add(p)
     session.flush()
     session.add(M.PersonRate(person_id=p.id, rate=rate, paygrade=paygrade,
-                             valid_from=today))
+                             valid_from=today, org_id=org_id))
     session.add(M.PersonDutySection(person_id=p.id, duty_section=duty_section,
-                                    valid_from=today))
+                                    valid_from=today, org_id=org_id))
     session.add(M.PersonRosterStatus(person_id=p.id, status="active",
-                                     valid_from=today))
+                                     valid_from=today, org_id=org_id))
     session.flush()
     return p
 
 
-def make_absence_codes(session):
+def make_absence_codes(session, org_id=1):
     codes = {}
     for i, code in enumerate(["Leave", "TAD", "School", "Medical", "Appt", "Other"]):
-        c = M.AbsenceCode(code=code, display_order=i)
+        c = M.AbsenceCode(code=code, display_order=i, org_id=org_id)
         session.add(c)
         codes[code] = c
     session.flush()
     return codes
 
 
-def make_task_categories(session):
+def make_task_categories(session, org_id=1):
     cats = {}
     for i, name in enumerate(["Maintenance", "Corrective", "General"]):
-        c = M.TaskCategory(name=name, display_order=i)
+        c = M.TaskCategory(name=name, display_order=i, org_id=org_id)
         session.add(c)
         cats[name] = c
     session.flush()
@@ -138,7 +149,7 @@ def make_task_categories(session):
 
 
 def make_worklist(session, monday: date, *, name=None, locked=False, parent_id=None,
-                  version=1):
+                  version=1, org_id=1):
     wl = M.Worklist(
         week_starting=monday,
         name=name or f"Week of {monday.isoformat()}",
@@ -146,6 +157,7 @@ def make_worklist(session, monday: date, *, name=None, locked=False, parent_id=N
         parent_id=parent_id,
         locked=locked,
         locked_at=datetime.now() if locked else None,
+        org_id=org_id,
     )
     session.add(wl)
     session.flush()
@@ -153,7 +165,7 @@ def make_worklist(session, monday: date, *, name=None, locked=False, parent_id=N
 
 
 def make_task(session, *, worklist_id, name="Test task", scheduled_date=None,
-              status="open", hours=None, category_id=None, template_id=None):
+              status="open", hours=None, category_id=None, template_id=None, org_id=1):
     inst = M.TaskInstance(
         worklist_id=worklist_id,
         scheduled_date=scheduled_date,
@@ -162,41 +174,43 @@ def make_task(session, *, worklist_id, name="Test task", scheduled_date=None,
         name=name,
         status=status,
         hours=hours,
+        org_id=org_id,
     )
     session.add(inst)
     session.flush()
     return inst
 
 
-def make_assignment(session, *, instance_id, person_id, is_poic=False):
+def make_assignment(session, *, instance_id, person_id, is_poic=False, org_id=1):
     a = M.TaskAssignment(instance_id=instance_id, person_id=person_id,
-                         is_poic=is_poic)
+                         is_poic=is_poic, org_id=org_id)
     session.add(a)
     session.flush()
     return a
 
 
 def make_absence(session, *, person_id, code_id, start_date, end_date,
-                 start_time=None, end_time=None, reason=None):
+                 start_time=None, end_time=None, reason=None, org_id=1):
     a = M.Absence(person_id=person_id, code_id=code_id,
                   start_date=start_date, end_date=end_date,
                   start_time=start_time, end_time=end_time,
-                  reason=reason)
+                  reason=reason, org_id=org_id)
     session.add(a)
     session.flush()
     return a
 
 
-def make_qual(session, name, *, validity_period_days=None, display_order=0):
+def make_qual(session, name, *, validity_period_days=None, display_order=0, org_id=1):
     q = M.Qualification(name=name, validity_period_days=validity_period_days,
-                        display_order=display_order)
+                        display_order=display_order, org_id=org_id)
     session.add(q)
     session.flush()
     return q
 
 
-def set_prd(session, person_id: int, prd: date, *, change_reason="initial"):
+def set_prd(session, person_id: int, prd: date, *, change_reason="initial", org_id=1):
     today = date.today()
     session.add(M.PersonPrd(person_id=person_id, prd_date=prd,
-                            change_reason=change_reason, valid_from=today))
+                            change_reason=change_reason, valid_from=today,
+                            org_id=org_id))
     session.flush()

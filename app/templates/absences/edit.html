@@ -17,8 +17,27 @@
     <label>Start time <input type="time" name="start_time" value="{{ absence.start_time.strftime('%H:%M') if absence.start_time else '' }}" /></label>
     <label>End time <input type="time" name="end_time" value="{{ absence.end_time.strftime('%H:%M') if absence.end_time else '' }}" /></label>
   </fieldset>
-  <label>Reason <input name="reason" value="{{ absence.reason or '' }}" /></label>
-  <label>Notes <textarea name="notes" rows="2">{{ absence.notes or '' }}</textarea></label>
+  <label>Reason <input name="reason" value="{{ absence.reason or '' }}" id="reason-field" /></label>
+  <label>Notes <textarea name="notes" rows="2" id="notes-field">{{ absence.notes or '' }}</textarea></label>
+
+  {% if sensitive_warnings %}
+  <div class="sensitive-warning" role="alert">
+    <p><strong>Sensitive information detected</strong></p>
+    <p>The reason/notes fields may contain personally identifiable or controlled unclassified information (PII/CUI):</p>
+    <ul>
+      {% for w in sensitive_warnings %}
+      <li>{{ w }}</li>
+      {% endfor %}
+    </ul>
+    <label>
+      <input type="checkbox" name="sensitive_ack" value="1" required />
+      I confirm this information is necessary for operational records and complies with data-handling policy.
+    </label>
+  </div>
+  {% else %}
+  <input type="hidden" name="sensitive_ack" value="1" />
+  {% endif %}
+
   <div class="form-actions">
     <button type="submit">Save</button>
     <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>

@@ -48,7 +48,7 @@
 <section class="block">
   <h2>Tasks scheduled for {{ report.on_date.strftime("%A") }} ({{ tasks|length }})</h2>
   <table class="grid">
-    <thead><tr><th>Task</th><th>Category</th><th>Assigned</th><th>POIC</th><th>Status</th></tr></thead>
+    <thead><tr><th>Task</th><th>Category</th><th>Assigned</th><th>Lead</th><th>Status</th></tr></thead>
     <tbody>
       {% for t in tasks %}
       <tr>
@@ -58,7 +58,7 @@
         </td>
         <td class="muted">{{ t.category or "—" }}</td>
         <td class="muted small">{{ t.assignees|join(", ") if t.assignees else "all hands / unassigned" }}</td>
-        <td>{% if t.poic_label %}<span class="poic">POIC</span> {{ t.poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if t.poic_label %}<span class="poic">Lead</span> {{ t.poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>
           {% if t.source == "recurring" %}<span class="status">recurring template</span>
           {% elif t.status == "done" %}<span class="status status-done">done</span>
@@ -76,7 +76,7 @@
   <h2>Out today ({{ absent_rows|length }})</h2>
   {% if absent_rows %}
   <table class="grid">
-    <thead><tr><th>Person</th><th>Rate</th><th>DS</th><th>Code</th><th>Window</th><th>Reason</th></tr></thead>
+    <thead><tr><th>Person</th><th>Title</th><th>Team</th><th>Code</th><th>Window</th><th>Reason</th></tr></thead>
     <tbody>
       {% for r in absent_rows %}
       <tr>
@@ -98,7 +98,7 @@
 <section class="block">
   <h2>Present ({{ present_rows|length }})</h2>
   <table class="grid">
-    <thead><tr><th>Person</th><th>Rate</th><th>DS</th></tr></thead>
+    <thead><tr><th>Person</th><th>Title</th><th>Team</th></tr></thead>
     <tbody>
       {% for r in present_rows %}
       <tr>

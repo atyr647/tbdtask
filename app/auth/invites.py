@@ -58,12 +58,19 @@ def create_invite(
     intended_email: str,
     created_by_user_id: Optional[int],
     ttl_days: int = DEFAULT_INVITE_TTL_DAYS,
+    first_name: Optional[str] = None,
+    last_name: Optional[str] = None,
+    rate: Optional[str] = None,
+    paygrade: Optional[str] = None,
 ) -> IssuedInvite:
     """Issue a fresh invite. Returns the row id and the raw token.
 
     The caller is responsible for delivering the raw token to the
     intended recipient out-of-band (email, Teams DM, etc.). The token
     is never re-displayable: a lost token requires issuing a new invite.
+
+    Personnel fields (first_name, last_name, title, level) are stored
+    so that on acceptance a ``Person`` record is auto-created.
     """
     if ttl_days < 1 or ttl_days > MAX_INVITE_TTL_DAYS:
         raise ValueError(
@@ -81,6 +88,10 @@ def create_invite(
         intended_email=cleaned_email,
         created_by_user_id=created_by_user_id,
         expires_at=now + timedelta(days=ttl_days),
+        first_name=first_name,
+        last_name=last_name,
+        rate=rate,
+        paygrade=paygrade,
     )
     db.add(invite)
     db.flush()

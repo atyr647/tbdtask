@@ -17,12 +17,12 @@
         </div>
         <div class="snapshot-stats">
           <div><strong>{{ stats.total_hours }}</strong> hours logged</div>
-          <div><strong>{{ stats.poic_count }}</strong> as POIC</div>
+          <div><strong>{{ stats.poic_count }}</strong> as lead</div>
         </div>
       </div>
       {% if stats.by_category %}
       <table class="grid">
-        <thead><tr><th>Category</th><th>Tasks</th><th>Hours</th><th>POIC</th></tr></thead>
+        <thead><tr><th>Category</th><th>Tasks</th><th>Hours</th><th>Lead</th></tr></thead>
         <tbody>
           {% for c in stats.by_category %}
           <tr>
@@ -42,7 +42,7 @@
         <ul class="task-history">
           {% for t in stats.recent %}
             <li>
-              {% if t.is_poic %}<span class="poic">POIC</span>{% endif %}
+              {% if t.is_poic %}<span class="poic">Lead</span>{% endif %}
               {{ t.instance.name }}
               <span class="muted small">— {{ t.category_name }}{% if t.completed_at %}, {{ t.completed_at.date() }}{% elif t.instance.scheduled_date %}, {{ t.instance.scheduled_date }}{% endif %}{% if t.hours_worked %} · {{ t.hours_worked }}h{% endif %}</span>
             </li>
@@ -107,14 +107,14 @@
       <h2>At a glance</h2>
       <dl class="kv">
         {% set cur_rate = rates|selectattr("valid_to","none")|first %}
-        <dt>Rate</dt>
+        <dt>Title</dt>
         <dd>{{ cur_rate.rate if cur_rate else "—" }}{% if cur_rate and cur_rate.paygrade %} <span class="muted">({{ cur_rate.paygrade }})</span>{% endif %}</dd>
         {% if person.first_name %}<dt>First name</dt><dd>{{ person.first_name }}</dd>{% endif %}
         {% if person.position %}<dt>Position</dt><dd>{{ person.position }}</dd>{% endif %}
         {% set cur_ds = duty_sections|selectattr("valid_to","none")|first %}
-        <dt>Duty section</dt><dd>{{ cur_ds.duty_section if cur_ds else "—" }}</dd>
+        <dt>Team / group</dt><dd>{{ cur_ds.duty_section if cur_ds else "—" }}</dd>
         {% set cur_prd = prds|selectattr("valid_to","none")|first %}
-        <dt>PRD</dt><dd>{{ cur_prd.prd_date if cur_prd else "—" }}</dd>
+        <dt>Planned departure</dt><dd>{{ cur_prd.prd_date if cur_prd else "—" }}</dd>
         {% set cur_dl = drivers_licenses|selectattr("valid_to","none")|first %}
         <dt>Drivers license</dt>
         <dd>{% if cur_dl %}{{ "Yes" if cur_dl.has_license else "No" }}{% if cur_dl.expires_on %} <span class="muted">(expires {{ cur_dl.expires_on }})</span>{% endif %}{% else %}—{% endif %}</dd>

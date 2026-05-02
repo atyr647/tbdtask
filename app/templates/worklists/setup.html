@@ -44,7 +44,7 @@
 
   {% set existing = day.person_blocks|sum(start=[], attribute='tasks') + day.unassigned_tasks %}
   {# Dedupe: a task with multiple assignees shows up once per assignee, so
-     collect all rows per instance to render a single line with the POIC
+     collect all rows per instance to render a single line with the lead
      name in its own column. #}
   {% set seen_ids = namespace(v=[]) %}
   {% set unique_instances = [] %}
@@ -56,7 +56,7 @@
   {% endfor %}
   {% if unique_instances %}
   <table class="grid">
-    <thead><tr><th>Task</th><th>Assigned</th><th>POIC</th><th></th></tr></thead>
+    <thead><tr><th>Task</th><th>Assigned</th><th>Lead</th><th></th></tr></thead>
     <tbody>
       {% for iid in unique_instances %}
       {% set rows_for = existing|selectattr('instance.id','equalto',iid)|list %}
@@ -74,7 +74,7 @@
           {% if primary.category_name %}<span class="cat">{{ primary.category_name }}</span>{% endif %}
         </td>
         <td class="muted small">{{ assignee_names|unique|join(", ") if assignee_names else "—" }}</td>
-        <td>{% if poic_label %}<span class="poic">POIC</span> {{ poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if poic_label %}<span class="poic">Lead</span> {{ poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
         <td>
           <form method="post" action="/tasks/{{ primary.instance.id }}/archive" class="form-inline-row">
             <input type="hidden" name="reason" value="removed during setup" />
@@ -106,13 +106,13 @@
     <div class="quick-add-row">
       <div class="combobox grow" data-combo>
         <label>Assign to (type to search)
-          <input type="text" class="combobox-input" placeholder="search by name, rank, or rate"
+          <input type="text" class="combobox-input" placeholder="search by name or title"
                  autocomplete="off" data-combo-input data-target-name="person_ids" />
         </label>
         <div class="combobox-results" data-combo-results></div>
         <ul class="combobox-chips" data-combo-chips></ul>
       </div>
-      <label>POIC
+      <label>Lead
         <select name="poic_person_id">
           <option value="">—</option>
           {% for p in people %}<option value="{{ p.id }}">{{ p.full_display }}</option>{% endfor %}

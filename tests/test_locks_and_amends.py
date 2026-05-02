@@ -13,7 +13,7 @@ def test_locked_worklist_rejects_task_create(client, session_factory):
     """POSTing a task to a locked worklist should return 409, no insert."""
     monday = date(2026, 5, 4)
     with session_factory() as s:
-        wl = M.Worklist(week_starting=monday, name="Locked week", locked=True)
+        wl = M.Worklist(week_starting=monday, name="Locked week", locked=True, org_id=1)
         s.add(wl); s.commit()
         wl_id = wl.id
 
@@ -32,9 +32,9 @@ def test_locked_worklist_rejects_task_create(client, session_factory):
 def test_locked_worklist_rejects_task_update(client, session_factory):
     monday = date(2026, 5, 4)
     with session_factory() as s:
-        wl = M.Worklist(week_starting=monday, name="Locked week", locked=False)
+        wl = M.Worklist(week_starting=monday, name="Locked week", locked=False, org_id=1)
         s.add(wl); s.flush()
-        inst = M.TaskInstance(worklist_id=wl.id, name="Original", status="open")
+        inst = M.TaskInstance(worklist_id=wl.id, name="Original", status="open", org_id=1)
         s.add(inst); s.commit()
         wl.locked = True
         s.commit()
@@ -54,15 +54,15 @@ def test_locked_worklist_rejects_task_update(client, session_factory):
 def test_locked_worklist_rejects_assignment_changes(client, session_factory):
     monday = date(2026, 5, 4)
     with session_factory() as s:
-        p = M.Person(last_name="Doe", full_display="BM3 Doe")
+        p = M.Person(last_name="Doe", full_display="BM3 Doe", org_id=1)
         s.add(p); s.flush()
         s.add(M.PersonRosterStatus(person_id=p.id, status="active",
-                                   valid_from=date.today()))
-        wl = M.Worklist(week_starting=monday, name="W", locked=False)
+                                   valid_from=date.today(), org_id=1))
+        wl = M.Worklist(week_starting=monday, name="W", locked=False, org_id=1)
         s.add(wl); s.flush()
-        inst = M.TaskInstance(worklist_id=wl.id, name="Task", status="open")
+        inst = M.TaskInstance(worklist_id=wl.id, name="Task", status="open", org_id=1)
         s.add(inst); s.flush()
-        a = M.TaskAssignment(instance_id=inst.id, person_id=p.id, is_poic=True)
+        a = M.TaskAssignment(instance_id=inst.id, person_id=p.id, is_poic=True, org_id=1)
         s.add(a); s.commit()
         wl.locked = True
         s.commit()
@@ -81,17 +81,17 @@ def test_amend_clones_into_new_worklist_with_parent_link(client, session_factory
     """Amending a locked worklist clones every task + assignment with hours."""
     monday = date(2026, 5, 4)
     with session_factory() as s:
-        wl = M.Worklist(week_starting=monday, name="Original", locked=True)
+        wl = M.Worklist(week_starting=monday, name="Original", locked=True, org_id=1)
         s.add(wl); s.flush()
         inst = M.TaskInstance(worklist_id=wl.id, name="Replace seatbelts",
                               status="open", hours=2.5,
-                              scheduled_date=monday)
+                              scheduled_date=monday, org_id=1)
         s.add(inst); s.flush()
-        p = M.Person(last_name="Tanner", full_display="CM2 Tanner")
+        p = M.Person(last_name="Tanner", full_display="CM2 Tanner", org_id=1)
         s.add(p); s.flush()
         s.add(M.PersonRosterStatus(person_id=p.id, status="active",
-                                   valid_from=date.today()))
-        s.add(M.TaskAssignment(instance_id=inst.id, person_id=p.id, is_poic=True))
+                                   valid_from=date.today(), org_id=1))
+        s.add(M.TaskAssignment(instance_id=inst.id, person_id=p.id, is_poic=True, org_id=1))
         s.commit()
         wl_id = wl.id
         inst_id = inst.id
@@ -143,7 +143,7 @@ def test_amend_clones_into_new_worklist_with_parent_link(client, session_factory
 def test_amend_rejects_unlocked_worklist(client, session_factory):
     monday = date(2026, 5, 4)
     with session_factory() as s:
-        wl = M.Worklist(week_starting=monday, name="Open", locked=False)
+        wl = M.Worklist(week_starting=monday, name="Open", locked=False, org_id=1)
         s.add(wl); s.commit()
         wl_id = wl.id
 
@@ -157,7 +157,7 @@ def test_lock_endpoint_makes_worklist_immutable(client, session_factory):
     """The lock endpoint flips the flag, after which task creates fail."""
     monday = date(2026, 5, 4)
     with session_factory() as s:
-        wl = M.Worklist(week_starting=monday, name="W", locked=False)
+        wl = M.Worklist(week_starting=monday, name="W", locked=False, org_id=1)
         s.add(wl); s.commit()
         wl_id = wl.id
 

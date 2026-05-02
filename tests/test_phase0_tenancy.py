@@ -57,22 +57,37 @@ def _make_person(session, *, org_id, last_name):
 # ---------------------------------------------------------------------------
 
 def test_tenant_scoped_tables_list_matches_models():
-    """Every model with TenantScopedMixin must appear in the canonical list.
+    """Every model with TenantScopedMixin or an explicit ``org_id`` column
+    must appear in the canonical list — except auth-layer tables which are
+    org-scoped but not part of the tenant data plane.
 
     Catches the silent failure mode where someone adds a new tenant model
     but forgets to update ``TENANT_SCOPED_TABLES`` (which migrations and the
     runtime listener both consume).
     """
-    declared = {
+    # Auth-layer tables have org_id but are NOT tenant-scoped — they're
+    # accessed via the auth layer, not the tenant context.
+    AUTH_LAYER_TABLES = {"org_memberships", "org_invites"}
+
+    # Models using the mixin.
+    via_mixin = {
         m.class_.__tablename__
         for m in M.Base.registry.mappers
         if issubclass(m.class_, TenantScopedMixin)
     }
+    # Models with an explicit org_id column (e.g. Workcenter, Role).
+    via_explicit = {
+        m.class_.__tablename__
+        for m in M.Base.registry.mappers
+        if "org_id" in m.columns and not issubclass(m.class_, TenantScopedMixin)
+    }
+    declared = (via_mixin | via_explicit) - AUTH_LAYER_TABLES
     assert declared == set(TENANT_SCOPED_TABLES), (
-        f"models with TenantScopedMixin: {sorted(declared)}\n"
-        f"TENANT_SCOPED_TABLES:          {sorted(TENANT_SCOPED_TABLES)}\n"
-        f"in models but not list:        {sorted(declared - set(TENANT_SCOPED_TABLES))}\n"
-        f"in list but not models:        {sorted(set(TENANT_SCOPED_TABLES) - declared)}"
+        f"models with TenantScopedMixin: {sorted(via_mixin)}\n"
+        f"models with explicit org_id:     {sorted(via_explicit)}\n"
+        f"TENANT_SCOPED_TABLES:            {sorted(TENANT_SCOPED_TABLES)}\n"
+        f"in models but not list:          {sorted(declared - set(TENANT_SCOPED_TABLES))}\n"
+        f"in list but not models:          {sorted(set(TENANT_SCOPED_TABLES) - declared)}"
     )
 
 
@@ -293,3 +308,28 @@ def test_every_tenant_model_has_org_id_column():
 def test_organization_model_has_no_org_id():
     cols = {c.name for c in M.Organization.__table__.columns}
     assert "org_id" not in cols
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: NOT NULL enforcement
+# ---------------------------------------------------------------------------
+
+def test_org_id_not_null_on_tenant_tables(session):
+    """Phase 3 makes org_id NOT NULL on every tenant-scoped table. This test
+    verifies the constraint is active by attempting to insert a row without
+    org_id — it must fail."""
+    from sqlalchemy.exc import IntegrityError
+
+    # Try to insert a Person without org_id.
+    p = M.Person(last_name="NoOrg", full_display="NoOrg")
+    session.add(p)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+    # Same for Worklist (explicit org_id, not via mixin).
+    wl = M.Worklist(week_starting=date.today(), name="NoOrg")
+    session.add(wl)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()

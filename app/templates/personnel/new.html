@@ -7,37 +7,57 @@
 <form method="post" action="/personnel" class="form">
   <fieldset>
     <legend>Identity</legend>
-    <label>Last name <input name="last_name" required /></label>
-    <label>First name <input name="first_name" placeholder="useful when multiple sailors share a last name" /></label>
-    <label>Position <input name="position" placeholder="e.g. LPO, Watchbill Coordinator" /></label>
+    <label>Last name <input name="last_name" required value="{% if form_data and form_data.last_name %}{{ form_data.last_name }}{% endif %}" /></label>
+    <label>First name <input name="first_name" placeholder="useful when multiple people share a last name" value="{% if form_data and form_data.first_name %}{{ form_data.first_name }}{% endif %}" /></label>
+    <label>Role / position <input name="position" placeholder="e.g. Team Lead, Coordinator" value="{% if form_data and form_data.position %}{{ form_data.position }}{% endif %}" /></label>
   </fieldset>
   <fieldset>
-    <legend>Rate / rank</legend>
+    <legend>Title</legend>
     <label>Category
       <select id="rate-category">
         <option value="">— any —</option>
-        <option value="Officer">Officer</option>
-        <option value="CWO">CWO</option>
-        <option value="Enlisted">Enlisted</option>
+        <option value="Leadership">Leadership</option>
+        <option value="Operations">Operations</option>
+        <option value="Technical">Technical</option>
+        <option value="Support">Support</option>
       </select>
     </label>
-    <label>Rate / rank
-      <input name="rate" list="rate-suggestions" placeholder="type or pick (e.g. CM2, BMC, CWO2, LT)" autocomplete="off" />
+    <label>Title
+      <input name="rate" list="rate-suggestions" placeholder="type or pick (e.g. Coordinator, Analyst, Manager)" autocomplete="off" />
     </label>
-    <p class="muted small">Paygrade and group are derived automatically. Khaki = E-7 and above + Officer/CWO. Junior = E-4 and below.</p>
+    <p class="muted small">Level and roster group are derived automatically for catalog titles. You can still type any custom title.</p>
   </fieldset>
   <fieldset>
     <legend>Assignment</legend>
-    <label>Duty section
+    <label>Team / group
       <input type="number" name="duty_section" min="1" max="20" placeholder="e.g. 1, 2, 3 …" />
     </label>
-    <label>PRD <input type="date" name="prd_date" /></label>
+    <label>Planned departure date <input type="date" name="prd_date" /></label>
     <label>Drivers license
       <input type="checkbox" name="has_drivers_license" value="1" />
     </label>
     <label>Drivers license expires <input type="date" name="drivers_license_expires" /></label>
-    <label>Notes <textarea name="notes" rows="2"></textarea></label>
+    <label>Notes <textarea name="notes" rows="2" id="notes-field">{% if form_data and form_data.notes %}{{ form_data.notes }}{% endif %}</textarea></label>
   </fieldset>
+
+  {% if sensitive_warnings %}
+  <div class="sensitive-warning" role="alert">
+    <p><strong>Sensitive information detected</strong></p>
+    <p>The notes field may contain personally identifiable or controlled unclassified information (PII/CUI):</p>
+    <ul>
+      {% for w in sensitive_warnings %}
+      <li>{{ w }}</li>
+      {% endfor %}
+    </ul>
+    <label>
+      <input type="checkbox" name="sensitive_ack" value="1" required />
+      I confirm this information is necessary for operational records and complies with data-handling policy.
+    </label>
+  </div>
+  {% else %}
+  <input type="hidden" name="sensitive_ack" value="1" />
+  {% endif %}
+
   <div class="form-actions">
     <button type="submit">Create</button>
     <a href="/personnel" class="btn-link">Cancel</a>

@@ -585,3 +585,24 @@ details.prd-popover[open] > summary { background: var(--accent); color: #fff; bo
 .depart-block::before { background: var(--bad); }
 .depart-btn { background: var(--bad); }
 .depart-btn:hover { background: #b3253a; }
+
+/* Sensitive-info warning (Phase 6) ------------------------------------ */
+.sensitive-warning {
+  background: var(--warn-soft);
+  border: 1px solid rgba(217,119,6,.35);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin: 14px 0;
+}
+.sensitive-warning p { margin: 0 0 8px; color: var(--warn); }
+.sensitive-warning p:first-child { font-weight: 700; font-size: 14px; }
+.sensitive-warning ul { margin: 0 0 10px; padding-left: 20px; color: var(--text); }
+.sensitive-warning label {
+  display: flex; align-items: flex-start; gap: 8px;
+  color: var(--text); font-size: 13px; font-weight: 500;
+  cursor: pointer;
+}
+.sensitive-warning input[type="checkbox"] {
+  margin-top: 2px; flex-shrink: 0;
+  width: 16px; height: 16px; accent-color: var(--warn);
+}

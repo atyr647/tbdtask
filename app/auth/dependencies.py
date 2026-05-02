@@ -15,21 +15,20 @@ from .. import models as M
 from ..db import SessionLocal
 
 
-def get_db() -> Session:
+def get_db(request: Request) -> Session:
     """Per-request DB session.
 
-    FastAPI calls this via ``Depends`` and closes the generator afterwards,
-    so a single transaction scopes the whole request.
+    Reuses the session created by SessionMiddleware (attached to
+    ``request.state.db``) so there is exactly one transaction per request.
+    Falls back to creating a new session for public paths where the
+    middleware does not establish one.
     """
+    db = getattr(request.state, "db", None)
+    if db is not None:
+        return db
     db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+    request.state.db = db
+    return db
 
 
 def get_current_session(request: Request) -> Optional[M.UserSession]:

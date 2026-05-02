@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 DATA_DIR = Path(os.environ.get("TBDTASK_DATA_DIR", Path(__file__).resolve().parent.parent / "data"))
@@ -43,6 +43,26 @@ if IS_SQLITE:
         cur.execute("PRAGMA foreign_keys=ON")
         cur.execute("PRAGMA journal_mode=WAL")
         cur.close()
+
+
+# Postgres RLS hook: set app.current_org_id GUC on every connection checkout.
+# This ensures RLS policies always have the tenant context, and fail-closed
+# when no org is set (current_setting returns NULL, policy denies access).
+if not IS_SQLITE:
+    from .tenancy import current_org_id  # noqa: E402
+
+    @event.listens_for(engine, "checkout")
+    def _set_rls_org_id(dbapi_connection, connection_record, is_first):
+        oid = current_org_id()
+        if oid is not None:
+            dbapi_connection.cursor().execute(
+                "SET app.current_org_id = %s", (str(oid),)
+            )
+        else:
+            # Fail-closed: unset the GUC so RLS policies deny access.
+            dbapi_connection.cursor().execute(
+                "RESET app.current_org_id"
+            )
 
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
