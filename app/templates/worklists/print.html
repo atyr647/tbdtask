@@ -87,12 +87,12 @@
   </tfoot>
 </table>
 
-{% set has_unassigned = false %}
-{% for d, rows in grid.unassigned_by_day.items() %}{% if rows %}{% set has_unassigned = true %}{% endif %}{% endfor %}
+{% set state = namespace(has=false) %}
+{% for d, rows in grid.unassigned_by_day.items() %}{% if rows %}{% set state.has = true %}{% endif %}{% endfor %}
 
-{% if has_unassigned %}
+{% if state.has %}
 <section class="unassigned">
-  <h2>Unassigned</h2>
+  <h2>All hands / no specific assignee</h2>
   <table class="unassigned-grid">
     <tbody>
       {% for d, rows in grid.unassigned_by_day.items() %}

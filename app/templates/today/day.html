@@ -44,6 +44,34 @@
 </section>
 {% endif %}
 
+{% if tasks %}
+<section class="block">
+  <h2>Tasks scheduled for {{ report.on_date.strftime("%A") }} ({{ tasks|length }})</h2>
+  <table class="grid">
+    <thead><tr><th>Task</th><th>Category</th><th>Assigned</th><th>POIC</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for t in tasks %}
+      <tr>
+        <td>
+          {% if t.instance_id %}<a href="/tasks/{{ t.instance_id }}/edit">{{ t.name }}</a>
+          {% else %}{{ t.name }}{% endif %}
+        </td>
+        <td class="muted">{{ t.category or "—" }}</td>
+        <td class="muted small">{{ t.assignees|join(", ") if t.assignees else "all hands / unassigned" }}</td>
+        <td>{% if t.poic_label %}<span class="poic">POIC</span> {{ t.poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>
+          {% if t.source == "recurring" %}<span class="status">recurring template</span>
+          {% elif t.status == "done" %}<span class="status status-done">done</span>
+          {% elif t.status == "in_progress" %}<span class="status status-in_progress">in progress</span>
+          {% else %}<span class="status">{{ t.status }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
 <section class="block">
   <h2>Out today ({{ absent_rows|length }})</h2>
   {% if absent_rows %}

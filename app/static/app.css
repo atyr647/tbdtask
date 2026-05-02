@@ -303,7 +303,10 @@ button:active { transform: translateY(1px); }
 .out-box { padding: 10px 14px; background: var(--warn-soft); border: 1px solid rgba(217,119,6,.30); border-radius: var(--radius); margin-bottom: 12px; }
 .out-box .chip { display: inline-block; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; margin: 2px 4px 2px 0; font-size: 12px; color: var(--text-dim); }
 .person-block { padding: 10px 14px; border-left: 3px solid var(--accent); margin: 10px 0; border-radius: 0 var(--radius) var(--radius) 0; background: var(--panel-2); }
-.person-block.unassigned { border-left-color: var(--warn); background: var(--warn-soft); }
+.person-block.unassigned {
+  border-left-color: var(--accent-2);
+  background: var(--panel-2);
+}
 .person-block h3 { margin: 0 0 4px; font-size: 14px; color: var(--text); }
 ul.task-list { margin: 4px 0; padding-left: 18px; }
 ul.task-list li { margin: 4px 0; color: var(--text); }
