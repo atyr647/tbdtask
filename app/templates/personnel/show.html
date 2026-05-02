@@ -15,8 +15,6 @@
     <dt>Duty section</dt><dd>{{ cur_ds.duty_section if cur_ds else "—" }}</dd>
     {% set cur_prd = prds|selectattr("valid_to","none")|first %}
     <dt>PRD</dt><dd>{{ cur_prd.prd_date if cur_prd else "—" }}</dd>
-    {% set cur_status = roster|selectattr("valid_to","none")|first %}
-    <dt>Roster status</dt><dd>{{ cur_status.status if cur_status else "—" }}</dd>
     {% set cur_dl = drivers_licenses|selectattr("valid_to","none")|first %}
     <dt>Drivers license</dt>
     <dd>{% if cur_dl %}{{ "Y" if cur_dl.has_license else "N" }}{% if cur_dl.expires_on %} <span class="muted">expires {{ cur_dl.expires_on }}</span>{% endif %}{% else %}—{% endif %}</dd>

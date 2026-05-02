@@ -35,11 +35,6 @@
       <input type="checkbox" name="has_drivers_license" value="1" {% if cur.drivers_license and cur.drivers_license.has_license %}checked{% endif %} />
     </label>
     <label>License expires <input type="date" name="drivers_license_expires" value="{{ cur.drivers_license.expires_on.isoformat() if cur.drivers_license and cur.drivers_license.expires_on else '' }}" /></label>
-    <label>Roster status
-      <select name="roster_status">
-        {% for st in roster_statuses %}<option value="{{ st }}" {% if cur.status and cur.status.status == st %}selected{% endif %}>{{ st }}</option>{% endfor %}
-      </select>
-    </label>
   </fieldset>
 
   <div class="form-actions">
@@ -49,7 +44,7 @@
 </form>
 
 <form method="post" action="/personnel/{{ person.id }}/archive" class="form-inline danger">
-  <label>Archive reason <input name="reason" placeholder="optional" /></label>
-  <button type="submit" onclick="return confirm('Archive {{ person.full_display }}? They will be hidden from the active roster but history is preserved.');">Archive</button>
+  <label>Reason <input name="reason" placeholder="e.g. PCS, separated, transfer" /></label>
+  <button type="submit" onclick="return confirm('Remove {{ person.full_display }} from the roster? Their history is preserved on disk; this just hides them from the active roster.');">Remove from roster</button>
 </form>
 {% endblock %}

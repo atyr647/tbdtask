@@ -21,39 +21,80 @@
 </div>
 {% endif %}
 
-<section class="cards">
-  <div class="card">
-    <div class="card-label">Personnel</div>
-    <div class="card-value">{{ person_count }}</div>
-    <a href="/personnel" class="card-link">Roster &rsaquo;</a>
+<section class="block">
+  <div class="dashboard-head">
+    <h2>Today's snapshot</h2>
+    <form method="get" action="/day/__placeholder__" class="day-jump" id="day-jump-form">
+      <label>Jump to day
+        <input type="date" id="day-jump-input" value="{{ today }}" />
+      </label>
+      <a class="btn-link" href="/day/{{ prev_day }}">&lsaquo; yesterday</a>
+      <a class="btn-link" href="/today">today</a>
+      <a class="btn-link" href="/day/{{ tomorrow }}">tomorrow &rsaquo;</a>
+      <a class="btn-link" href="/day/{{ next_monday }}">next Monday</a>
+    </form>
   </div>
-  <div class="card">
-    <div class="card-label">Qualifications</div>
-    <div class="card-value">{{ qual_count }}</div>
-    <a href="/quals" class="card-link">Catalog &rsaquo;</a>
+  <div class="snapshot">
+    <div class="snapshot-pct snapshot-{% if report.percent_present < 80 %}low{% elif report.percent_present < 90 %}mid{% else %}good{% endif %}">
+      <div class="big">{{ report.percent_present }}%</div>
+      <div class="muted small">present</div>
+    </div>
+    <div class="snapshot-stats">
+      <div><strong>{{ report.total }}</strong> on roster</div>
+      <div><strong>{{ report.present_full }}</strong> present (full day)</div>
+      <div><strong>{{ report.full_absent }}</strong> out (full day)</div>
+      <div><strong>{{ report.partial_absent }}</strong> partial day</div>
+      {% if by_code %}
+      <div class="muted">
+        {% for code, n in by_code.items() %}<span class="code-chip">{{ code }}: {{ n }}</span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
   </div>
-  <div class="card">
-    <div class="card-label">Absences (active)</div>
-    <div class="card-value">{{ absence_count }}</div>
-  </div>
-  <div class="card">
-    <div class="card-label">Worklists</div>
-    <div class="card-value">{{ worklist_count }}</div>
-  </div>
+  <p><a class="btn-link" href="/today">Open today's view</a></p>
 </section>
 
+{% if out_today %}
 <section class="block">
-  <h2>Last import</h2>
-  {% if last_import %}
-    <dl class="kv">
-      <dt>Source file</dt><dd>{{ last_import.source_file }}</dd>
-      <dt>Started</dt><dd>{{ last_import.started_at }}</dd>
-      <dt>Finished</dt><dd>{{ last_import.finished_at or "—" }}</dd>
-      <dt>Status</dt><dd>{{ last_import.status }}</dd>
-      <dt>Row counts</dt><dd><pre>{{ last_import.row_counts | tojson(indent=2) }}</pre></dd>
-    </dl>
-  {% else %}
-    <p>No imports yet. Run <code>python -m tools.migrate_from_xlsx</code> to seed.</p>
-  {% endif %}
+  <h2>Out today ({{ out_today|length }})</h2>
+  <ul class="inline-list">
+    {% for r in out_today %}
+      <li>
+        <a href="/personnel/{{ r.person.id }}">{{ r.person.full_display }}</a>
+        <span class="muted">— {{ r.code }}{% if r.partial %} ({{ r.start_time }}–{{ r.end_time }}){% endif %}</span>
+      </li>
+    {% endfor %}
+  </ul>
 </section>
+{% endif %}
+
+<section class="block">
+  <h2>Quick links</h2>
+  <ul class="inline-list">
+    {% if current_wl %}
+      <li><a href="/worklists/{{ current_wl.id }}">📋 {{ current_wl.name }}</a></li>
+    {% else %}
+      <li><a href="/worklists/new">+ New worklist</a></li>
+    {% endif %}
+    <li><a href="/worklists">All worklists</a></li>
+    <li><a href="/absences/calendar">Absence calendar</a></li>
+    <li><a href="/quals/overview">Qualification overview</a></li>
+  </ul>
+</section>
+
+<script>
+(function() {
+  const form = document.getElementById("day-jump-form");
+  const input = document.getElementById("day-jump-input");
+  if (!form || !input) return;
+  input.addEventListener("change", () => {
+    if (!input.value) return;
+    window.location.href = "/day/" + input.value;
+  });
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    if (input.value) window.location.href = "/day/" + input.value;
+  });
+})();
+</script>
 {% endblock %}

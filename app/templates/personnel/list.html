@@ -13,7 +13,6 @@
           <th>Rate</th>
           <th>Paygrade</th>
           <th>DS</th>
-          <th>Status</th>
           <th>Notes</th>
         </tr>
       </thead>
@@ -24,7 +23,6 @@
           <td>{{ r.rate or "—" }}</td>
           <td>{{ r.paygrade or "—" }}</td>
           <td>{{ r.duty_section or "—" }}</td>
-          <td>{{ r.status or "—" }}</td>
           <td class="muted">{{ r.notes or "" }}</td>
         </tr>
         {% endfor %}

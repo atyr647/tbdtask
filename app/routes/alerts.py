@@ -14,6 +14,22 @@ from ..templating import render
 router = APIRouter()
 
 
+# Internal type slug -> human-readable label shown on the alerts list.
+TYPE_LABELS = {
+    "prd_2mo": "PRD in ~2 months",
+    "prd_1mo": "PRD in ~1 month",
+    "prd_weekly_in_month": "PRD this week",
+    "prd_passed": "PRD passed",
+    "qual_expiring": "Qualification expiring soon",
+    "qual_expired": "Qualification expired",
+    "worklist_carry_over_pending": "Carry-over pending",
+}
+
+
+def _label(slug: str) -> str:
+    return TYPE_LABELS.get(slug, slug.replace("_", " ").capitalize())
+
+
 @router.get("/alerts")
 def list_alerts(request: Request, show: str = "active"):
     with SessionLocal() as s:
@@ -43,6 +59,7 @@ def list_alerts(request: Request, show: str = "active"):
                 wl_label = wl.name if wl else None
             resolved.append({
                 "alert": a, "person_label": person_label, "worklist_label": wl_label,
+                "type_label": _label(a.alert_type),
             })
     return render(request, "alerts/list.html", items=resolved, show=show)
 

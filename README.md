@@ -1,9 +1,8 @@
-# tbdtask
+# Worklist Tracker
 
 Offline weekly worklist and personnel tracker. Designed to run on a Raspberry
-Pi 400 as an AppImage with no network dependencies. The legacy
-`Weekly Crew Worklist.xlsx` is treated as a one-shot migration source; the
-runtime app does not read or write Excel.
+Pi 400 as an AppImage with no network dependencies. Data lives in a single
+SQLite file; nothing leaves the device.
 
 ## Features
 
@@ -51,14 +50,15 @@ runtime app does not read or write Excel.
 
 ```sh
 pip install -e '.[dev]'
-python -m tools.migrate_from_xlsx          # one-shot seed from xlsx
+python -m tools.seed_demo                  # optional: populate sample data
 python -m uvicorn app.main:app --reload    # dev server on :8000
 # or:
 python -m app.main                         # opens default browser on :8765
 ```
 
-The runtime app does not depend on `openpyxl`. Migration is the only place
-the workbook is read.
+The first request to the app creates an empty SQLite DB at `data/tbdtask.db`
+(override with `TBDTASK_DATA_DIR`). Personnel, qualifications, and tasks
+are entered through the UI.
 
 ## Build the AppImage
 

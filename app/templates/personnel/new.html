@@ -18,11 +18,6 @@
     <input type="checkbox" name="has_drivers_license" value="1" />
   </label>
   <label>Drivers license expires <input type="date" name="drivers_license_expires" /></label>
-  <label>Roster status
-    <select name="roster_status">
-      {% for st in roster_statuses %}<option value="{{ st }}" {% if st == "active" %}selected{% endif %}>{{ st }}</option>{% endfor %}
-    </select>
-  </label>
   <label>Notes <textarea name="notes" rows="2"></textarea></label>
   <div class="form-actions">
     <button type="submit">Create</button>

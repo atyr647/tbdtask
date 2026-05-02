@@ -32,8 +32,43 @@ class CalendarView:
     start_date: date
     days: list[date]
     rows: list[CalendarRow]
-    daily_absent: list[int]
+    daily_full: list[int]
+    daily_partial: list[int]
     daily_total: int
+
+    @property
+    def daily_absent(self) -> list[int]:
+        return [f + p for f, p in zip(self.daily_full, self.daily_partial)]
+
+    @property
+    def daily_percent_present(self) -> list[float]:
+        if self.daily_total == 0:
+            return [0.0] * len(self.daily_full)
+        out = []
+        for f, p in zip(self.daily_full, self.daily_partial):
+            value = (self.daily_total - f - p / 2) / self.daily_total * 100
+            out.append(round(value, 1))
+        return out
+
+    @property
+    def month_groups(self) -> list[tuple[str, int]]:
+        """Tuples of (label, span) for the month-header row. The label
+        format includes the year so transitions (e.g. Dec 2026 -> Jan 2027)
+        are unambiguous, and a year change always closes the prior block."""
+        groups: list[tuple[str, int]] = []
+        if not self.days:
+            return groups
+        cur_label = self.days[0].strftime("%B %Y")
+        cur_span = 0
+        for d in self.days:
+            label = d.strftime("%B %Y")
+            if label != cur_label:
+                groups.append((cur_label, cur_span))
+                cur_label = label
+                cur_span = 0
+            cur_span += 1
+        groups.append((cur_label, cur_span))
+        return groups
 
 
 def _current_attr(rows, attr):
@@ -68,7 +103,8 @@ def build_calendar(session: Session, start: date, days: int = 28) -> CalendarVie
         by_person.setdefault(a.person_id, []).append(a)
 
     rows: list[CalendarRow] = []
-    daily_absent = [0] * days
+    daily_full = [0] * days
+    daily_partial = [0] * days
     for p in people:
         cells: list[CalendarCell] = []
         person_absences = by_person.get(p.id, [])
@@ -83,10 +119,14 @@ def build_calendar(session: Session, start: date, days: int = 28) -> CalendarVie
             else:
                 partial = bool(hit.start_time or hit.end_time)
                 cells.append(CalendarCell(code=hit.code.code, partial=partial, reason=hit.reason))
-                daily_absent[i] += 1
+                if partial:
+                    daily_partial[i] += 1
+                else:
+                    daily_full[i] += 1
         rows.append(CalendarRow(person=p, cells=cells))
 
     return CalendarView(
         start_date=start, days=day_dates, rows=rows,
-        daily_absent=daily_absent, daily_total=len(people),
+        daily_full=daily_full, daily_partial=daily_partial,
+        daily_total=len(people),
     )

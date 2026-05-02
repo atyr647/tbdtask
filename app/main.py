@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
-from .routes import home, personnel, quals, admin, absences, today, worklists, tasks, templates as templates_routes, alerts as alerts_routes
+from .routes import home, personnel, quals, absences, today, worklists, tasks, templates as templates_routes, alerts as alerts_routes
 
 
 APP_ROOT = Path(__file__).resolve().parent
@@ -26,7 +26,6 @@ def create_app() -> FastAPI:
     app.include_router(personnel.router)
     app.include_router(quals.router)
     app.include_router(absences.router)
-    app.include_router(admin.router)
     return app
 
 

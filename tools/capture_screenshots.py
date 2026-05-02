@@ -121,8 +121,6 @@ PAGE_PATHS = [
     "/absences/new",
     "/absences/{absence_id}/edit",
     "/absences/calendar",
-    # Admin
-    "/admin/verify",
 ]
 
 

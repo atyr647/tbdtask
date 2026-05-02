@@ -27,7 +27,7 @@
     {% set a = item.alert %}
     <tr class="alert-row alert-{{ a.severity }}">
       <td><span class="sev sev-{{ a.severity }}">{{ a.severity }}</span></td>
-      <td>{{ a.alert_type }}</td>
+      <td>{{ item.type_label }}</td>
       <td>
         {% if item.person_label %}
           <a href="/personnel/{{ a.person_id }}">{{ item.person_label }}</a>
@@ -61,8 +61,8 @@
         {% if not a.dismissed_at and not a.resolved_at %}
           {% if a.alert_type.startswith("prd") and a.person_id %}
           <form method="post" action="/alerts/{{ a.id }}/extend-prd" class="form-inline-row">
-            <input type="number" name="days" value="180" min="1" max="1095" style="width:70px" />
-            <button type="submit" class="ghost-btn">Extend PRD by N days</button>
+            <input type="number" name="days" value="180" min="1" max="1095" style="width:70px" title="days from current PRD" />
+            <button type="submit" class="ghost-btn">Update PRD</button>
           </form>
           {% if a.alert_type == "prd_passed" %}
           <form method="post" action="/alerts/{{ a.id }}/archive-person" class="form-inline-row">
