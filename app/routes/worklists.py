@@ -340,6 +340,7 @@ def amend_worklist(
                 name=inst.name,
                 description=inst.description,
                 status=inst.status,
+                hours=inst.hours,
                 notes=inst.notes,
                 completion_notes=inst.completion_notes,
                 completed_at=inst.completed_at,

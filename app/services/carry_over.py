@@ -137,6 +137,7 @@ def apply_carry_over(
         name=inst.name,
         description=inst.description,
         status="open",
+        hours=inst.hours,
         notes=notes if notes is not None else inst.notes,
         completion_notes=None,
         completed_at=None,

@@ -1,9 +1,15 @@
-# Architecture — Stateless-Server Hybrid
+# Architecture — Stateless-Server Hybrid (PARKED)
 
-This is the target architecture for the next phase: keep the FastAPI +
-Jinja codebase mostly intact, but move the source of truth into the
-browser. The server becomes a stateless renderer that processes one
-slice of data per request and forgets it.
+> **Status: not the current architecture.** This document captures a
+> design that was discussed but never built. The shipping app is a
+> local Pi tool with server-side SQLite (see the project `README.md`).
+>
+> This file is kept as a reference for a hypothetical future where the
+> deployment model changes — public URL, remote access without VPN,
+> compliance demanding "no PII on the server", etc. None of those apply
+> right now. If the requirements ever shift, the threat model and
+> security plan below are still useful starting points; everything
+> implementation-wise is unbuilt.
 
 ## Goals
 
