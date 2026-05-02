@@ -16,7 +16,6 @@
 """
 from __future__ import annotations
 
-import hashlib
 import re
 from datetime import datetime, timezone
 
@@ -26,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models as M
+from ..auth import invites as invites_mod
 from ..auth import sessions as sess_mod
 from ..auth.dependencies import get_current_session, get_db, require_user
 from ..auth.security import CSRF_COOKIE_NAME, issue_csrf_token
@@ -48,11 +48,6 @@ def _slugify(name: str) -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def _hash_invite_token(raw: str) -> str:
-    """SHA-256 hex digest. Same algo on issue + accept; never log raw tokens."""
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 @router.get("/no-orgs")
@@ -229,7 +224,7 @@ def invite_accept(
     if not token_clean:
         return _invite_failure(db, request, user, session, reason="empty_token")
 
-    digest = _hash_invite_token(token_clean)
+    digest = invites_mod.hash_invite_token(token_clean)
     invite = db.execute(
         select(M.OrgInvite).where(M.OrgInvite.token_hash == digest)
     ).scalar_one_or_none()
@@ -248,7 +243,10 @@ def invite_accept(
         return _invite_failure(
             db, request, user, session, reason="expired", invite_id=invite.id
         )
-    if invite.intended_email and invite.intended_email.lower() != user.email.lower():
+    # intended_email is mandatory on every invite, so this is always a hard
+    # check. A user whose canonical email differs cannot redeem, even if
+    # the raw token has somehow reached them.
+    if invite.intended_email.lower() != user.email.lower():
         return _invite_failure(
             db,
             request,

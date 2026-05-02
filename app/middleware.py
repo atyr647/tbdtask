@@ -138,22 +138,12 @@ class SessionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if SINGLE_TENANT_MODE:
-            # Offline AppImage path: skip session lookup entirely. Bind every
-            # request to the default org so tenant-scoped queries work.
-            db = SessionLocal()
-            try:
-                default_org = db.execute(
-                    select(M.Organization).where(M.Organization.slug == "default")
-                ).scalar_one_or_none()
-                if default_org is None:
-                    return Response(
-                        "single-tenant mode: default org missing",
-                        status_code=500,
-                    )
-                with tenant_context(default_org.id):
-                    return await call_next(request)
-            finally:
-                db.close()
+            # Offline AppImage path. There's literally one tenant, so no
+            # auth boundary, no scoping to enforce — just pass through.
+            # The tenancy listener stays a no-op because no
+            # ``tenant_context`` is entered; queries run unfiltered across
+            # the single org's data, which is what the AppImage UX expects.
+            return await call_next(request)
 
         # Hosted mode — full session lookup.
         cookie_id = request.cookies.get(sess_mod.SESSION_COOKIE_NAME)

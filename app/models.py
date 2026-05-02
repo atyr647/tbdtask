@@ -243,7 +243,10 @@ class OrgInvite(Base):
     # SHA-256 hex digest of the raw invite token. Lookup uses this; the
     # raw token never touches the DB.
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    intended_email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    # Required: an invite is bound to one specific email and is rejected
+    # if the redeeming user's canonical email differs. Prevents a leaked
+    # invite from being claimed by anyone but the intended recipient.
+    intended_email: Mapped[str] = mapped_column(String(320), nullable=False)
     created_by_user_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("user_accounts.id"), nullable=True
     )

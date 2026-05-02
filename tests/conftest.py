@@ -15,6 +15,10 @@ import os
 # below; the app-import side-effect would otherwise leak migrations into
 # ``data/tbdtask.db``. Must be set before any ``app.*`` import.
 os.environ.setdefault("TBDTASK_SKIP_AUTOMIGRATE", "1")
+# Default tests to single-tenant mode so the auth + tenancy middleware
+# pass through. Auth-flow tests opt out by spinning their own app
+# instance with the env var unset.
+os.environ.setdefault("TBDTASK_SINGLE_TENANT", "1")
 
 from datetime import date, datetime, timedelta, time as time_t  # noqa: E402
 from typing import Iterator  # noqa: E402

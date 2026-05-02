@@ -95,12 +95,23 @@ def resolve_identity(db: Session, ident: NormalizedIdentity) -> Outcome:
             )
 
     # 3. No safe match anywhere — create a new account + identity.
-    #    The email is stored on the user_account only when verified;
-    #    otherwise we keep the snapshot on the identity row but leave the
-    #    canonical email field for whatever the user supplies later (or
-    #    a verified IdP returns later).
+    #    The canonical email goes on user_account only when verified AND
+    #    not already taken by another account. An unverified email that
+    #    happens to collide with an existing account falls back to a
+    #    synthetic placeholder so the unique constraint can't fail and so
+    #    the existing user's email isn't squatted.
+    canonical_email = ident.email if (ident.email and ident.email_verified) else None
+    if canonical_email is not None:
+        collision = db.execute(
+            select(M.UserAccount).where(M.UserAccount.email == canonical_email)
+        ).scalar_one_or_none()
+        if collision is not None:
+            canonical_email = None
+    if canonical_email is None:
+        canonical_email = _placeholder_email(ident)
+
     user = M.UserAccount(
-        email=ident.email or _placeholder_email(ident),
+        email=canonical_email,
         display_name=ident.display_name,
     )
     db.add(user)

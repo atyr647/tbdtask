@@ -155,7 +155,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("org_id", sa.Integer(), nullable=False),
         sa.Column("token_hash", sa.String(length=64), nullable=False),
-        sa.Column("intended_email", sa.String(length=320), nullable=True),
+        sa.Column("intended_email", sa.String(length=320), nullable=False),
         sa.Column("created_by_user_id", sa.Integer(), nullable=True),
         sa.Column(
             "created_at",

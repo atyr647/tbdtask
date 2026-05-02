@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}You're not in any organization yet{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>You're signed in, but not in an organization yet</h1>
+  <p>Pick one of the options below.</p>
+
+  {% if pending_invites %}
+    <h2>Pending invites</h2>
+    <ul class="invite-list">
+      {% for invite in pending_invites %}
+        <li>
+          <strong>{{ invite.org_name }}</strong>
+          <form method="post" action="/orgs/select" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+            <input type="hidden" name="membership_id" value="{{ invite.membership_id }}" />
+            <button type="submit">Accept</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2>Redeem an invite link</h2>
+  <p>Paste the invite token an org admin sent you.</p>
+  <form method="post" action="/invites/accept">
+    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+    <label>
+      Invite token
+      <input type="text" name="token" autocomplete="off" required />
+    </label>
+    <button type="submit">Redeem</button>
+  </form>
+
+  <h2>Or create a new organization</h2>
+  <p>You'll be the founding member.</p>
+  <form method="post" action="/orgs/create">
+    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+    <label>
+      Organization name
+      <input type="text" name="name" maxlength="128" required />
+    </label>
+    <button type="submit">Create</button>
+  </form>
+
+  <hr />
+  <form method="post" action="/auth/logout" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+    <button type="submit" class="link-button">Sign out</button>
+  </form>
+</section>
+{% endblock %}
