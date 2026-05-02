@@ -64,27 +64,27 @@ table.grid-print td.day-cell.absent.partial {
   border-bottom: 0.4pt solid #5a6273; padding-bottom: 1pt;
 }
 
-/* Out-summary footer (repeats on each printed page when the grid is long) */
+/* Out-summary footer (repeats on each printed page when the grid is long).
+   Printer-friendly: a thick top rule plus a bold uppercase label cell
+   sets it apart without flooding the page with ink. */
 table.grid-print tfoot { display: table-footer-group; }
 table.grid-print tr.out-foot td {
-  background: #1d2438; color: #ffffff;
-  border-top: 2pt solid #16191f; border-bottom: 1pt solid #16191f;
-  border-right: 0.4pt solid #3a445c;
+  background: transparent;
+  border-top: 2pt solid #16191f;
+  border-bottom: 0.4pt solid #5a6273;
+  border-right: 0.4pt solid #5a6273;
   font-size: 8pt;
   padding: 4pt 5pt;
+  vertical-align: top;
 }
 table.grid-print tr.out-foot td.who {
-  background: #0f1422; color: #ffffff;
-  font-weight: 800; font-size: 10pt;
+  font-weight: 800; font-size: 9pt;
   text-transform: uppercase; letter-spacing: .8pt;
-  text-align: center;
+  text-align: left;
+  color: #16191f;
 }
-table.grid-print tr.out-foot .out-line {
-  padding: 2pt 0;
-  border-bottom: 0.3pt solid rgba(255,255,255,.18);
-}
-table.grid-print tr.out-foot .out-line:last-child { border-bottom: none; }
-table.grid-print tr.out-foot .muted { color: rgba(255,255,255,.5); }
+table.grid-print tr.out-foot .out-line { padding: 1pt 0; }
+table.grid-print tr.out-foot .muted { color: #888; }
 .unassigned-grid { width: 100%; border-collapse: collapse; }
 .unassigned-grid td { border: 0.4pt solid #5a6273; padding: 3pt 5pt; vertical-align: top; font-size: 8pt; }
 .unassigned-grid td.who { width: 14%; font-weight: 600; }
