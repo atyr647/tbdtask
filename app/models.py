@@ -422,6 +422,9 @@ class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     completion_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Single per-task hours figure. Every assignee on the task receives
+    # full credit for these hours when rolling up personnel stats.
+    hours: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     carried_from_instance_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("task_instances.id"), nullable=True
     )

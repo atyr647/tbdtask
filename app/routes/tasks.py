@@ -117,6 +117,7 @@ def update_task(
     scheduled_date: Optional[str] = Form(None),
     category_id: Optional[int] = Form(None),
     status: str = Form("open"),
+    hours: Optional[float] = Form(None),
     description: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
     completion_notes: Optional[str] = Form(None),
@@ -131,6 +132,7 @@ def update_task(
         inst.scheduled_date = date.fromisoformat(scheduled_date) if scheduled_date else None
         inst.category_id = category_id or None
         inst.status = status
+        inst.hours = hours
         inst.description = (description or None)
         inst.notes = (notes or None)
         inst.completion_notes = (completion_notes or None)

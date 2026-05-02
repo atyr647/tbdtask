@@ -90,20 +90,23 @@ def stats_for(
         stat = by_cat.setdefault(cat_name, CategoryStat(name=cat_name))
         by_cat_seen_names.add(cat_name)
         stat.count += 1
-        if assignment.hours_worked:
-            stat.hours += float(assignment.hours_worked)
+        # Task-level hours: every assignee on a task gets full credit for
+        # the task's logged hours.
+        hrs = instance.hours
+        if hrs:
+            stat.hours += float(hrs)
         if assignment.is_poic:
             stat.poic_count += 1
             poic_count += 1
         total_count += 1
-        if assignment.hours_worked:
-            total_hours += float(assignment.hours_worked)
+        if hrs:
+            total_hours += float(hrs)
         if len(recent) < recent_limit:
             recent.append(RecentTask(
                 instance=instance,
                 category_name=cat_name,
                 completed_at=instance.completed_at,
-                hours_worked=assignment.hours_worked,
+                hours_worked=hrs,
                 is_poic=assignment.is_poic,
             ))
 

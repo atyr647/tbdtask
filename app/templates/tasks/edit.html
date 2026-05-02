@@ -29,6 +29,10 @@
       {% endfor %}
     </select>
   </label>
+  <label>Hours
+    <input type="number" step="0.25" min="0" name="hours" value="{{ instance.hours if instance.hours else '' }}" />
+    <span class="muted small">Every assignee on this task gets full credit for these hours.</span>
+  </label>
   <label>Description <textarea name="description" rows="3">{{ instance.description or '' }}</textarea></label>
   <label>Notes <textarea name="notes" rows="2">{{ instance.notes or '' }}</textarea></label>
   <label>Completion notes <textarea name="completion_notes" rows="2">{{ instance.completion_notes or '' }}</textarea></label>
@@ -41,20 +45,18 @@
   <h2>Assignments ({{ assignments|length }})</h2>
   {% if assignments %}
   <table class="grid">
-    <thead><tr><th>Person</th><th>POIC</th><th>Completed</th><th>Hours</th><th>Notes</th><th></th></tr></thead>
+    <thead><tr><th>Person</th><th>POIC</th><th>Completed</th><th>Notes</th><th></th></tr></thead>
     <tbody>
       {% for a in assignments %}
       <tr>
         <td>{{ a.person.full_display if a.person else (a.external_poic_name or "—") }}</td>
         <td>{{ "yes" if a.is_poic else "" }}</td>
         <td>{{ "✓" if a.completed else "" }}</td>
-        <td>{{ a.hours_worked or "" }}</td>
         <td class="muted">{{ a.completion_notes or "" }}</td>
         <td>
           <form method="post" action="/tasks/{{ instance.id }}/assignments/{{ a.id }}" class="form-inline-row">
             <label><input type="checkbox" name="is_poic" value="1" {% if a.is_poic %}checked{% endif %} /> POIC</label>
             <label><input type="checkbox" name="completed" value="1" {% if a.completed %}checked{% endif %} /> done</label>
-            <input type="number" step="0.25" name="hours_worked" value="{{ a.hours_worked or '' }}" placeholder="hrs" style="width:60px" />
             <input name="completion_notes" value="{{ a.completion_notes or '' }}" placeholder="notes" />
             <button type="submit">Save</button>
           </form>

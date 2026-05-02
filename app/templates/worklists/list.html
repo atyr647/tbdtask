@@ -2,7 +2,7 @@
 {% block title %}Worklists{% endblock %}
 {% block content %}
 {% macro _row(w, kids) %}
-  <tr>
+  <tr class="wl-row" data-search="{{ w.name|lower }} {{ w.week_starting }} {{ (w.notes or '')|lower }}">
     <td>{{ w.week_starting }}</td>
     <td><a href="/worklists/{{ w.id }}">{{ w.name }}</a></td>
     <td>v{{ w.version }}</td>
@@ -10,7 +10,7 @@
     <td class="muted">{{ w.notes or "" }}</td>
   </tr>
   {% for c in kids %}
-  <tr class="amendment-row">
+  <tr class="wl-row amendment-row" data-search="{{ c.name|lower }} {{ c.week_starting }} {{ (c.amendment_reason or '')|lower }}">
     <td></td>
     <td>↳ <a href="/worklists/{{ c.id }}">{{ c.name }}</a></td>
     <td>v{{ c.version }}</td>
@@ -36,6 +36,13 @@
 <h1>Weekly worklists <a class="btn-link" href="/worklists/new">+ New week</a></h1>
 <p class="muted">Suggested next Monday: <code>{{ suggested_monday }}</code></p>
 
+<div class="search-row">
+  <label>Filter
+    <input type="search" id="wl-search" placeholder="search by week name, date, or notes" autocomplete="off" />
+  </label>
+  <span class="muted small" id="wl-search-count"></span>
+</div>
+
 <section class="block"><h2>Current</h2>{{ _table(current) }}</section>
 <section class="block"><h2>Upcoming</h2>{{ _table(upcoming) }}</section>
 
@@ -52,4 +59,30 @@
     <p class="muted">No archived worklists yet.</p>
   {% endif %}
 </section>
+
+<script>
+(function() {
+  const input = document.getElementById("wl-search");
+  const countEl = document.getElementById("wl-search-count");
+  const rows = Array.from(document.querySelectorAll("tr.wl-row"));
+  // Open every <details> in the archive while a query is active so matching
+  // rows aren't hidden inside collapsed months.
+  const groups = Array.from(document.querySelectorAll("details.archive-group"));
+  const initiallyOpen = groups.map(g => g.open);
+  function apply() {
+    const q = input.value.trim().toLowerCase();
+    if (q) groups.forEach(g => { g.open = true; });
+    else groups.forEach((g, i) => { g.open = initiallyOpen[i]; });
+    let visible = 0;
+    for (const row of rows) {
+      const haystack = row.dataset.search || "";
+      const match = !q || haystack.includes(q);
+      row.style.display = match ? "" : "none";
+      if (match) visible++;
+    }
+    countEl.textContent = q ? `${visible} of ${rows.length} match` : "";
+  }
+  input.addEventListener("input", apply);
+})();
+</script>
 {% endblock %}
