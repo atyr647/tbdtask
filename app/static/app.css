@@ -582,6 +582,15 @@ button {
 .row-list-item.static { cursor: default; }
 .row-list-item.static:hover { background: var(--panel); }
 .row-list-item.static:active { transform: none; }
+
+/* Phase 8a: passkey enrollment banner ----------------------- */
+.enroll-banner {
+  display: flex; align-items: center; gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+.enroll-banner strong { color: var(--warn); }
+.enroll-banner .btn-link { margin-left: auto; }
 .row-list-item .avatar {
   width: 36px; height: 36px; flex-shrink: 0;
   border-radius: var(--radius-pill);

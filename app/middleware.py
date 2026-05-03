@@ -325,6 +325,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
             request.state.session = session
             request.state.user = user
             request.state.membership = membership
+            _populate_webauthn_state(db, request, user)
 
             # Phase 8a: passkey enrollment enforcement. After the
             # grace-period date (configured via env), users without an
@@ -378,6 +379,28 @@ _PASSKEY_ENROLL_EXEMPT = (
     "/static/",
     "/favicon",
 )
+
+
+def _populate_webauthn_state(db, request, user) -> None:
+    """Expose feature-flag state on ``request.state`` for templates.
+
+    Templates render the "Manage passkeys" drawer link and the
+    soft-enrollment banner conditionally on these flags. Always set,
+    so templates can use ``request.state.webauthn_enabled`` without
+    AttributeError.
+    """
+    from .auth import webauthn as wa
+
+    enabled = wa.is_enabled()
+    request.state.webauthn_enabled = enabled
+    request.state.webauthn_should_enroll = False
+    if not enabled or user is None:
+        return
+    if wa.has_active_credential(db, user=user):
+        return
+    # No credential yet — show the soft banner so the user knows to
+    # enroll before the hard cutover.
+    request.state.webauthn_should_enroll = True
 
 
 def _passkey_enrollment_redirect(db, request, user):

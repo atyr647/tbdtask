@@ -111,6 +111,9 @@
   {% if request.state.user is defined and request.state.user %}
   <div class="drawer-foot">
     <div>Signed in as <strong>{{ request.state.user.email }}</strong></div>
+    {% if request.state.webauthn_enabled is defined and request.state.webauthn_enabled %}
+    <a class="btn-ghost btn-block" href="/passkey/manage">Manage passkeys</a>
+    {% endif %}
     <form method="post" action="/auth/logout" class="inline-form">
       <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
       <button type="submit" class="btn-ghost btn-block">Sign out</button>
@@ -120,6 +123,13 @@
 </aside>
 
 <main>
+  {% if request.state.webauthn_should_enroll is defined and request.state.webauthn_should_enroll %}
+  <div class="banner warn-banner enroll-banner" role="status">
+    <strong>Add a passkey to keep your account secure.</strong>
+    Sensitive actions will start requiring a passkey check soon.
+    <a class="btn-link" href="/passkey/register">Set up passkey</a>
+  </div>
+  {% endif %}
   {% block content %}{% endblock %}
 </main>
 
