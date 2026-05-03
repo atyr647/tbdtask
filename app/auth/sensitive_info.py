@@ -16,6 +16,7 @@ The patterns are intentionally conservative. False positives are preferred
 over false negatives because the consequence of missing PII in operational
 notes is far worse than a harmless warning on a innocuous string.
 """
+
 from __future__ import annotations
 
 import re
@@ -26,6 +27,7 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 # PII/CUI pattern definitions
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class SensitivityPattern:
@@ -46,9 +48,9 @@ class SensitivityPattern:
 
 # SSN: xxx-xx-xxxx or xxx xx xxxx (with optional surrounding context)
 _PAT_SSN = re.compile(
-    r"(?<!\d)"           # not preceded by a digit
+    r"(?<!\d)"  # not preceded by a digit
     r"\d{3}[-\s]\d{2}[-\s]\d{4}"
-    r"(?!\d)"            # not followed by a digit
+    r"(?!\d)"  # not followed by a digit
 )
 
 # US phone: (xxx) xxx-xxxx, xxx-xxx-xxxx, xxx.xxx.xxxx, +1 formats
@@ -58,9 +60,7 @@ _PAT_PHONE_US = re.compile(
 )
 
 # Email address — catches anything that looks like an email
-_PAT_EMAIL = re.compile(
-    r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
-)
+_PAT_EMAIL = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
 # Date of birth context: "DOB:", "date of birth", "born" followed by a date
 _PAT_DOB_CONTEXT = re.compile(
@@ -75,9 +75,9 @@ _PAT_SSN_PLAIN = re.compile(
     r"(?<!\d)"
     r"(?!000|666|9\d{2})"  # SSN never starts with 000, 666, or 9xx
     r"\d{3}"
-    r"(?!00)"               # middle group never 00
+    r"(?!00)"  # middle group never 00
     r"\d{2}"
-    r"(?!0000)"             # last group never 0000
+    r"(?!0000)"  # last group never 0000
     r"\d{4}"
     r"(?!\d)"
 )
@@ -156,6 +156,7 @@ SENSITIVITY_PATTERNS: tuple[SensitivityPattern, ...] = (
 # ---------------------------------------------------------------------------
 # Scanning API
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SensitivityMatch:

@@ -12,6 +12,7 @@ Both implement ``check(scope, key) -> bool`` (True = allowed, False =
 blocked) and ``reset()`` (test-only). The global ``get_limiter()``
 factory picks the right backend based on environment.
 """
+
 from __future__ import annotations
 
 import os
@@ -82,7 +83,9 @@ class RedisLimiter:
                 "RedisLimiter requires the 'redis' package. "
                 "Install with: pip install redis"
             )
-        return redis.from_url(url or os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+        return redis.from_url(
+            url or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        )
 
     def check(self, scope: str, key: str) -> bool:
         redis_key = f"tbdtask:ratelimit:{scope}:{key}"
@@ -97,7 +100,9 @@ class RedisLimiter:
         """Wipe all rate-limit keys. Test-only."""
         cursor = 0
         while True:
-            cursor, keys = self._client.scan(cursor, match="tbdtask:ratelimit:*", count=100)
+            cursor, keys = self._client.scan(
+                cursor, match="tbdtask:ratelimit:*", count=100
+            )
             if keys:
                 self._client.delete(*keys)
             if cursor == 0:

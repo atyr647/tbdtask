@@ -13,12 +13,13 @@ Alert types:
 * qual_expiring / qual_expired
 * worklist_carry_over_pending
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import Iterable, Optional
+from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models as M
@@ -69,8 +70,11 @@ def _ensure_alert(
             org_id = wl.org_id
 
     alert = M.Alert(
-        alert_type=alert_type, severity=severity, person_id=person_id,
-        task_instance_id=task_instance_id, payload=payload,
+        alert_type=alert_type,
+        severity=severity,
+        person_id=person_id,
+        task_instance_id=task_instance_id,
+        payload=payload,
         org_id=org_id,
     )
     session.add(alert)
@@ -123,31 +127,46 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
         if delta < 0:
             keep_passed.add(key)
             _ensure_alert(
-                session, "prd_passed", severity="urgent", person_id=p.id,
+                session,
+                "prd_passed",
+                severity="urgent",
+                person_id=p.id,
                 payload={"key": key, "prd": prd.prd_date.isoformat(), "days": delta},
             )
         elif delta <= 7:
             keep_weekly.add(key)
             _ensure_alert(
-                session, "prd_weekly_in_month", severity="urgent", person_id=p.id,
+                session,
+                "prd_weekly_in_month",
+                severity="urgent",
+                person_id=p.id,
                 payload={"key": key, "prd": prd.prd_date.isoformat(), "days": delta},
             )
         elif delta <= 30:
             keep_1mo.add(key)
             _ensure_alert(
-                session, "prd_1mo", severity="warn", person_id=p.id,
+                session,
+                "prd_1mo",
+                severity="warn",
+                person_id=p.id,
                 payload={"key": key, "prd": prd.prd_date.isoformat(), "days": delta},
             )
         elif delta <= 60:
             keep_2mo.add(key)
             _ensure_alert(
-                session, "prd_2mo", severity="info", person_id=p.id,
+                session,
+                "prd_2mo",
+                severity="info",
+                person_id=p.id,
                 payload={"key": key, "prd": prd.prd_date.isoformat(), "days": delta},
             )
         elif delta <= 365:
             keep_orders.add(key)
             _ensure_alert(
-                session, "prd_orders_window", severity="warn", person_id=p.id,
+                session,
+                "prd_orders_window",
+                severity="warn",
+                person_id=p.id,
                 payload={"key": key, "prd": prd.prd_date.isoformat(), "days": delta},
             )
     _resolve_stale(session, "prd_orders_window", keep_orders)
@@ -201,7 +220,9 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
         key = f"{wl.id}:{len(stale_ids)}"
         keep_carry.add(key)
         _ensure_alert(
-            session, "worklist_carry_over_pending", severity="warn",
+            session,
+            "worklist_carry_over_pending",
+            severity="warn",
             payload={"key": key, "worklist_id": wl.id, "count": len(stale_ids)},
         )
     _resolve_stale(session, "worklist_carry_over_pending", keep_carry)
@@ -232,6 +253,7 @@ def active_alerts(session: Session) -> list[M.Alert]:
 
 def _severity_order(col):
     from sqlalchemy import case
+
     return case(
         {"urgent": 3, "warn": 2, "info": 1},
         value=col,

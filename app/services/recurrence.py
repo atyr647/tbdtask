@@ -17,11 +17,12 @@ shapes:
 The evaluator returns the list of dates in the requested window that
 match the rule. Window defaults to a 7-day Mon..Sun span.
 """
+
 from __future__ import annotations
 
 from calendar import monthrange
 from datetime import date, timedelta
-from typing import Iterable, Optional
+from typing import Optional
 
 
 def _isoparse(value: Optional[str]) -> Optional[date]:
@@ -98,7 +99,11 @@ def describe(rule: dict) -> str:
     if kind == "weekdays":
         names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         wds = sorted(int(x) for x in rule.get("weekdays", []))
-        return "Weekdays: " + ", ".join(names[i] for i in wds) if wds else "Weekdays: (none)"
+        return (
+            "Weekdays: " + ", ".join(names[i] for i in wds)
+            if wds
+            else "Weekdays: (none)"
+        )
     if kind == "every_n_weeks":
         names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         return f"Every {rule.get('n', 1)} weeks on {names[int(rule.get('weekday', 0))]}"
@@ -107,6 +112,10 @@ def describe(rule: dict) -> str:
     if kind == "monthly_nth_weekday":
         names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         n = rule.get("n", 1)
-        prefix = "Last" if n == -1 else f"{n}{['st','nd','rd','th','th'][min(int(n)-1,4)]}"
+        prefix = (
+            "Last"
+            if n == -1
+            else f"{n}{['st', 'nd', 'rd', 'th', 'th'][min(int(n) - 1, 4)]}"
+        )
         return f"{prefix} {names[int(rule.get('weekday', 0))]} of each month"
     return f"({kind})"

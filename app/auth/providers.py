@@ -18,6 +18,7 @@ Account linking rules (locked decisions):
   what Apple says, since the relay address proves Apple control, not
   mailbox control. Implemented in ``normalize_userinfo``.
 """
+
 from __future__ import annotations
 
 import os
@@ -76,7 +77,8 @@ def _build_provider_configs() -> dict[str, ProviderConfig]:
             display_name="Microsoft",
             client_id=ms_id,
             client_secret=ms_secret,
-            discovery_url=_env("OIDC_MICROSOFT_DISCOVERY") or MICROSOFT_DISCOVERY_DEFAULT,
+            discovery_url=_env("OIDC_MICROSOFT_DISCOVERY")
+            or MICROSOFT_DISCOVERY_DEFAULT,
         )
 
     apple_id = _env("OIDC_APPLE_CLIENT_ID")
@@ -157,6 +159,7 @@ class PrivateRelayBlocked(Exception):
     linking. The user must update their Apple ID settings to share their
     real email, or sign in with a different provider.
     """
+
     pass
 
 

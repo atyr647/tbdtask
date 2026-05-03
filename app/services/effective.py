@@ -6,6 +6,7 @@ row has valid_to = NULL. Setting a new value closes the prior current row at
 the new effective date and inserts a new current row. We never silently
 mutate prior values; that preserves the audit trail the data model promises.
 """
+
 from __future__ import annotations
 
 from datetime import date

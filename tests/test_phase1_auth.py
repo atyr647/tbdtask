@@ -11,13 +11,12 @@ Covers the make-or-break cases agreed in the rollout plan:
 * CSRF tokens survive their session and reject mismatches.
 * Rate limiter blocks after the threshold.
 """
+
 from __future__ import annotations
 
-import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
 
 from app import models as M
 from app.auth import accounts as acct_mod
@@ -26,7 +25,6 @@ from app.auth import sessions as sess_mod
 from app.auth.providers import NormalizedIdentity, normalize_userinfo
 from app.auth.rate_limit import InProcessLimiter
 from app.auth.security import (
-    CSRF_TOKEN_TTL_SECONDS,
     issue_csrf_token,
     issue_oidc_state,
     random_token,
@@ -38,6 +36,7 @@ from app.auth.security import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_org(session, *, slug="alpha", name="Alpha Org"):
     org = M.Organization(slug=slug, name=name)
@@ -63,6 +62,7 @@ def _make_membership(session, *, org, user, status="active"):
 # ---------------------------------------------------------------------------
 # Userinfo normalization
 # ---------------------------------------------------------------------------
+
 
 class TestNormalizeUserinfo:
     def test_google_basic_pass_through(self):
@@ -142,6 +142,7 @@ class TestNormalizeUserinfo:
 # Account resolution (linking safety)
 # ---------------------------------------------------------------------------
 
+
 class TestAccountResolution:
     def _ident(self, **overrides) -> NormalizedIdentity:
         defaults = dict(
@@ -172,7 +173,9 @@ class TestAccountResolution:
     def test_email_match_with_different_provider_returns_link_required(self, session):
         """Make-or-break: provider login can't accidentally link to the
         wrong account. Same email, different provider → LinkRequired."""
-        out_google = acct_mod.resolve_identity(session, self._ident(provider="google", subject="g-1"))
+        out_google = acct_mod.resolve_identity(
+            session, self._ident(provider="google", subject="g-1")
+        )
         assert isinstance(out_google, acct_mod.CreatedAccount)
 
         out_microsoft = acct_mod.resolve_identity(
@@ -201,7 +204,7 @@ class TestAccountResolution:
         assert isinstance(out_b, acct_mod.CreatedAccount)
         assert out_b.user_id != out_a.user_id
 
-    def test_unverified_email_does_not_link(self, session):
+    def test_unverified_email_creates_fresh_account(self, session):
         """An identity with email_verified=False never triggers email-based
         linking — resolve_identity creates a fresh account instead."""
         ident = self._ident(
@@ -215,9 +218,12 @@ class TestAccountResolution:
         assert isinstance(out, acct_mod.CreatedAccount)
 
     def test_link_to_other_user_blocked(self, session):
-        out_a = acct_mod.resolve_identity(session, self._ident(provider="google", subject="g-1"))
+        acct_mod.resolve_identity(
+            session, self._ident(provider="google", subject="g-1")
+        )
         out_b = acct_mod.resolve_identity(
-            session, self._ident(provider="google", subject="g-2", email="other@example.com")
+            session,
+            self._ident(provider="google", subject="g-2", email="other@example.com"),
         )
         # Trying to attach the existing google identity to a different user
         # must raise — the (provider, subject) is unique to its owner.
@@ -265,11 +271,16 @@ class TestAccountResolution:
 # Sessions
 # ---------------------------------------------------------------------------
 
+
 class TestSessions:
     def test_create_and_lookup(self, session):
         user = _make_user(session)
         s = sess_mod.create_session(
-            session, user_id=user.id, membership_id=None, ip="1.2.3.4", user_agent="test"
+            session,
+            user_id=user.id,
+            membership_id=None,
+            ip="1.2.3.4",
+            user_agent="test",
         )
         assert sess_mod.lookup_session(session, s.id) is s
 
@@ -387,6 +398,7 @@ class TestSessions:
 # CSRF tokens
 # ---------------------------------------------------------------------------
 
+
 class TestCSRF:
     def test_roundtrip(self):
         token = issue_csrf_token("session-abc")
@@ -411,6 +423,7 @@ class TestCSRF:
 # OIDC state token
 # ---------------------------------------------------------------------------
 
+
 class TestOIDCState:
     def test_state_roundtrip(self):
         payload = {"provider": "google", "intent": "login", "next": "/"}
@@ -427,6 +440,7 @@ class TestOIDCState:
 # ---------------------------------------------------------------------------
 # Rate limiter
 # ---------------------------------------------------------------------------
+
 
 class TestRateLimiter:
     def test_under_limit_allows(self):
@@ -457,6 +471,7 @@ class TestRateLimiter:
 # ---------------------------------------------------------------------------
 # Invite issuance + redemption
 # ---------------------------------------------------------------------------
+
 
 class TestInvites:
     def test_create_returns_raw_token_only_once(self, session):
@@ -576,13 +591,14 @@ class TestInvites:
 # Random tokens
 # ---------------------------------------------------------------------------
 
+
 class TestRandomToken:
     def test_returns_url_safe_chars(self):
         for _ in range(20):
             t = random_token()
-            assert all(
-                c.isalnum() or c in ("-", "_") for c in t
-            ), f"non-url-safe char in {t!r}"
+            assert all(c.isalnum() or c in ("-", "_") for c in t), (
+                f"non-url-safe char in {t!r}"
+            )
 
     def test_distinct_each_call(self):
         seen = {random_token() for _ in range(200)}

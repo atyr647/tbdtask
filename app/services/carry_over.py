@@ -8,6 +8,7 @@ discard. Auto-carry to the same person is the default policy, with
 per-template overrides (auto_any_qualified / never / manual_prompt) read
 from the originating ``TaskTemplate`` when present.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -26,7 +27,9 @@ class CarryCandidate:
     assignments: list[M.TaskAssignment]
     source_worklist: Optional[M.Worklist]
     suggested_action: str  # carry | discard | manual
-    template_policy: Optional[str] = None  # auto_same_person | auto_any_qualified | never | manual_prompt
+    template_policy: Optional[str] = (
+        None  # auto_same_person | auto_any_qualified | never | manual_prompt
+    )
     same_person_assignees: list[M.Person] = field(default_factory=list)
 
 
@@ -51,9 +54,15 @@ def find_pending_carry_overs(
                 M.TaskInstance.status.in_(("open", "in_progress")),
             )
             .options(
-                selectinload(M.TaskInstance.assignments).selectinload(M.TaskAssignment.person),
+                selectinload(M.TaskInstance.assignments).selectinload(
+                    M.TaskAssignment.person
+                ),
             )
-            .order_by(M.TaskInstance.scheduled_date.is_(None), M.TaskInstance.scheduled_date, M.TaskInstance.id)
+            .order_by(
+                M.TaskInstance.scheduled_date.is_(None),
+                M.TaskInstance.scheduled_date,
+                M.TaskInstance.id,
+            )
         ).all()
     )
     # Cap to prior weeks (or any week before target.week_starting) to avoid
@@ -75,7 +84,9 @@ def find_pending_carry_overs(
         # Look up template policy (cached).
         policy: Optional[str] = None
         if inst.template_id is not None:
-            tmpl = template_cache.get(inst.template_id) or session.get(M.TaskTemplate, inst.template_id)
+            tmpl = template_cache.get(inst.template_id) or session.get(
+                M.TaskTemplate, inst.template_id
+            )
             if tmpl is not None:
                 template_cache[inst.template_id] = tmpl
                 policy = tmpl.carry_over_policy
@@ -86,11 +97,16 @@ def find_pending_carry_overs(
             suggested = "manual"
         active_assignments = [a for a in inst.assignments if a.active]
         same_persons = [a.person for a in active_assignments if a.person is not None]
-        pending.append(CarryCandidate(
-            instance=inst, assignments=active_assignments,
-            source_worklist=wl, suggested_action=suggested,
-            template_policy=policy, same_person_assignees=same_persons,
-        ))
+        pending.append(
+            CarryCandidate(
+                instance=inst,
+                assignments=active_assignments,
+                source_worklist=wl,
+                suggested_action=suggested,
+                template_policy=policy,
+                same_person_assignees=same_persons,
+            )
+        )
     return pending
 
 
@@ -150,23 +166,27 @@ def apply_carry_over(
 
     if action == "carry":
         for a in candidate.assignments:
-            session.add(M.TaskAssignment(
-                instance_id=new_inst.id,
-                person_id=a.person_id,
-                external_poic_name=a.external_poic_name,
-                is_poic=a.is_poic,
-                display_order=a.display_order,
-                org_id=target_worklist.org_id,
-            ))
+            session.add(
+                M.TaskAssignment(
+                    instance_id=new_inst.id,
+                    person_id=a.person_id,
+                    external_poic_name=a.external_poic_name,
+                    is_poic=a.is_poic,
+                    display_order=a.display_order,
+                    org_id=target_worklist.org_id,
+                )
+            )
     else:  # reassign
         person_ids = reassign_person_ids or []
         for pid in person_ids:
-            session.add(M.TaskAssignment(
-                instance_id=new_inst.id,
-                person_id=pid,
-                is_poic=(pid == new_poic_person_id),
-                org_id=target_worklist.org_id,
-            ))
+            session.add(
+                M.TaskAssignment(
+                    instance_id=new_inst.id,
+                    person_id=pid,
+                    is_poic=(pid == new_poic_person_id),
+                    org_id=target_worklist.org_id,
+                )
+            )
 
     inst.status = "carried"
     return new_inst

@@ -18,6 +18,7 @@ Security profile (final, agreed):
 * Generic redeem-failure responses; specific reason recorded only in
   the audit log so attackers can't probe for valid tokens.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -73,9 +74,7 @@ def create_invite(
     so that on acceptance a ``Person`` record is auto-created.
     """
     if ttl_days < 1 or ttl_days > MAX_INVITE_TTL_DAYS:
-        raise ValueError(
-            f"ttl_days must be between 1 and {MAX_INVITE_TTL_DAYS}"
-        )
+        raise ValueError(f"ttl_days must be between 1 and {MAX_INVITE_TTL_DAYS}")
     cleaned_email = intended_email.strip().lower()
     if not cleaned_email or "@" not in cleaned_email:
         raise ValueError("intended_email must be a valid address")

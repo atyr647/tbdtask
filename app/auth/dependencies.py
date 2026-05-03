@@ -4,6 +4,7 @@ Routes consume these instead of poking at request state directly. The
 middleware (``app.middleware``) is the only place that *populates* the
 attached request state; the dependencies just read it.
 """
+
 from __future__ import annotations
 
 from typing import Optional

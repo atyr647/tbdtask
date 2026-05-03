@@ -10,6 +10,7 @@ Each entry: (code, label, level, category)
   * level     - optional broad level used for grouping
   * category  - drives the picker grouping
 """
+
 from __future__ import annotations
 
 

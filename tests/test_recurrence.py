@@ -1,4 +1,5 @@
 """Pure-function tests for the recurrence engine."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -14,6 +15,7 @@ def _monday(year, month, day):
 
 # Daily ----------------------------------------------------------------------
 
+
 def test_daily_covers_every_day_in_window():
     start = _monday(2026, 5, 4)
     out = dates_in_window({"kind": "daily"}, start, days=7)
@@ -23,6 +25,7 @@ def test_daily_covers_every_day_in_window():
 
 
 # Weekday set ----------------------------------------------------------------
+
 
 def test_weekdays_only_picks_specified_days():
     start = _monday(2026, 5, 4)
@@ -37,10 +40,10 @@ def test_weekdays_empty_means_no_dates():
 
 # Every-N-weeks --------------------------------------------------------------
 
+
 def test_every_2_weeks_with_anchor():
     anchor = _monday(2026, 5, 4)  # parity reference
-    rule = {"kind": "every_n_weeks", "n": 2, "weekday": 0,
-            "anchor": anchor.isoformat()}
+    rule = {"kind": "every_n_weeks", "n": 2, "weekday": 0, "anchor": anchor.isoformat()}
     # Anchor week: fires
     assert dates_in_window(rule, anchor, 7) == [anchor]
     # Next week: does NOT fire (we want every other)
@@ -53,8 +56,7 @@ def test_every_2_weeks_with_anchor():
 
 def test_every_3_weeks_with_anchor_skips_two_weeks():
     anchor = _monday(2026, 5, 4)
-    rule = {"kind": "every_n_weeks", "n": 3, "weekday": 0,
-            "anchor": anchor.isoformat()}
+    rule = {"kind": "every_n_weeks", "n": 3, "weekday": 0, "anchor": anchor.isoformat()}
     assert dates_in_window(rule, anchor, 7) == [anchor]
     assert dates_in_window(rule, date(2026, 5, 11), 7) == []
     assert dates_in_window(rule, date(2026, 5, 18), 7) == []
@@ -63,13 +65,13 @@ def test_every_3_weeks_with_anchor_skips_two_weeks():
 
 def test_every_n_weeks_before_anchor_does_not_fire():
     anchor = _monday(2026, 5, 11)
-    rule = {"kind": "every_n_weeks", "n": 2, "weekday": 0,
-            "anchor": anchor.isoformat()}
+    rule = {"kind": "every_n_weeks", "n": 2, "weekday": 0, "anchor": anchor.isoformat()}
     # Window before the anchor — no firings.
     assert dates_in_window(rule, _monday(2026, 5, 4), 7) == []
 
 
 # Monthly day-of-month -------------------------------------------------------
+
 
 def test_monthly_date_fires_on_the_target_day():
     rule = {"kind": "monthly_date", "day": 15}
@@ -92,6 +94,7 @@ def test_monthly_date_leap_year():
 
 
 # Monthly Nth weekday --------------------------------------------------------
+
 
 def test_monthly_nth_weekday_first_monday():
     rule = {"kind": "monthly_nth_weekday", "n": 1, "weekday": 0}
@@ -116,6 +119,7 @@ def test_monthly_nth_weekday_third_thursday():
 
 
 # Pathological inputs --------------------------------------------------------
+
 
 def test_unknown_kind_returns_empty():
     assert dates_in_window({"kind": "made-up"}, date(2026, 5, 4), 7) == []

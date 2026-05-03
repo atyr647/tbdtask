@@ -10,7 +10,6 @@ from .db import init_db
 from .middleware import (
     AuthRateLimitMiddleware,
     CSRFMiddleware,
-    SINGLE_TENANT_MODE,
     SecureHeadersMiddleware,
     SessionMiddleware,
     TrustedProxyMiddleware,
@@ -86,6 +85,7 @@ app = create_app()
 def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
     """Entry point for the AppImage launcher."""
     import uvicorn
+
     if open_browser:
         try:
             webbrowser.open(f"http://{host}:{port}/", new=2)

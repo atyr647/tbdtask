@@ -14,6 +14,7 @@ Rotation = revoke the existing row and issue a brand-new id. Never reuse
 ids, never update an id in place. Triggers: login, logout, identity
 link/unlink, org switch, role/membership status change.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,7 +37,9 @@ from .security import random_token
 _INSECURE_LOCAL_COOKIES = os.environ.get("TBDTASK_INSECURE_LOCAL_COOKIES", "0") == "1"
 if _INSECURE_LOCAL_COOKIES:
     if os.environ.get("DATABASE_URL", "").startswith("postgres"):
-        raise RuntimeError("TBDTASK_INSECURE_LOCAL_COOKIES is not allowed with Postgres")
+        raise RuntimeError(
+            "TBDTASK_INSECURE_LOCAL_COOKIES is not allowed with Postgres"
+        )
     SESSION_COOKIE_NAME = "tbdtask_session_local"
     SESSION_COOKIE_SECURE = False
 else:

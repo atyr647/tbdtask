@@ -50,9 +50,7 @@ def list_alerts(
         if show == "history":
             rows = list(
                 s.scalars(
-                    select(M.Alert)
-                    .order_by(M.Alert.created_at.desc())
-                    .limit(200)
+                    select(M.Alert).order_by(M.Alert.created_at.desc()).limit(200)
                 ).all()
             )
         else:
@@ -69,10 +67,14 @@ def list_alerts(
             if wl_id:
                 wl = s.get(M.Worklist, wl_id)
                 wl_label = wl.name if wl else None
-            resolved.append({
-                "alert": a, "person_label": person_label, "worklist_label": wl_label,
-                "type_label": _label(a.alert_type),
-            })
+            resolved.append(
+                {
+                    "alert": a,
+                    "person_label": person_label,
+                    "worklist_label": wl_label,
+                    "type_label": _label(a.alert_type),
+                }
+            )
     return render(request, "alerts/list.html", items=resolved, show=show)
 
 
@@ -154,7 +156,10 @@ def extend_prd(
             base = cur.prd_date if cur else date.today()
             new_prd = base + timedelta(days=d)
         eff.set_new_value(
-            s, M.PersonPrd, person_id=a.person_id, effective_date=date.today(),
+            s,
+            M.PersonPrd,
+            person_id=a.person_id,
+            effective_date=date.today(),
             fields={
                 "prd_date": new_prd,
                 "change_reason": "extension",
@@ -190,7 +195,10 @@ def archive_person_from_alert(
         p.archived_at = datetime.now()
         p.archived_reason = reason
         eff.set_new_value(
-            s, M.PersonRosterStatus, person_id=p.id, effective_date=date.today(),
+            s,
+            M.PersonRosterStatus,
+            person_id=p.id,
+            effective_date=date.today(),
             fields={"status": "departed"},
             no_op_if_unchanged=("status",),
         )

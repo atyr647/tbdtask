@@ -6,14 +6,13 @@ Covers:
 * SensitivityReport API
 * Sensitive field registry
 """
+
 from __future__ import annotations
 
-import pytest
 
 from app.auth.sensitive_info import (
     SENSITIVE_FIELDS,
     SENSITIVITY_PATTERNS,
-    SensitivityReport,
     get_sensitive_field_label,
     is_sensitive_field,
     scan_text,
@@ -23,6 +22,7 @@ from app.auth.sensitive_info import (
 # ---------------------------------------------------------------------------
 # SSN patterns
 # ---------------------------------------------------------------------------
+
 
 class TestSSNPatterns:
     def test_standard_ssn_detected(self):
@@ -59,6 +59,7 @@ class TestSSNPatterns:
 # Phone number patterns
 # ---------------------------------------------------------------------------
 
+
 class TestPhonePatterns:
     def test_us_phone_dashes(self):
         r = scan_text("Call 555-123-4567")
@@ -86,6 +87,7 @@ class TestPhonePatterns:
 # Email pattern
 # ---------------------------------------------------------------------------
 
+
 class TestEmailPattern:
     def test_email_detected(self):
         r = scan_text("Contact john.doe@navy.mil")
@@ -103,6 +105,7 @@ class TestEmailPattern:
 # ---------------------------------------------------------------------------
 # DOB context pattern
 # ---------------------------------------------------------------------------
+
 
 class TestDOBPattern:
     def test_dob_label_detected(self):
@@ -127,6 +130,7 @@ class TestDOBPattern:
 # Medical context pattern
 # ---------------------------------------------------------------------------
 
+
 class TestMedicalPattern:
     def test_medical_keyword_detected(self):
         r = scan_text("Member is on medication for condition")
@@ -150,6 +154,7 @@ class TestMedicalPattern:
 # Security clearance pattern
 # ---------------------------------------------------------------------------
 
+
 class TestClearancePattern:
     def test_tsci_detected(self):
         r = scan_text("Holds TS/SCI clearance")
@@ -168,6 +173,7 @@ class TestClearancePattern:
 # Financial pattern
 # ---------------------------------------------------------------------------
 
+
 class TestFinancialPattern:
     def test_routing_number_detected(self):
         r = scan_text("Routing number: 123456789")
@@ -181,6 +187,7 @@ class TestFinancialPattern:
 # ---------------------------------------------------------------------------
 # False positive avoidance
 # ---------------------------------------------------------------------------
+
 
 class TestFalsePositives:
     def test_normal_operational_text_clean(self):
@@ -212,6 +219,7 @@ class TestFalsePositives:
 # SensitivityReport API
 # ---------------------------------------------------------------------------
 
+
 class TestSensitivityReport:
     def test_empty_text(self):
         r = scan_text("")
@@ -238,6 +246,7 @@ class TestSensitivityReport:
 # ---------------------------------------------------------------------------
 # Sensitive field registry
 # ---------------------------------------------------------------------------
+
 
 class TestSensitiveFieldRegistry:
     def test_person_notes_is_sensitive(self):

@@ -17,10 +17,11 @@ Locked behaviour (see Phase 1 plan):
 This module is deliberately I/O-bound to a single Session and produces
 plain Python outcomes so it's trivial to unit-test without HTTP.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Union
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session

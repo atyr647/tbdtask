@@ -1,20 +1,16 @@
 """Tests for invite acceptance, leave-org, and kick-member flows."""
+
 from __future__ import annotations
 
-import pytest
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import status
-from fastapi.testclient import TestClient
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from app import models as M
 from app.auth import invites as invites_mod
 from app.auth import sessions as sess_mod
 from app.auth.authorization import membership_has_role_template
 from app.auth.permissions import ROLE_OWNER
-from app.tenancy import tenant_context
 
 
 def _make_org(session, *, slug="alpha", name="Alpha Org"):
@@ -47,11 +43,13 @@ def _grant_role(session, membership, role_template_slug):
         )
     ).scalar_one_or_none()
     if role:
-        session.add(M.MembershipRole(
-            membership_id=membership.id,
-            role_id=role.id,
-            workcenter_id=None,
-        ))
+        session.add(
+            M.MembershipRole(
+                membership_id=membership.id,
+                role_id=role.id,
+                workcenter_id=None,
+            )
+        )
         session.flush()
 
 
@@ -84,6 +82,7 @@ def _make_invite(session, *, org, email, **kwargs):
 # Magic-link invite acceptance
 # ---------------------------------------------------------------------------
 
+
 class TestMagicLinkInvite:
     def test_invite_token_not_reusable(self, session):
         """An invite token can only be used once."""
@@ -101,12 +100,12 @@ class TestMagicLinkInvite:
     def test_expired_invite_fails(self, session):
         """An expired invite cannot be redeemed."""
         org = _make_org(session)
-        issued = _make_invite(
-            session, org=org, email="bob@example.com", ttl_days=1
-        )
+        issued = _make_invite(session, org=org, email="bob@example.com", ttl_days=1)
         invite = session.get(M.OrgInvite, issued.invite_id)
         # Manually expire it.
-        invite.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
+        invite.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+            days=1
+        )
         session.flush()
 
         assert invite.expires_at < datetime.now(timezone.utc).replace(tzinfo=None)
@@ -115,6 +114,7 @@ class TestMagicLinkInvite:
 # ---------------------------------------------------------------------------
 # Leave-org flow
 # ---------------------------------------------------------------------------
+
 
 class TestLeaveOrg:
     def test_last_org_owner_cannot_leave(self, session):
@@ -127,13 +127,17 @@ class TestLeaveOrg:
 
         assert membership_has_role_template(session, mem.id, "org_owner")
         # There are no other owners, so this is the last one.
-        other_owners = session.execute(
-            select(M.OrgMembership).where(
-                M.OrgMembership.org_id == org.id,
-                M.OrgMembership.id != mem.id,
-                M.OrgMembership.status == "active",
+        other_owners = (
+            session.execute(
+                select(M.OrgMembership).where(
+                    M.OrgMembership.org_id == org.id,
+                    M.OrgMembership.id != mem.id,
+                    M.OrgMembership.status == "active",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert not any(
             membership_has_role_template(session, m.id, "org_owner")
             for m in other_owners
@@ -144,6 +148,7 @@ class TestLeaveOrg:
 # Kick-member flow
 # ---------------------------------------------------------------------------
 
+
 class TestKickMember:
     def test_kick_target_must_belong_to_current_org(self, session):
         """An admin cannot kick a member from a different org."""
@@ -151,7 +156,7 @@ class TestKickMember:
         org_b = _make_org(session, slug="org-b", name="Org B")
         user_a = _make_user(session, email="admin@a.com")
         user_b = _make_user(session, email="victim@b.com")
-        mem_a = _make_membership(session, org=org_a, user=user_a)
+        _make_membership(session, org=org_a, user=user_a)
         mem_b = _make_membership(session, org=org_b, user=user_b)
 
         # mem_b belongs to org_b, not org_a.
@@ -178,6 +183,7 @@ class TestKickMember:
         assert membership_has_role_template(session, mem.id, "org_owner")
         # _last_owner_id should return this membership.
         from app.routes.admin import _last_owner_id
+
         assert _last_owner_id(session, org.id) == mem.id
 
     def test_kick_rotates_session(self, session):
@@ -185,7 +191,7 @@ class TestKickMember:
         org = _make_org(session)
         admin = _make_user(session, email="admin@example.com")
         victim = _make_user(session, email="victim@example.com")
-        admin_mem = _make_membership(session, org=org, user=admin)
+        _make_membership(session, org=org, user=admin)
         victim_mem = _make_membership(session, org=org, user=victim)
 
         # Create a session bound to victim's membership.
@@ -215,6 +221,7 @@ class TestKickMember:
 # Org deletion
 # ---------------------------------------------------------------------------
 
+
 class TestOrgDeletion:
     def test_cannot_delete_with_other_members(self, session):
         """An org with multiple active members cannot be deleted."""
@@ -223,15 +230,19 @@ class TestOrgDeletion:
         owner = _make_user(session, email="owner@example.com")
         member = _make_user(session, email="member@example.com")
         owner_mem = _make_membership(session, org=org, user=owner)
-        member_mem = _make_membership(session, org=org, user=member)
+        _make_membership(session, org=org, user=member)
         _grant_role(session, owner_mem, "org_owner")
 
-        active_members = session.execute(
-            select(M.OrgMembership).where(
-                M.OrgMembership.org_id == org.id,
-                M.OrgMembership.status == "active",
+        active_members = (
+            session.execute(
+                select(M.OrgMembership).where(
+                    M.OrgMembership.org_id == org.id,
+                    M.OrgMembership.status == "active",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(active_members) == 2
 
     def test_sole_owner_can_delete(self, session):
@@ -242,12 +253,16 @@ class TestOrgDeletion:
         owner_mem = _make_membership(session, org=org, user=owner)
         _grant_role(session, owner_mem, "org_owner")
 
-        active_members = session.execute(
-            select(M.OrgMembership).where(
-                M.OrgMembership.org_id == org.id,
-                M.OrgMembership.status == "active",
+        active_members = (
+            session.execute(
+                select(M.OrgMembership).where(
+                    M.OrgMembership.org_id == org.id,
+                    M.OrgMembership.status == "active",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(active_members) == 1
         assert membership_has_role_template(session, owner_mem.id, "org_owner")
 

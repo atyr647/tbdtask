@@ -2,12 +2,11 @@
 Qual overview: per-qualification rollups (counts by status) and a
 coverage-gap signal driven by a configurable threshold.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,7 +24,9 @@ class QualSummary:
     qualified_names: list[str] = field(default_factory=list)
     in_progress_names: list[str] = field(default_factory=list)
     dinq_names: list[str] = field(default_factory=list)
-    expiring_soon: list[tuple[str, str]] = field(default_factory=list)  # (person_name, expiry iso)
+    expiring_soon: list[tuple[str, str]] = field(
+        default_factory=list
+    )  # (person_name, expiry iso)
     gap: bool = False
 
 

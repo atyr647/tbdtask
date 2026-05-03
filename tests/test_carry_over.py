@@ -1,14 +1,18 @@
 """Tests for the carry-forward flow."""
+
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import select
 
 from app import models as M
 from app.services.carry_over import apply_carry_over, find_pending_carry_overs
 from tests.conftest import (
-    make_assignment, make_person, make_task, make_task_categories,
+    make_assignment,
+    make_person,
+    make_task,
+    make_task_categories,
     make_worklist,
 )
 
@@ -27,9 +31,15 @@ def test_carry_preserves_task_hours(session):
     monday_b = date(2026, 5, 11)
     wl_a = make_worklist(session, monday_a, locked=True)
     wl_b = make_worklist(session, monday_b)
-    inst = make_task(session, worklist_id=wl_a.id, scheduled_date=monday_a,
-                     name="Replace seatbelts on 947",
-                     status="open", hours=2.5, category_id=cats["Maintenance"].id)
+    inst = make_task(
+        session,
+        worklist_id=wl_a.id,
+        scheduled_date=monday_a,
+        name="Replace seatbelts on 947",
+        status="open",
+        hours=2.5,
+        category_id=cats["Maintenance"].id,
+    )
     make_assignment(session, instance_id=inst.id, person_id=p1.id, is_poic=True)
     session.commit()
 
@@ -50,22 +60,34 @@ def test_reassign_preserves_hours_and_replaces_assignees(session):
     cats, p1, p2 = _setup(session)
     wl_a = make_worklist(session, date(2026, 5, 4), locked=True)
     wl_b = make_worklist(session, date(2026, 5, 11))
-    inst = make_task(session, worklist_id=wl_a.id,
-                     scheduled_date=date(2026, 5, 4),
-                     name="Order parts", status="in_progress", hours=1.5)
+    inst = make_task(
+        session,
+        worklist_id=wl_a.id,
+        scheduled_date=date(2026, 5, 4),
+        name="Order parts",
+        status="in_progress",
+        hours=1.5,
+    )
     make_assignment(session, instance_id=inst.id, person_id=p1.id, is_poic=True)
     session.commit()
 
     candidates = find_pending_carry_overs(session, wl_b)
-    new_inst = apply_carry_over(session, wl_b, candidates[0], "reassign",
-                                reassign_person_ids=[p2.id],
-                                new_poic_person_id=p2.id)
+    new_inst = apply_carry_over(
+        session,
+        wl_b,
+        candidates[0],
+        "reassign",
+        reassign_person_ids=[p2.id],
+        new_poic_person_id=p2.id,
+    )
     session.commit()
 
     assert new_inst.hours == 1.5
-    new_assignments = list(session.scalars(
-        select(M.TaskAssignment).where(M.TaskAssignment.instance_id == new_inst.id)
-    ).all())
+    new_assignments = list(
+        session.scalars(
+            select(M.TaskAssignment).where(M.TaskAssignment.instance_id == new_inst.id)
+        ).all()
+    )
     assert len(new_assignments) == 1
     assert new_assignments[0].person_id == p2.id
     assert new_assignments[0].is_poic is True
@@ -88,9 +110,11 @@ def test_complete_marks_original_done_and_does_not_clone(session):
     assert inst.status == "done"
     assert inst.completed_at is not None
     # No instance was created on the target worklist
-    targets = list(session.scalars(
-        select(M.TaskInstance).where(M.TaskInstance.worklist_id == wl_b.id)
-    ).all())
+    targets = list(
+        session.scalars(
+            select(M.TaskInstance).where(M.TaskInstance.worklist_id == wl_b.id)
+        ).all()
+    )
     assert targets == []
 
 
@@ -114,8 +138,9 @@ def test_leave_does_not_change_anything(session):
     _, p1, _ = _setup(session)
     wl_a = make_worklist(session, date(2026, 5, 4), locked=True)
     wl_b = make_worklist(session, date(2026, 5, 11))
-    inst = make_task(session, worklist_id=wl_a.id, name="Still pending",
-                     status="in_progress")
+    inst = make_task(
+        session, worklist_id=wl_a.id, name="Still pending", status="in_progress"
+    )
     make_assignment(session, instance_id=inst.id, person_id=p1.id)
     session.commit()
 

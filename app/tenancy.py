@@ -18,6 +18,7 @@ code paths are unaffected. Tests opt in by entering ``tenant_context(...)``
 explicitly to verify isolation actually works end-to-end before Phase 3
 turns enforcement on for real traffic.
 """
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -113,7 +114,9 @@ def resolve_org_id(
         return worklist.org_id
     if person is not None:
         return person.org_id
-    raise ValueError("Cannot resolve org_id: no parent entity or explicit value provided")
+    raise ValueError(
+        "Cannot resolve org_id: no parent entity or explicit value provided"
+    )
 
 
 _current_org_id: ContextVar[Optional[int]] = ContextVar(

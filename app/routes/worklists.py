@@ -36,7 +36,11 @@ def _monday_of(d: date) -> date:
 def _name_for(week_starting: date) -> str:
     """Approximate "Week N Month YYYY" label, matching the legacy convention."""
     first = week_starting.replace(day=1)
-    first_monday = _monday_of(first) if first.weekday() == 0 else first + timedelta(days=(7 - first.weekday()) % 7)
+    first_monday = (
+        _monday_of(first)
+        if first.weekday() == 0
+        else first + timedelta(days=(7 - first.weekday()) % 7)
+    )
     week_index = ((week_starting - first_monday).days // 7) + 1
     return f"Week {week_index} {week_starting.strftime('%B %Y')}"
 
@@ -45,11 +49,13 @@ def _name_for(week_starting: date) -> str:
 def list_worklists(request: Request, _: None = Depends(require(P_WORKLISTS_VIEW))):
     today = date.today()
     with SessionLocal() as s:
-        all_lists = list(s.scalars(
-            select(M.Worklist)
-            .where(M.Worklist.active == True)  # noqa: E712
-            .order_by(M.Worklist.week_starting.desc(), M.Worklist.version.desc())
-        ).all())
+        all_lists = list(
+            s.scalars(
+                select(M.Worklist)
+                .where(M.Worklist.active == True)  # noqa: E712
+                .order_by(M.Worklist.week_starting.desc(), M.Worklist.version.desc())
+            ).all()
+        )
     # Group amendments under their base worklist.
     children: dict[int, list[M.Worklist]] = {}
     bases: list[M.Worklist] = []
@@ -77,7 +83,8 @@ def list_worklists(request: Request, _: None = Depends(require(P_WORKLISTS_VIEW)
     return render(
         request,
         "worklists/list.html",
-        current=current, upcoming=upcoming,
+        current=current,
+        upcoming=upcoming,
         archived_groups=archived_groups,
         suggested_monday=_next_monday().isoformat(),
     )
@@ -154,17 +161,28 @@ def show_worklist(
         if not wl:
             raise HTTPException(404)
         view = build_week_view(s, wl)
-        categories = list(s.scalars(
-            select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
-        ).all())
-        people = list(s.scalars(
-            select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
-        ).all())
+        categories = list(
+            s.scalars(
+                select(M.TaskCategory)
+                .where(M.TaskCategory.active == True)  # noqa: E712
+                .order_by(M.TaskCategory.display_order)
+            ).all()
+        )
+        people = list(
+            s.scalars(
+                select(M.Person)
+                .where(M.Person.active == True)  # noqa: E712
+                .order_by(M.Person.display_order)
+            ).all()
+        )
         pending = find_pending_carry_overs(s, wl) if not wl.locked else []
     return render(
         request,
         "worklists/show.html",
-        view=view, worklist=wl, categories=categories, people=people,
+        view=view,
+        worklist=wl,
+        categories=categories,
+        people=people,
         pending_count=len(pending),
     )
 
@@ -182,9 +200,13 @@ def carry_over_form(
         if wl.locked:
             raise HTTPException(409, "amend the worklist before processing carry-overs")
         candidates = find_pending_carry_overs(s, wl)
-        people = list(s.scalars(
-            select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
-        ).all())
+        people = list(
+            s.scalars(
+                select(M.Person)
+                .where(M.Person.active == True)  # noqa: E712
+                .order_by(M.Person.display_order)
+            ).all()
+        )
         # Pre-resolve display info for candidates while in session.
         resolved = []
         for c in candidates:
@@ -194,16 +216,22 @@ def carry_over_form(
                     assignee_labels.append(a.person.full_display)
                 elif a.external_poic_name:
                     assignee_labels.append(f"(ext) {a.external_poic_name}")
-            resolved.append({
-                "candidate": c,
-                "assignee_labels": assignee_labels,
-                "source_label": c.source_worklist.name if c.source_worklist else "—",
-                "scheduled": c.instance.scheduled_date,
-            })
+            resolved.append(
+                {
+                    "candidate": c,
+                    "assignee_labels": assignee_labels,
+                    "source_label": c.source_worklist.name
+                    if c.source_worklist
+                    else "—",
+                    "scheduled": c.instance.scheduled_date,
+                }
+            )
     return render(
         request,
         "worklists/carry_over.html",
-        worklist=wl, items=resolved, people=people,
+        worklist=wl,
+        items=resolved,
+        people=people,
     )
 
 
@@ -230,7 +258,10 @@ async def carry_over_apply(
                 poic = form.get(f"poic_{iid}")
                 poic_id = int(poic) if poic else None
                 apply_carry_over(
-                    s, wl, c, "reassign",
+                    s,
+                    wl,
+                    c,
+                    "reassign",
                     reassign_person_ids=pids,
                     new_poic_person_id=poic_id,
                 )
@@ -254,16 +285,27 @@ def setup_worklist(
         if wl.locked:
             return RedirectResponse(f"/worklists/{worklist_id}", status_code=303)
         view = build_week_view(s, wl)
-        categories = list(s.scalars(
-            select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
-        ).all())
-        people = list(s.scalars(
-            select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
-        ).all())
+        categories = list(
+            s.scalars(
+                select(M.TaskCategory)
+                .where(M.TaskCategory.active == True)  # noqa: E712
+                .order_by(M.TaskCategory.display_order)
+            ).all()
+        )
+        people = list(
+            s.scalars(
+                select(M.Person)
+                .where(M.Person.active == True)  # noqa: E712
+                .order_by(M.Person.display_order)
+            ).all()
+        )
     return render(
         request,
         "worklists/setup.html",
-        view=view, worklist=wl, categories=categories, people=people,
+        view=view,
+        worklist=wl,
+        categories=categories,
+        people=people,
     )
 
 
@@ -338,15 +380,17 @@ def amend_worklist(
             raise HTTPException(404)
         if not parent.locked:
             raise HTTPException(409, "only locked worklists are amended")
-        sibling_count = s.scalar(
-            select(M.Worklist.version)
-            .where(
-                (M.Worklist.id == parent.id) |
-                (M.Worklist.parent_id == parent.id)
+        sibling_count = (
+            s.scalar(
+                select(M.Worklist.version)
+                .where(
+                    (M.Worklist.id == parent.id) | (M.Worklist.parent_id == parent.id)
+                )
+                .order_by(M.Worklist.version.desc())
+                .limit(1)
             )
-            .order_by(M.Worklist.version.desc())
-            .limit(1)
-        ) or 1
+            or 1
+        )
         clone = M.Worklist(
             week_starting=parent.week_starting,
             name=parent.name,
@@ -363,7 +407,10 @@ def amend_worklist(
         # Duplicate active TaskInstances + their TaskAssignments.
         instances = s.scalars(
             select(M.TaskInstance)
-            .where(M.TaskInstance.worklist_id == parent.id, M.TaskInstance.active == True)  # noqa: E712
+            .where(
+                M.TaskInstance.worklist_id == parent.id,
+                M.TaskInstance.active == True,  # noqa: E712
+            )
             .options(selectinload(M.TaskInstance.assignments))
         ).all()
         for inst in instances:
@@ -388,17 +435,19 @@ def amend_worklist(
             for a in inst.assignments:
                 if not a.active:
                     continue
-                s.add(M.TaskAssignment(
-                    instance_id=new_inst.id,
-                    person_id=a.person_id,
-                    is_poic=a.is_poic,
-                    external_poic_name=a.external_poic_name,
-                    completed=a.completed,
-                    completion_notes=a.completion_notes,
-                    hours_worked=a.hours_worked,
-                    display_order=a.display_order,
-                    org_id=clone.org_id,
-                ))
+                s.add(
+                    M.TaskAssignment(
+                        instance_id=new_inst.id,
+                        person_id=a.person_id,
+                        is_poic=a.is_poic,
+                        external_poic_name=a.external_poic_name,
+                        completed=a.completed,
+                        completion_notes=a.completion_notes,
+                        hours_worked=a.hours_worked,
+                        display_order=a.display_order,
+                        org_id=clone.org_id,
+                    )
+                )
         s.commit()
         new_id = clone.id
     return RedirectResponse(f"/worklists/{new_id}", status_code=303)
