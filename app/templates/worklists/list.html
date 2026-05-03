@@ -1,68 +1,98 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, icon_plus %}
 {% block title %}Worklists{% endblock %}
+{% block page_title %}Worklists{% endblock %}
 {% block content %}
 {% macro _row(w, kids) %}
   <tr class="wl-row" data-search="{{ w.name|lower }} {{ w.week_starting }} {{ (w.notes or '')|lower }}">
-    <td>{{ w.week_starting }}</td>
-    <td><a href="/worklists/{{ w.id }}">{{ w.name }}</a></td>
-    <td>v{{ w.version }}</td>
-    <td>{% if w.locked %}🔒 locked{% else %}open{% endif %}</td>
-    <td class="muted">{{ w.notes or "" }}</td>
+    <td data-label="Week starting">{{ w.week_starting }}</td>
+    <td data-label="Name" data-stretch="true"><a href="/worklists/{{ w.id }}">{{ w.name }}</a></td>
+    <td data-label="Version">v{{ w.version }}</td>
+    <td data-label="Status">
+      {% if w.locked %}<span class="pill pill-neutral">🔒 locked</span>
+      {% else %}<span class="pill pill-info">open</span>{% endif %}
+    </td>
+    <td data-label="Notes" class="muted">{{ w.notes or "" }}</td>
   </tr>
   {% for c in kids %}
   <tr class="wl-row amendment-row" data-search="{{ c.name|lower }} {{ c.week_starting }} {{ (c.amendment_reason or '')|lower }}">
-    <td></td>
-    <td>↳ <a href="/worklists/{{ c.id }}">{{ c.name }}</a></td>
-    <td>v{{ c.version }}</td>
-    <td>{% if c.locked %}🔒 locked{% else %}open{% endif %}</td>
-    <td class="muted">amends v{{ w.version }} — {{ c.amendment_reason or '' }}{% if c.operator_name %} ({{ c.operator_name }}){% endif %}</td>
+    <td data-label="Week starting"></td>
+    <td data-label="Name" data-stretch="true">↳ <a href="/worklists/{{ c.id }}">{{ c.name }}</a></td>
+    <td data-label="Version">v{{ c.version }}</td>
+    <td data-label="Status">{% if c.locked %}<span class="pill pill-neutral">🔒 locked</span>{% else %}<span class="pill pill-info">open</span>{% endif %}</td>
+    <td data-label="Notes" class="muted">amends v{{ w.version }} — {{ c.amendment_reason or '' }}{% if c.operator_name %} ({{ c.operator_name }}){% endif %}</td>
   </tr>
   {% endfor %}
 {% endmacro %}
 
 {% macro _table(items) %}
   {% if items %}
-  <table class="grid">
-    <thead><tr><th>Week starting</th><th>Name</th><th>Version</th><th>Status</th><th>Notes</th></tr></thead>
-    <tbody>
-      {% for w, kids in items %}{{ _row(w, kids) }}{% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="grid responsive-table">
+      <thead><tr><th>Week starting</th><th>Name</th><th>Version</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        {% for w, kids in items %}{{ _row(w, kids) }}{% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
-  <p class="muted">none</p>
+  <p class="muted m-0">none</p>
   {% endif %}
 {% endmacro %}
 
-<h1>Weekly worklists</h1>
+<div class="page-header">
+  <h1>Weekly worklists</h1>
+  <div class="page-actions">
+    <button type="button" class="btn" id="open-new-week" aria-haspopup="dialog">
+      {{ icon_plus() }} <span>Start a new week</span>
+    </button>
+  </div>
+</div>
 
-<details class="inline-create" open>
-  <summary>+ Start a new week</summary>
-  <form method="post" action="/worklists" class="form quick-add">
-    <div class="quick-add-row">
+<dialog class="wl-dialog" id="new-week-dialog" aria-labelledby="new-week-title">
+  <form method="post" action="/worklists" class="form">
+    <div class="modal-head">
+      <h2 id="new-week-title">Start a new week</h2>
+      <button type="button" class="icon-btn" aria-label="Close" data-close-dialog>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="form-row">
       <label>Week starting (any day; snaps to Monday)
         <input type="date" name="week_starting" value="{{ suggested_monday }}" required />
       </label>
-      <label class="grow">Name (optional)
+      <label>Name (optional)
         <input name="name" placeholder="auto: Week N Month YYYY" />
       </label>
     </div>
-    <label>Notes <textarea name="notes" rows="2" placeholder="optional"></textarea></label>
+    <label>Notes
+      <textarea name="notes" rows="2" placeholder="optional"></textarea>
+    </label>
     <div class="form-actions">
-      <button type="submit">Create &amp; set up tasks &rsaquo;</button>
-      <span class="muted small">You'll go straight to the task wizard.</span>
+      <button type="submit" class="btn">Create &amp; set up tasks ›</button>
+      <button type="button" class="btn-ghost" data-close-dialog>Cancel</button>
     </div>
+    <p class="muted small m-0">You'll go straight to the task wizard.</p>
   </form>
-</details>
+</dialog>
 
-<div class="search-row">
-  <label>Filter
-    <input type="search" id="wl-search" placeholder="search by week name, date, or notes" autocomplete="off" />
-  </label>
+<div class="toolbar">
+  <div class="toolbar-search">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+    <input type="search" id="wl-search" placeholder="Search by week name, date, or notes" autocomplete="off" />
+  </div>
   <span class="muted small" id="wl-search-count"></span>
 </div>
 
-<section class="block"><h2>Current</h2>{{ _table(current) }}</section>
-<section class="block"><h2>Upcoming</h2>{{ _table(upcoming) }}</section>
+<section class="block">
+  <h2>Current</h2>
+  {% if current %}{{ _table(current) }}{% else %}<p class="muted m-0">No active worklist.</p>{% endif %}
+</section>
+
+<section class="block">
+  <h2>Upcoming</h2>
+  {% if upcoming %}{{ _table(upcoming) }}{% else %}<p class="muted m-0">Nothing scheduled yet.</p>{% endif %}
+</section>
 
 <section class="block">
   <h2>Archive</h2>
@@ -74,33 +104,14 @@
       </details>
     {% endfor %}
   {% else %}
-    <p class="muted">No archived worklists yet.</p>
+    {% call empty_state(title="No archived worklists yet", icon="info") %}
+      Past worklists will appear here once they're closed.
+    {% endcall %}
   {% endif %}
 </section>
 
-<script>
-(function() {
-  const input = document.getElementById("wl-search");
-  const countEl = document.getElementById("wl-search-count");
-  const rows = Array.from(document.querySelectorAll("tr.wl-row"));
-  // Open every <details> in the archive while a query is active so matching
-  // rows aren't hidden inside collapsed months.
-  const groups = Array.from(document.querySelectorAll("details.archive-group"));
-  const initiallyOpen = groups.map(g => g.open);
-  function apply() {
-    const q = input.value.trim().toLowerCase();
-    if (q) groups.forEach(g => { g.open = true; });
-    else groups.forEach((g, i) => { g.open = initiallyOpen[i]; });
-    let visible = 0;
-    for (const row of rows) {
-      const haystack = row.dataset.search || "";
-      const match = !q || haystack.includes(q);
-      row.style.display = match ? "" : "none";
-      if (match) visible++;
-    }
-    countEl.textContent = q ? `${visible} of ${rows.length} match` : "";
-  }
-  input.addEventListener("input", apply);
-})();
-</script>
+<a class="fab" href="#" id="fab-new-week" aria-label="Start a new week">
+  {{ icon_plus() }}
+</a>
+
 {% endblock %}

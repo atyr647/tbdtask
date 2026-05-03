@@ -1,0 +1,91 @@
+{# ---------------------------------------------------------------------
+   Reusable UI macros.
+
+   Usage:
+     {% from "_macros.html" import empty_state, pill, page_header,
+                                   icon_check, icon_plus, icon_chevron,
+                                   icon_search, back_link %}
+   --------------------------------------------------------------------- #}
+
+{# Page-header row: an h1 with an optional right-aligned button slot. #}
+{% macro page_header(title, count=None) -%}
+<div class="page-header">
+  <h1>
+    {{ title }}
+    {%- if count is not none %} <span class="count">({{ count }})</span>{% endif %}
+  </h1>
+  <div class="page-actions">{{ caller() if kwargs.get('caller') }}</div>
+</div>
+{%- endmacro %}
+
+{# Pill / status chip. Tone is one of: info, good, warn, bad, neutral. #}
+{% macro pill(text, tone="neutral") -%}
+<span class="pill pill-{{ tone }}">{{ text }}</span>
+{%- endmacro %}
+
+{# Centered empty-state card.
+
+   {% call empty_state(title="No alerts", icon="check") %}
+     Snoozed and resolved alerts will appear under
+     <a href="/alerts?show=history">History</a>.
+   {% endcall %}
+   #}
+{% macro empty_state(title, icon="info", success=false) -%}
+<div class="empty-state">
+  <span class="empty-icon{% if success or icon == 'check' %} success{% endif %}">
+    {% if icon == "check" -%}
+      {{ icon_check() }}
+    {%- elif icon == "plus" -%}
+      {{ icon_plus() }}
+    {%- elif icon == "calendar" -%}
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+    {%- elif icon == "users" -%}
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+    {%- else -%}
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><circle cx="12" cy="16" r="0.5" fill="currentColor"></circle></svg>
+    {%- endif %}
+  </span>
+  <h3>{{ title }}</h3>
+  <div>{{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{# Common icons (small, currentColor). #}
+{% macro icon_check() -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+{%- endmacro %}
+
+{% macro icon_plus() -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+{%- endmacro %}
+
+{% macro icon_chevron(direction="right") -%}
+{% if direction == "left" -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+{%- else -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+{%- endif %}
+{%- endmacro %}
+
+{% macro icon_search() -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+{%- endmacro %}
+
+{# Initials avatar for a name. ``size`` accepts 32, 36, 40, 48. #}
+{% macro avatar(name, size=36) -%}
+{%- set initials = (name or "?")|trim -%}
+{%- set parts = initials.split() -%}
+{%- if parts|length >= 2 -%}
+  {%- set ini = parts[0][0] ~ parts[-1][0] -%}
+{%- else -%}
+  {%- set ini = (initials[:2] or "?") -%}
+{%- endif -%}
+<span class="avatar avatar-{{ size }}">{{ ini|upper }}</span>
+{%- endmacro %}
+
+{# Back-link button. Renders as a chip-style link with a left chevron. #}
+{% macro back_link(href, label) -%}
+<a class="btn-link back-link" href="{{ href }}">
+  {{ icon_chevron("left") }} <span>{{ label }}</span>
+</a>
+{%- endmacro %}

@@ -13,6 +13,6 @@
 
 <form method="post" action="/quals/{{ qual.id }}/archive" class="form-inline danger">
   <label>Archive reason <input name="reason" placeholder="optional" /></label>
-  <button type="submit" onclick="return confirm('Archive {{ qual.name }}? Existing person-quals are preserved.');">Archive</button>
+  <button type="submit" data-confirm="Archive {{ qual.name }}? Existing person-quals are preserved." >Archive</button>
 </form>
 {% endblock %}

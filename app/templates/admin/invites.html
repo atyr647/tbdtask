@@ -1,103 +1,110 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, back_link %}
 {% block title %}Invitations — Admin{% endblock %}
+{% block page_title %}Invitations{% endblock %}
 {% block content %}
 <section class="admin-section">
+  {{ back_link("/admin", "Back to admin") }}
   <h1>Invitations</h1>
-  <p><a href="/admin">&larr; Back to admin</a></p>
 
   {% if new_invite_link %}
     <div class="invite-issued">
-      <h2>Invite issued</h2>
+      <h2 class="invite-issued-title">Invite issued</h2>
       <p>
         Send the link below to <strong>{{ new_invite_email }}</strong>.
         It is shown only once — copy it now; we cannot retrieve it again.
       </p>
       <pre class="invite-token">{{ new_invite_link }}</pre>
-      <p><small>Expires {{ new_invite_expires.strftime("%Y-%m-%d %H:%M") }}. The recipient clicks the link, signs in, and is added to the org automatically.</small></p>
+      <p class="muted small m-0">Expires {{ new_invite_expires.strftime("%Y-%m-%d %H:%M") }}. The recipient clicks the link, signs in, and is added to the org automatically.</p>
     </div>
   {% endif %}
 
-  <h2>Issue a new invite</h2>
-  <form method="post" action="/admin/invites">
-    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-    <div class="form-row">
-      <label>
-        First name
-        <input type="text" name="first_name" maxlength="128" placeholder="John" />
+  <section class="block">
+    <h2>Issue a new invite</h2>
+    <form method="post" action="/admin/invites" class="form full-width">
+      <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+      <div class="form-row">
+        <label>First name
+          <input type="text" name="first_name" maxlength="128" placeholder="John" />
+        </label>
+        <label>Last name
+          <input type="text" name="last_name" maxlength="128" placeholder="Doe" required />
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Title
+          <input type="text" name="rate" maxlength="32" placeholder="Coordinator" />
+        </label>
+        <label>Level
+          <input type="text" name="paygrade" maxlength="8" placeholder="L2" />
+        </label>
+      </div>
+      <label>Recipient's email
+        <input type="email" name="intended_email" required maxlength="320" placeholder="john.doe@example.com" />
       </label>
-      <label>
-        Last name
-        <input type="text" name="last_name" maxlength="128" placeholder="Doe" required />
+      <label>Days until expiry
+        <input type="number" name="ttl_days" min="1" max="{{ max_ttl_days }}" value="{{ default_ttl_days }}" required class="w-medium" />
       </label>
-    </div>
-    <div class="form-row">
-      <label>
-        Title
-        <input type="text" name="rate" maxlength="32" placeholder="Coordinator" />
-      </label>
-      <label>
-        Level
-        <input type="text" name="paygrade" maxlength="8" placeholder="L2" />
-      </label>
-    </div>
-    <label>
-      Recipient's email
-      <input type="email" name="intended_email" required maxlength="320" placeholder="john.doe@example.com" />
-    </label>
-    <label>
-      Days until expiry
-      <input type="number" name="ttl_days" min="1" max="{{ max_ttl_days }}" value="{{ default_ttl_days }}" required />
-    </label>
-    <p><small>Hard cap: {{ max_ttl_days }} days. Tokens are single-use and bound to the recipient's email address. First letter of names will be auto-capitalized.</small></p>
-    <button type="submit">Issue invite</button>
-  </form>
+      <p class="muted small m-0">Hard cap: {{ max_ttl_days }} days. Tokens are single-use and bound to the recipient's email address. First letter of names will be auto-capitalized.</p>
+      <div class="form-actions">
+        <button type="submit" class="btn">Issue invite</button>
+      </div>
+    </form>
+  </section>
 
-  <h2>Outstanding &amp; recent</h2>
-  {% if not invites %}
-    <p>No invites issued yet.</p>
-  {% endif %}
-  <table class="admin-table">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Title</th>
-        <th>Issued</th>
-        <th>Expires</th>
-        <th>Status</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in invites %}
-        <tr>
-          <td>{{ row.invite.first_name or "" }} {{ row.invite.last_name or "" }}</td>
-          <td>{{ row.invite.intended_email }}</td>
-          <td>{{ row.invite.rate or "—" }}</td>
-          <td>{{ row.invite.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
-          <td>{{ row.invite.expires_at.strftime("%Y-%m-%d %H:%M") }}</td>
-          <td>
-            {% if row.invite.accepted_at %}
-              accepted {{ row.invite.accepted_at.strftime("%Y-%m-%d") }}
-            {% elif row.invite.revoked_at %}
-              revoked
-            {% elif row.expired %}
-              expired
-            {% else %}
-              pending
-            {% endif %}
-          </td>
-          <td>
-            {% if row.redeemable %}
-              <form method="post" action="/admin/invites/{{ row.invite.id }}/revoke" class="inline-form">
-                <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-                <button type="submit">Revoke</button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <section class="block">
+    <h2>Outstanding &amp; recent</h2>
+    {% if not invites %}
+      {% call empty_state(title="No invitations issued yet", icon="info") %}
+        Issued invitations and their status will show up here.
+      {% endcall %}
+    {% else %}
+    <div class="table-wrap">
+      <table class="grid responsive-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Title</th>
+            <th>Issued</th>
+            <th>Expires</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in invites %}
+            <tr>
+              <td data-label="Name" data-stretch="true">{{ row.invite.first_name or "" }} {{ row.invite.last_name or "" }}</td>
+              <td data-label="Email" class="muted">{{ row.invite.intended_email }}</td>
+              <td data-label="Title">{{ row.invite.rate or "—" }}</td>
+              <td data-label="Issued" class="muted">{{ row.invite.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+              <td data-label="Expires" class="muted">{{ row.invite.expires_at.strftime("%Y-%m-%d %H:%M") }}</td>
+              <td data-label="Status">
+                {% if row.invite.accepted_at %}
+                  <span class="pill pill-good">accepted {{ row.invite.accepted_at.strftime("%Y-%m-%d") }}</span>
+                {% elif row.invite.revoked_at %}
+                  <span class="pill pill-neutral">revoked</span>
+                {% elif row.expired %}
+                  <span class="pill pill-bad">expired</span>
+                {% else %}
+                  <span class="pill pill-info">pending</span>
+                {% endif %}
+              </td>
+              <td data-label="Actions">
+                {% if row.redeemable %}
+                  <form method="post" action="/admin/invites/{{ row.invite.id }}/revoke" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+                    <button type="submit" class="btn-ghost btn-sm">Revoke</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
 </section>
 {% endblock %}

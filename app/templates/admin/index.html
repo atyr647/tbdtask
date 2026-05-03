@@ -1,17 +1,48 @@
 {% extends "base.html" %}
 {% block title %}Admin — {{ org.name if org else 'Organization' }}{% endblock %}
+{% block page_title %}Admin{% endblock %}
 {% block content %}
 <section class="admin-section">
-  <h1>Administer {{ org.name if org else 'organization' }}</h1>
-  {% if is_owner %}
-    <p class="admin-note">You are an Org Owner of this organization.</p>
-  {% endif %}
-  <ul class="admin-nav">
-    <li><a href="/admin/members">Members &amp; role grants</a></li>
-    <li><a href="/admin/invites">Invitations</a></li>
-    <li><a href="/admin/roles">Roles &amp; permissions</a></li>
-    <li><a href="/admin/workcenters">Workcenters</a></li>
-  </ul>
+  <div class="page-header">
+    <div>
+      <h1>Administer {{ org.name if org else 'organization' }}</h1>
+      {% if is_owner %}<p class="admin-note m-0">You are an Org Owner of this organization.</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="tile-grid">
+    <a class="tile" href="/admin/members">
+      <span class="tile-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      </span>
+      <div class="tile-title">Members &amp; role grants</div>
+      <div class="tile-desc">Manage who is in the org and what they can do. Grant org-wide or workcenter-scoped roles.</div>
+    </a>
+
+    <a class="tile" href="/admin/invites">
+      <span class="tile-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+      </span>
+      <div class="tile-title">Invitations</div>
+      <div class="tile-desc">Issue email-bound invite links for new members. One-time, expiring, revocable.</div>
+    </a>
+
+    <a class="tile" href="/admin/roles">
+      <span class="tile-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12l2 2 4-4"></path><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"></path></svg>
+      </span>
+      <div class="tile-title">Roles &amp; permissions</div>
+      <div class="tile-desc">Built-in templates and custom roles. Edit which permissions each role grants.</div>
+    </a>
+
+    <a class="tile" href="/admin/workcenters">
+      <span class="tile-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+      </span>
+      <div class="tile-title">Workcenters</div>
+      <div class="tile-desc">Sub-units inside the org. Used for workcenter-scoped role grants.</div>
+    </a>
+  </div>
 
   {% if is_sole_owner %}
     <div class="danger-zone">
@@ -21,8 +52,7 @@
         permanently remove all data — personnel, worklists, tasks, roles, and
         everything else. This cannot be undone.
       </p>
-      <form method="post" action="/orgs/delete"
-            onsubmit="return confirmDeleteOrg();">
+      <form method="post" action="/orgs/delete" id="delete-org-form" data-confirm="Are you absolutely sure? This will permanently delete {{ org.name if org else 'this organization' }} and all its data. This action cannot be undone.">
         <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
         <button type="submit" id="delete-org-btn" class="btn-danger" disabled>
           Delete organization
@@ -30,33 +60,6 @@
       </form>
       <p><small id="delete-org-countdown">Hold for 10 seconds to enable.</small></p>
     </div>
-    <script>
-      (function() {
-        var btn = document.getElementById('delete-org-btn');
-        var countdown = document.getElementById('delete-org-countdown');
-        var seconds = 10;
-
-        var timer = setInterval(function() {
-          seconds--;
-          if (seconds <= 0) {
-            clearInterval(timer);
-            btn.disabled = false;
-            countdown.textContent = 'You may now confirm deletion.';
-            countdown.style.color = '#c00';
-          } else {
-            countdown.textContent = seconds + ' seconds remaining…';
-          }
-        }, 1000);
-
-        window.confirmDeleteOrg = function() {
-          return confirm(
-            'Are you absolutely sure? This will permanently delete ' +
-            '{{ org.name if org else "this organization" }} and all its data. ' +
-            'This action cannot be undone.'
-          );
-        };
-      })();
-    </script>
   {% endif %}
 </section>
 {% endblock %}

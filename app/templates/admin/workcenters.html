@@ -1,81 +1,92 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link, empty_state %}
 {% block title %}Workcenters — Admin{% endblock %}
+{% block page_title %}Workcenters{% endblock %}
 {% block content %}
 <section class="admin-section">
+  {{ back_link("/admin", "Back to admin") }}
   <h1>Workcenters</h1>
-  <p><a href="/admin">&larr; Back to admin</a></p>
 
-  <h2>Create</h2>
-  <form method="post" action="/admin/workcenters">
-    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-    <label>
-      Name
-      <input type="text" name="name" required maxlength="128" />
-    </label>
-    <label>
-      Parent (optional)
-      <select name="parent_id">
-        <option value="">— none —</option>
-        {% for w in all_workcenters %}
-          <option value="{{ w.id }}">{{ w.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>
-      Description
-      <textarea name="description" rows="2" maxlength="1000"></textarea>
-    </label>
-    <button type="submit">Create</button>
-  </form>
+  <section class="block">
+    <h2>Create</h2>
+    <form method="post" action="/admin/workcenters" class="form full-width">
+      <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+      <div class="form-row">
+        <label>Name
+          <input type="text" name="name" required maxlength="128" />
+        </label>
+        <label>Parent (optional)
+          <select name="parent_id">
+            <option value="">— none —</option>
+            {% for w in all_workcenters %}
+              <option value="{{ w.id }}">{{ w.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <label>Description
+        <textarea name="description" rows="2" maxlength="1000"></textarea>
+      </label>
+      <div class="form-actions">
+        <button type="submit" class="btn">Create</button>
+      </div>
+    </form>
+  </section>
 
-  <h2>Tree</h2>
-  {% if not all_workcenters %}
-    <p>No workcenters yet.</p>
-  {% else %}
-    {% macro render_tree(parent_id) -%}
-      {% set kids = by_parent.get(parent_id, []) %}
-      {% if kids %}
-        <ul class="workcenter-tree">
-          {% for w in kids %}
-            <li>
-              <details>
-                <summary><strong>{{ w.name }}</strong> <small>({{ w.slug }})</small></summary>
-                {% if w.description %}<p>{{ w.description }}</p>{% endif %}
-                <form method="post" action="/admin/workcenters/{{ w.id }}">
-                  <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-                  <label>
-                    Name
-                    <input type="text" name="name" required maxlength="128" value="{{ w.name }}" />
-                  </label>
-                  <label>
-                    Parent
-                    <select name="parent_id">
-                      <option value="">— none —</option>
-                      {% for o in all_workcenters %}
-                        {% if o.id != w.id %}
-                          <option value="{{ o.id }}" {% if w.parent_id == o.id %}selected{% endif %}>{{ o.name }}</option>
-                        {% endif %}
-                      {% endfor %}
-                    </select>
-                  </label>
-                  <label>
-                    Description
-                    <textarea name="description" rows="2" maxlength="1000">{{ w.description or '' }}</textarea>
-                  </label>
-                  <button type="submit">Save</button>
-                </form>
-                <form method="post" action="/admin/workcenters/{{ w.id }}/archive" class="inline-form">
-                  <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-                  <button type="submit" class="link-button">archive</button>
-                </form>
-                {{ render_tree(w.id) }}
-              </details>
-            </li>
-          {% endfor %}
-        </ul>
-      {% endif %}
-    {%- endmacro %}
-    {{ render_tree(None) }}
-  {% endif %}
+  <section class="block">
+    <h2>Tree</h2>
+    {% if not all_workcenters %}
+      {% call empty_state(title="No workcenters yet", icon="info") %}
+        Create the first workcenter to scope role grants to it.
+      {% endcall %}
+    {% else %}
+      {% macro render_tree(parent_id) -%}
+        {% set kids = by_parent.get(parent_id, []) %}
+        {% if kids %}
+          <ul class="workcenter-tree">
+            {% for w in kids %}
+              <li>
+                <details>
+                  <summary><strong>{{ w.name }}</strong> <span class="muted small">({{ w.slug }})</span></summary>
+                  {% if w.description %}<p class="muted">{{ w.description }}</p>{% endif %}
+                  <form method="post" action="/admin/workcenters/{{ w.id }}" class="form full-width">
+                    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+                    <div class="form-row">
+                      <label>Name
+                        <input type="text" name="name" required maxlength="128" value="{{ w.name }}" />
+                      </label>
+                      <label>Parent
+                        <select name="parent_id">
+                          <option value="">— none —</option>
+                          {% for o in all_workcenters %}
+                            {% if o.id != w.id %}
+                              <option value="{{ o.id }}" {% if w.parent_id == o.id %}selected{% endif %}>{{ o.name }}</option>
+                            {% endif %}
+                          {% endfor %}
+                        </select>
+                      </label>
+                    </div>
+                    <label>Description
+                      <textarea name="description" rows="2" maxlength="1000">{{ w.description or '' }}</textarea>
+                    </label>
+                    <div class="form-actions">
+                      <button type="submit" class="btn-sm">Save</button>
+                      <form method="post" action="/admin/workcenters/{{ w.id }}/archive" class="inline-form d-inline-block">
+                        <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+                        <button type="submit" class="btn-ghost btn-sm">Archive</button>
+                      </form>
+                    </div>
+                  </form>
+                  {{ render_tree(w.id) }}
+                </details>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      {%- endmacro %}
+      {{ render_tree(None) }}
+    {% endif %}
+  </section>
 </section>
+
 {% endblock %}

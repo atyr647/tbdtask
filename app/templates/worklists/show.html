@@ -6,7 +6,7 @@
   <span class="muted">— week of {{ worklist.week_starting }}</span>
   <a class="btn-link" href="/worklists/{{ worklist.id }}/print" target="_blank">Print</a>
   {% if not worklist.locked %}
-    <form method="post" action="/worklists/{{ worklist.id }}/generate" style="display:inline">
+    <form method="post" action="/worklists/{{ worklist.id }}/generate" class="inline-form">
       <button type="submit" class="ghost-btn">Generate recurring</button>
     </form>
     <a class="btn-link" href="#lock">Lock</a>
@@ -108,7 +108,7 @@
   <h2>Finalize</h2>
   <form method="post" action="/worklists/{{ worklist.id }}/lock" class="form-inline">
     <label>Locked by <input name="locked_by_name" placeholder="optional" /></label>
-    <button type="submit" onclick="return confirm('Lock this worklist? Further edits will require an amendment.');">Lock worklist</button>
+    <button type="submit" data-confirm="Lock this worklist? Further edits will require an amendment." >Lock worklist</button>
   </form>
 </section>
 

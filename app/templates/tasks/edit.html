@@ -62,7 +62,7 @@
             <button type="submit">Save</button>
           </form>
           <form method="post" action="/tasks/{{ instance.id }}/assignments/{{ a.id }}/delete" class="form-inline-row">
-            <button type="submit" class="ghost" onclick="return confirm('Remove this assignment?');">Remove</button>
+            <button type="submit" class="ghost" data-confirm="Remove this assignment?" >Remove</button>
           </form>
         </td>
       </tr>
@@ -125,7 +125,7 @@
 {% if not (worklist and worklist.locked) %}
 <form method="post" action="/tasks/{{ instance.id }}/archive" class="form-inline danger">
   <label>Archive reason <input name="reason" /></label>
-  <button type="submit" onclick="return confirm('Archive this task?');">Archive task</button>
+  <button type="submit" data-confirm="Archive this task?" >Archive task</button>
 </form>
 {% endif %}
 {% endblock %}

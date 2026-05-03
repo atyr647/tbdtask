@@ -1,35 +1,43 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, icon_check, avatar %}
 {% block title %}{{ report.on_date.strftime("%a %b %-d") }}{% endblock %}
+{% block page_title %}Today{% endblock %}
 {% block content %}
 <div class="day-nav">
-  <a href="/day/{{ prev_day }}">&lsaquo; {{ prev_day }}</a>
+  <a href="/day/{{ prev_day }}" aria-label="Previous day">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <span>{{ prev_day }}</span>
+  </a>
   <h1>{{ report.on_date.strftime("%A, %B %-d, %Y") }}</h1>
-  <a href="/day/{{ next_day }}">{{ next_day }} &rsaquo;</a>
+  <a href="/day/{{ next_day }}" aria-label="Next day">
+    <span>{{ next_day }}</span>
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+  </a>
 </div>
 {% if report.on_date.isoformat() != today_iso %}
-  <p class="muted"><a href="/today">Jump to today</a></p>
+  <p class="muted small"><a href="/today">↩ Jump to today</a></p>
 {% endif %}
 
-<section class="cards">
-  <div class="card">
-    <div class="card-label">Total roster</div>
-    <div class="card-value">{{ report.total }}</div>
+<section class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total roster</div>
+    <div class="stat-value">{{ report.total }}</div>
   </div>
-  <div class="card">
-    <div class="card-label">Present (full)</div>
-    <div class="card-value">{{ report.present_full }}</div>
+  <div class="stat-card">
+    <div class="stat-label">Present (full)</div>
+    <div class="stat-value">{{ report.present_full }}</div>
   </div>
-  <div class="card">
-    <div class="card-label">Out (full day)</div>
-    <div class="card-value">{{ report.full_absent }}</div>
+  <div class="stat-card">
+    <div class="stat-label">Out (full day)</div>
+    <div class="stat-value">{{ report.full_absent }}</div>
   </div>
-  <div class="card">
-    <div class="card-label">Partial day</div>
-    <div class="card-value">{{ report.partial_absent }}</div>
+  <div class="stat-card">
+    <div class="stat-label">Partial day</div>
+    <div class="stat-value">{{ report.partial_absent }}</div>
   </div>
-  <div class="card">
-    <div class="card-label">% present</div>
-    <div class="card-value">{{ report.percent_present }}%</div>
+  <div class="stat-card">
+    <div class="stat-label">% present</div>
+    <div class="stat-value">{{ report.percent_present }}%</div>
   </div>
 </section>
 
@@ -47,67 +55,89 @@
 {% if tasks %}
 <section class="block">
   <h2>Tasks scheduled for {{ report.on_date.strftime("%A") }} ({{ tasks|length }})</h2>
-  <table class="grid">
-    <thead><tr><th>Task</th><th>Category</th><th>Assigned</th><th>Lead</th><th>Status</th></tr></thead>
-    <tbody>
-      {% for t in tasks %}
-      <tr>
-        <td>
-          {% if t.instance_id %}<a href="/tasks/{{ t.instance_id }}/edit">{{ t.name }}</a>
-          {% else %}{{ t.name }}{% endif %}
-        </td>
-        <td class="muted">{{ t.category or "—" }}</td>
-        <td class="muted small">{{ t.assignees|join(", ") if t.assignees else "all hands / unassigned" }}</td>
-        <td>{% if t.poic_label %}<span class="poic">Lead</span> {{ t.poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
-        <td>
-          {% if t.source == "recurring" %}<span class="status">recurring template</span>
-          {% elif t.status == "done" %}<span class="status status-done">done</span>
-          {% elif t.status == "in_progress" %}<span class="status status-in_progress">in progress</span>
-          {% else %}<span class="status">{{ t.status }}</span>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="grid responsive-table">
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Category</th>
+          <th>Assigned</th>
+          <th>Lead</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr>
+          <td data-label="Task" data-stretch="true">
+            {% if t.instance_id %}<a href="/tasks/{{ t.instance_id }}/edit">{{ t.name }}</a>
+            {% else %}{{ t.name }}{% endif %}
+          </td>
+          <td data-label="Category" class="muted">{{ t.category or "—" }}</td>
+          <td data-label="Assigned" class="muted small">{{ t.assignees|join(", ") if t.assignees else "all hands / unassigned" }}</td>
+          <td data-label="Lead">{% if t.poic_label %}<span class="poic">Lead</span> {{ t.poic_label }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td data-label="Status">
+            {% if t.source == "recurring" %}<span class="status">recurring template</span>
+            {% elif t.status == "done" %}<span class="status status-done">done</span>
+            {% elif t.status == "in_progress" %}<span class="status status-in_progress">in progress</span>
+            {% else %}<span class="status">{{ t.status }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endif %}
 
 <section class="block">
   <h2>Out today ({{ absent_rows|length }})</h2>
   {% if absent_rows %}
-  <table class="grid">
-    <thead><tr><th>Person</th><th>Title</th><th>Team</th><th>Code</th><th>Window</th><th>Reason</th></tr></thead>
-    <tbody>
-      {% for r in absent_rows %}
-      <tr>
-        <td><a href="/personnel/{{ r.person.id }}">{{ r.person.full_display }}</a></td>
-        <td>{{ r.rate or "—" }}</td>
-        <td>{{ r.duty_section or "—" }}</td>
-        <td>{{ r.code }}</td>
-        <td>{% if r.partial %}{{ r.start_time }}–{{ r.end_time }}{% else %}all day{% endif %}</td>
-        <td>{{ r.reason or "" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="grid responsive-table">
+      <thead><tr><th>Person</th><th>Title</th><th>Team</th><th>Code</th><th>Window</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for r in absent_rows %}
+        <tr>
+          <td data-label="Person" data-stretch="true"><a href="/personnel/{{ r.person.id }}">{{ r.person.full_display }}</a></td>
+          <td data-label="Title">{{ r.rate or "—" }}</td>
+          <td data-label="Team">{{ r.duty_section or "—" }}</td>
+          <td data-label="Code"><span class="pill pill-warn">{{ r.code }}</span></td>
+          <td data-label="Window">{% if r.partial %}{{ r.start_time }}–{{ r.end_time }}{% else %}all day{% endif %}</td>
+          <td data-label="Reason" class="muted">{{ r.reason or "" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
-  <p class="muted">Everyone on the roster is present today.</p>
+  {% call empty_state(title="Everyone present", icon="check", success=true) %}
+    No one on the roster is out today.
+  {% endcall %}
   {% endif %}
 </section>
 
 <section class="block">
   <h2>Present ({{ present_rows|length }})</h2>
-  <table class="grid">
-    <thead><tr><th>Person</th><th>Title</th><th>Team</th></tr></thead>
-    <tbody>
-      {% for r in present_rows %}
-      <tr>
-        <td><a href="/personnel/{{ r.person.id }}">{{ r.person.full_display }}</a></td>
-        <td>{{ r.rate or "—" }}</td>
-        <td>{{ r.duty_section or "—" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if present_rows %}
+  <ul class="row-list">
+    {% for r in present_rows %}
+      <li>
+        <a class="row-list-item" href="/personnel/{{ r.person.id }}">
+          {{ avatar(r.person.full_display) }}
+          <span class="row-main">
+            <span class="row-title">{{ r.person.full_display }}</span>
+            <span class="row-sub">{{ r.rate or "—" }}{% if r.duty_section %} · Team {{ r.duty_section }}{% endif %}</span>
+          </span>
+          <span class="row-chevron" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No one on the active roster.</p>
+  {% endif %}
 </section>
 {% endblock %}

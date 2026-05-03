@@ -1,31 +1,36 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state %}
 {% block title %}Departed personnel{% endblock %}
+{% block page_title %}Departed{% endblock %}
 {% block content %}
 {% include "personnel/_tabs.html" %}
-<h1>Departed <span class="muted">({{ rows|length }})</span></h1>
+
+<h1>Departed <span class="count">({{ rows|length }})</span></h1>
 <p class="muted">Personnel removed from the roster. Their history (qualifications, task completion, absences) is preserved.</p>
 
 {% if not rows %}
-  <div class="block">
-    <p class="muted">No departed personnel.</p>
-  </div>
+  {% call empty_state(title="No departed personnel", icon="check", success=true) %}
+    The roster is intact — no one has been removed yet.
+  {% endcall %}
 {% else %}
-<div class="block">
-<table class="grid">
-  <thead>
-    <tr><th>Title</th><th>Name</th><th>Departed</th><th>Reason</th></tr>
-  </thead>
-  <tbody>
-    {% for r in rows %}
-    <tr>
-      <td>{{ r.rate or "—" }}</td>
-      <td>{{ r.person.last_name }}{% if r.person.first_name %}, {{ r.person.first_name }}{% endif %}</td>
-      <td class="muted">{{ r.departed_at.date() if r.departed_at else "—" }}</td>
-      <td class="muted">{{ r.reason or "—" }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
+<section class="block">
+  <div class="table-wrap">
+    <table class="grid responsive-table">
+      <thead>
+        <tr><th>Title</th><th>Name</th><th>Departed</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td data-label="Title">{{ r.rate or "—" }}</td>
+          <td data-label="Name" data-stretch="true">{{ r.person.last_name }}{% if r.person.first_name %}, {{ r.person.first_name }}{% endif %}</td>
+          <td data-label="Departed" class="muted">{{ r.departed_at.date() if r.departed_at else "—" }}</td>
+          <td data-label="Reason" class="muted">{{ r.reason or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endif %}
 {% endblock %}

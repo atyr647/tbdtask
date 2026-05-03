@@ -13,6 +13,6 @@
 
 <form method="post" action="/task-templates/{{ template.id }}/archive" class="form-inline danger">
   <label>Archive reason <input name="reason" /></label>
-  <button type="submit" onclick="return confirm('Archive this template? Existing instances are preserved.');">Archive</button>
+  <button type="submit" data-confirm="Archive this template? Existing instances are preserved." >Archive</button>
 </form>
 {% endblock %}

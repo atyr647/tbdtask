@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Qual matrix{% endblock %}
+{% block page_title %}Qual matrix{% endblock %}
 {% block content %}
 {% include "quals/_tabs.html" %}
 <h1>Qualification matrix</h1>
@@ -16,6 +17,8 @@
     <li><span class="swatch q-blank">—</span> Not assigned</li>
   </ul>
 </section>
+
+<p class="muted small mt-3">Scroll horizontally to see all qualifications. Person column stays pinned.</p>
 
 <div class="matrix-wrap">
 <table class="matrix">

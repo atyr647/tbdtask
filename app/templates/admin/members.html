@@ -1,95 +1,100 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, avatar, back_link %}
 {% block title %}Members — Admin{% endblock %}
+{% block page_title %}Members{% endblock %}
 {% block content %}
 <section class="admin-section">
-  <h1>Members</h1>
-  <p><a href="/admin">&larr; Back to admin</a></p>
+  {{ back_link("/admin", "Back to admin") }}
+  <h1>Members <span class="count">({{ members|length }})</span></h1>
 
   {% if not members %}
-    <p>No members yet. Issue an <a href="/admin/invites">invitation</a> to add one.</p>
-  {% endif %}
+    {% call empty_state(title="No members yet", icon="users") %}
+      Issue an invitation to add the first member to this organization.
+      <div class="empty-actions">
+        <a class="btn" href="/admin/invites">Issue an invitation</a>
+      </div>
+    {% endcall %}
+  {% else %}
 
-  <table class="admin-table">
-    <thead>
-      <tr>
-        <th>User</th>
-        <th>Status</th>
-        <th>Role grants</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in members %}
-        <tr>
-          <td>
-            <strong>{{ row.user.display_name or row.user.email }}</strong><br />
-            <small>{{ row.user.email }}</small>
-          </td>
-          <td>
-            {{ row.membership.status }}
-            {% if row.membership.suspended_at %}
-              <br /><small>since {{ row.membership.suspended_at.strftime("%Y-%m-%d") }}</small>
-            {% endif %}
-          </td>
-          <td>
-            {% if row.grants %}
-              <ul class="grant-list">
-                {% for g in row.grants %}
-                  <li>
-                    <strong>{{ g.role.name }}</strong>
-                    {% if g.workcenter %}
-                      <em>({{ g.workcenter.name }})</em>
-                    {% else %}
-                      <em>(org-wide)</em>
-                    {% endif %}
-                    <form method="post"
-                          action="/admin/members/{{ row.membership.id }}/roles/{{ g.grant.id }}/revoke"
-                          class="inline-form">
-                      <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-                      <button type="submit" class="link-button">revoke</button>
-                    </form>
-                  </li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <em>no roles</em>
-            {% endif %}
-
-            <form method="post"
-                  action="/admin/members/{{ row.membership.id }}/roles"
-                  class="grant-form">
+  {% for row in members %}
+    {% set m = row.membership %}
+    {% set u = row.user %}
+    <article class="member-card">
+      <header class="member-card-head">
+        {{ avatar(u.display_name or u.email, size=40) }}
+        <div class="member-id">
+          <div class="member-name">{{ u.display_name or u.email }}</div>
+          <div class="member-email">{{ u.email }}</div>
+        </div>
+        <div class="member-status">
+          {% if m.status == "active" %}
+            <span class="pill pill-good">active</span>
+          {% elif m.status == "suspended" %}
+            <span class="pill pill-bad">suspended{% if m.suspended_at %} since {{ m.suspended_at.strftime("%Y-%m-%d") }}{% endif %}</span>
+          {% else %}
+            <span class="pill pill-neutral">{{ m.status }}</span>
+          {% endif %}
+        </div>
+        <div class="member-card-actions">
+          {% if m.status == 'active' and m.id != last_owner_membership_id %}
+            <form method="post" action="/admin/members/{{ m.id }}/suspend" class="inline-form">
               <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-              <select name="role_id" required>
-                <option value="">— pick a role —</option>
-                {% for r in roles %}
-                  <option value="{{ r.id }}">{{ r.name }}</option>
-                {% endfor %}
-              </select>
-              <select name="workcenter_id">
-                <option value="">org-wide</option>
-                {% for wc in workcenters %}
-                  <option value="{{ wc.id }}">{{ wc.name }}</option>
-                {% endfor %}
-              </select>
-              <button type="submit">Grant</button>
+              <button type="submit" class="btn-ghost btn-sm">Suspend</button>
             </form>
-          </td>
-          <td>
-            {% if row.membership.status == 'active' and row.membership.id != last_owner_membership_id %}
-              <form method="post" action="/admin/members/{{ row.membership.id }}/suspend" class="inline-form">
-                <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-                <button type="submit">Suspend</button>
-              </form>
-            {% elif row.membership.status == 'suspended' %}
-              <form method="post" action="/admin/members/{{ row.membership.id }}/restore" class="inline-form">
-                <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-                <button type="submit">Restore</button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          {% elif m.status == 'suspended' %}
+            <form method="post" action="/admin/members/{{ m.id }}/restore" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+              <button type="submit" class="btn-sm">Restore</button>
+            </form>
+          {% endif %}
+        </div>
+      </header>
+
+      <div>
+        <div class="muted small section-label-strong">Role grants</div>
+        {% if row.grants %}
+          <div class="member-roles">
+            {% for g in row.grants %}
+              <span class="pill pill-info pill-removable">
+                <strong class="text-700">{{ g.role.name }}</strong>
+                <span class="muted text-bold">·
+                  {% if g.workcenter %}{{ g.workcenter.name }}{% else %}org-wide{% endif %}
+                </span>
+                <form method="post"
+                      action="/admin/members/{{ m.id }}/roles/{{ g.grant.id }}/revoke"
+                      class="inline-form">
+                  <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+                  <button type="submit" class="pill-x" aria-label="Revoke {{ g.role.name }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+                </form>
+              </span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="muted small m-0">No roles granted.</p>
+        {% endif %}
+      </div>
+
+      <form method="post" action="/admin/members/{{ m.id }}/roles" class="member-grant-form">
+        <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+        <select name="role_id" required aria-label="Pick a role">
+          <option value="">Pick a role…</option>
+          {% for r in roles %}
+            <option value="{{ r.id }}">{{ r.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="workcenter_id" aria-label="Scope">
+          <option value="">Org-wide</option>
+          {% for wc in workcenters %}
+            <option value="{{ wc.id }}">{{ wc.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn-sm">Grant role</button>
+      </form>
+    </article>
+  {% endfor %}
+
+  {% endif %}
 </section>
 {% endblock %}
