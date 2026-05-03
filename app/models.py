@@ -23,6 +23,7 @@ from sqlalchemy import (
     Index,
     Integer,
     JSON,
+    LargeBinary,
     String,
     Text,
     Time,
@@ -306,6 +307,99 @@ class AuthEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), nullable=False, index=True
     )
+
+
+# ---------------------------------------------------------------------------
+# WebAuthn / passkeys (Phase 8a)
+# ---------------------------------------------------------------------------
+#
+# WebAuthn credentials are user-scoped, not org-scoped: a single passkey
+# unlocks every org the user belongs to. Org-scoped key wrapping arrives
+# in Phase 8b via ``credential_keys``.
+#
+# Type choices: byte fields use LargeBinary (portable to SQLite + Postgres
+# bytea), the row id is a 36-char UUID string (no Postgres-only uuid
+# column), and the transports list is JSON rather than text[]. The spec
+# in docs/security-architecture.md describes the Postgres-flavored shape;
+# this is the cross-database implementation.
+
+
+class UserWebauthnCredential(Base):
+    """One row per registered passkey/security key for a user.
+
+    Stores everything we need to verify a future assertion: the COSE
+    public key, the credential id (opaque to the server, unique across
+    the table), the rolling sign-count for replay defence, and the
+    authenticator metadata flags. ``prf_supported`` records the boolean
+    fact of PRF availability detected at registration; the PRF *output*
+    is never stored, logged, or transmitted.
+    """
+
+    __tablename__ = "user_webauthn_credentials"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # WebAuthn credential id — opaque bytes, globally unique per
+    # authenticator. Unique across this table so repeat registrations
+    # are rejected at the DB layer.
+    credential_id: Mapped[bytes] = mapped_column(
+        LargeBinary, nullable=False, unique=True
+    )
+    # COSE_Key public key bytes; verified server-side on every assertion.
+    public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sign_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Authenticator family (FIDO MDS lookup). Nullable for self-attested
+    # platform authenticators that don't return a meaningful AAGUID.
+    aaguid: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    transports: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    backup_eligible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+    backup_state: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    prf_supported: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    nickname: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class StepUpGrant(Base):
+    """Short-lived proof that the user re-verified with a passkey.
+
+    Created by ``finish_assertion`` and consumed by ``require_step_up``.
+    Grants are scoped to a session, a credential, and a *purpose* — a
+    grant for ``admin_grant`` does not satisfy a gate looking for
+    ``export``. Single-use grants set ``consumed_at`` on the first
+    successful match.
+
+    Old grants are pruned on a periodic sweep; the gate also treats
+    ``expires_at < now`` as absent regardless of cleanup state.
+    """
+
+    __tablename__ = "step_up_grants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("user_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    credential_id: Mapped[str] = mapped_column(
+        ForeignKey("user_webauthn_credentials.id"),
+        nullable=False,
+    )
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    consumed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 # ---------------------------------------------------------------------------
