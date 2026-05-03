@@ -316,6 +316,8 @@ main {
 
 /* Buttons --------------------------------------------------------- */
 .btn,
+.btn-secondary,
+.btn-danger,
 button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: var(--accent); color: #fff; font-weight: 600;
@@ -327,11 +329,15 @@ button {
   white-space: nowrap;
   text-decoration: none;
 }
-@media (max-width: 767px) { .btn, button { min-height: 44px; } }
+@media (max-width: 767px) {
+  .btn, .btn-secondary, .btn-danger, button { min-height: 44px; }
+}
 .btn:hover, button:hover { background: var(--accent-soft); text-decoration: none; }
-.btn:active, button:active { transform: translateY(1px); }
-.btn:disabled, button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-.btn:focus-visible, button:focus-visible {
+.btn:active, .btn-secondary:active, .btn-danger:active, button:active { transform: translateY(1px); }
+.btn:disabled, .btn-secondary:disabled, .btn-danger:disabled, button:disabled {
+  opacity: .55; cursor: not-allowed; transform: none;
+}
+.btn:focus-visible, .btn-secondary:focus-visible, .btn-danger:focus-visible, button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -346,14 +352,29 @@ button {
 .btn-ghost,
 .btn.ghost,
 .ghost-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: transparent; color: var(--text);
   border: 1px solid var(--border);
   padding: 7px 12px; min-height: 36px;
-  font-size: 13px;
+  font: inherit; font-size: 13px;
   border-radius: var(--radius-sm);
   font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .12s ease, transform .04s ease, opacity .12s ease;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .04);
 }
-.btn-ghost:hover, .btn.ghost:hover, .ghost-btn:hover { background: var(--panel-3); }
+@media (max-width: 767px) {
+  .btn-ghost, .btn.ghost, .ghost-btn { min-height: 40px; }
+}
+.btn-ghost:hover, .btn.ghost:hover, .ghost-btn:hover {
+  background: var(--panel-3); text-decoration: none; color: var(--text);
+}
+.btn-ghost:active, .btn.ghost:active, .ghost-btn:active { transform: translateY(1px); }
+.btn-ghost:focus-visible, .btn.ghost:focus-visible, .ghost-btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
 
 .btn-danger,
 .btn.danger {

@@ -1,17 +1,24 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}{{ worklist.name }}{% endblock %}
+{% block page_title %}Worklist{% endblock %}
 {% block content %}
-<p><a href="/worklists">&lsaquo; All worklists</a></p>
-<h1>{{ worklist.name }}
-  <span class="muted">— week of {{ worklist.week_starting }}</span>
-  <a class="btn-link" href="/worklists/{{ worklist.id }}/print" target="_blank">Print</a>
-  {% if not worklist.locked %}
-    <form method="post" action="/worklists/{{ worklist.id }}/generate" class="inline-form">
-      <button type="submit" class="ghost-btn">Generate recurring</button>
-    </form>
-    <a class="btn-link" href="#lock">Lock</a>
-  {% endif %}
-</h1>
+{{ back_link("/worklists", "All worklists") }}
+<div class="page-header">
+  <div>
+    <h1>{{ worklist.name }}</h1>
+    <p class="muted small m-0">Week of {{ worklist.week_starting }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn-secondary" href="/worklists/{{ worklist.id }}/print" target="_blank">Print</a>
+    {% if not worklist.locked %}
+      <form method="post" action="/worklists/{{ worklist.id }}/generate" class="inline-form">
+        <button type="submit" class="btn-ghost">Generate recurring</button>
+      </form>
+      <a class="btn" href="#lock">Lock</a>
+    {% endif %}
+  </div>
+</div>
 
 {% if worklist.locked %}
   <p class="warn">🔒 Locked {{ worklist.locked_at.strftime("%Y-%m-%d %H:%M") if worklist.locked_at else "" }}{% if worklist.locked_by_name %} by {{ worklist.locked_by_name }}{% endif %}. Edits require an amendment.</p>

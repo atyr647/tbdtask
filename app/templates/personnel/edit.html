@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Edit {{ person.last_name }}{% endblock %}
+{% block page_title %}Edit person{% endblock %}
 {% block content %}
-<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+{{ back_link("/personnel/" ~ person.id, "Back to " ~ person.full_display) }}
 <h1>Edit {{ person.full_display }}</h1>
 <p class="muted">Effective date defaults to today. Changing title, team/group, planned departure date, or drivers license closes the prior record and opens a new one — old values are preserved as history.</p>
 
@@ -73,7 +75,7 @@
 
   <div class="form-actions">
     <button type="submit">Save</button>
-    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+    <a href="/personnel/{{ person.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
 

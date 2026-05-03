@@ -1,13 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Edit {{ template.name }}{% endblock %}
+{% block page_title %}Edit template{% endblock %}
 {% block content %}
-<p><a href="/task-templates">&lsaquo; Back to templates</a></p>
+{{ back_link("/task-templates", "Back to templates") }}
 <h1>Edit task template</h1>
 <form method="post" action="/task-templates/{{ template.id }}" class="form">
   {% include "templates/_form.html" %}
   <div class="form-actions">
     <button type="submit">Save</button>
-    <a href="/task-templates" class="btn-link">Cancel</a>
+    <a href="/task-templates" class="btn-ghost">Cancel</a>
   </div>
 </form>
 

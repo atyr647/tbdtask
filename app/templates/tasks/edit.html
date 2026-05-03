@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Edit task — {{ instance.name }}{% endblock %}
+{% block page_title %}Edit task{% endblock %}
 {% block content %}
 {% if worklist %}
-  <p><a href="/worklists/{{ worklist.id }}">&lsaquo; Back to {{ worklist.name }}</a></p>
+  {{ back_link("/worklists/" ~ worklist.id, "Back to " ~ worklist.name) }}
 {% else %}
-  <p><a href="/worklists">&lsaquo; Back to worklists</a></p>
+  {{ back_link("/worklists", "Back to worklists") }}
 {% endif %}
 <h1>{{ instance.name }}</h1>
 {% if worklist and worklist.locked %}

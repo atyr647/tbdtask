@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Set up {{ worklist.name }}{% endblock %}
+{% block page_title %}Set up week{% endblock %}
 {% block content %}
-<p><a href="/worklists">&lsaquo; All worklists</a></p>
+{{ back_link("/worklists", "All worklists") }}
 
 <div class="wizard-head">
   <div>

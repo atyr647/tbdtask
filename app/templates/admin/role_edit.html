@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Edit role — Admin{% endblock %}
+{% block page_title %}Edit role{% endblock %}
 {% block content %}
 <section class="admin-section">
   <h1>Edit {{ role.name }}</h1>
-  <p><a href="/admin/roles">&larr; Back to roles</a></p>
+  {{ back_link("/admin/roles", "Back to roles") }}
 
   {% if role.template_slug == 'org_owner' %}
     <p class="admin-note"><strong>Note:</strong> the org_owner role's permissions cannot be changed. Create a custom role for variants.</p>

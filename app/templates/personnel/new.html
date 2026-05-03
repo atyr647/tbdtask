@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}New person{% endblock %}
+{% block page_title %}New person{% endblock %}
 {% block content %}
-<p><a href="/personnel">&lsaquo; Back to roster</a></p>
+{{ back_link("/personnel", "Back to roster") }}
 <h1>Add personnel</h1>
 {% include "personnel/_rate_picker.html" %}
 <form method="post" action="/personnel" class="form">
@@ -60,7 +62,7 @@
 
   <div class="form-actions">
     <button type="submit">Create</button>
-    <a href="/personnel" class="btn-link">Cancel</a>
+    <a href="/personnel" class="btn-ghost">Cancel</a>
   </div>
 </form>
 

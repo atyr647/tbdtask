@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}New incoming person{% endblock %}
+{% block page_title %}Add incoming{% endblock %}
 {% block content %}
 {% include "personnel/_tabs.html" %}
-<p><a href="/personnel/incoming">&lsaquo; Back to incoming</a></p>
+{{ back_link("/personnel/incoming", "Back to incoming") }}
 <h1>Add incoming personnel</h1>
 
 {% include "personnel/_rate_picker.html" %}
@@ -59,7 +61,7 @@
 
   <div class="form-actions">
     <button type="submit">Add to incoming</button>
-    <a href="/personnel/incoming" class="btn-link">Cancel</a>
+    <a href="/personnel/incoming" class="btn-ghost">Cancel</a>
   </div>
 </form>
 

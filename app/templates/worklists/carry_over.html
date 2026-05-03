@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Carry-over — {{ worklist.name }}{% endblock %}
+{% block page_title %}Carry-over review{% endblock %}
 {% block content %}
-<p><a href="/worklists/{{ worklist.id }}">&lsaquo; Back to {{ worklist.name }}</a></p>
+{{ back_link("/worklists/" ~ worklist.id, "Back to " ~ worklist.name) }}
 <h1>Carry-over review</h1>
 <p class="muted">Tasks below were left open or in-progress in earlier weeks. Default action follows the task template's carry-over policy; override per row as needed.</p>
 
@@ -70,7 +72,7 @@
   </table>
   <div class="form-actions">
     <button type="submit">Apply selections</button>
-    <a href="/worklists/{{ worklist.id }}" class="btn-link">Cancel</a>
+    <a href="/worklists/{{ worklist.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
 {% endif %}

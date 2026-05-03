@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}New role — Admin{% endblock %}
+{% block page_title %}New role{% endblock %}
 {% block content %}
 <section class="admin-section">
   <h1>Create a custom role</h1>
-  <p><a href="/admin/roles">&larr; Back to roles</a></p>
+  {{ back_link("/admin/roles", "Back to roles") }}
 
   <form method="post" action="/admin/roles">
     <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
