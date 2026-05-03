@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Set up a passkey{% endblock %}
+{% block page_title %}Set up passkey{% endblock %}
+{% block head_extra %}
+<script src="/static/webauthn.js" defer></script>
+{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>{% if has_credential %}Add another passkey{% else %}Set up a passkey{% endif %}</h1>
+  <p>
+    Passkeys replace passwords with a hardware-backed prompt — Face ID,
+    fingerprint, Windows Hello, or a security key. Your device unlocks
+    a private key that proves it's you, without sending any secret to
+    the server.
+  </p>
+
+  <form method="post" action="/passkey/register"
+        data-options-json='{{ options_json | safe }}'
+        class="form full-width">
+    <input type="hidden" name="csrf_token"
+           value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+    <input type="hidden" name="next" value="{{ next }}" />
+    <label>
+      Nickname (optional)
+      <input type="text" name="nickname" maxlength="64"
+             placeholder="e.g. iPhone, work laptop, YubiKey" />
+    </label>
+    <div class="form-actions">
+      <button type="button" class="btn" data-passkey-register>
+        Set up passkey
+      </button>
+      <a class="btn-ghost" href="{{ next or '/' }}">Cancel</a>
+    </div>
+  </form>
+
+  <p class="muted small">
+    Your browser will prompt you to verify with your device. If you have
+    multiple devices, register each one — that way you don't lose access
+    if a single device is unavailable.
+  </p>
+</section>
+{% endblock %}

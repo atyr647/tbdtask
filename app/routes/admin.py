@@ -49,6 +49,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import models as M
 from ..auth import invites as invites_mod
 from ..auth import sessions as sess_mod
+from ..auth.step_up import require_step_up
 from ..auth.authorization import (
     membership_has_role_template,
     require,
@@ -240,6 +241,7 @@ def suspend_member(
     user: Optional[M.UserAccount] = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(require(P_ORG_MANAGE_MEMBERS)),
+    __: None = require_step_up("admin_grant"),
 ):
     org_id = _resolve_org_id(membership)
     target = db.get(M.OrgMembership, member_id)
@@ -302,6 +304,7 @@ def grant_role(
     user: Optional[M.UserAccount] = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(require(P_ORG_MANAGE_MEMBERS)),
+    __: None = require_step_up("admin_grant"),
 ):
     org_id = _resolve_org_id(membership)
     target = db.get(M.OrgMembership, member_id)
@@ -368,6 +371,7 @@ def revoke_role(
     user: Optional[M.UserAccount] = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(require(P_ORG_MANAGE_MEMBERS)),
+    __: None = require_step_up("admin_grant"),
 ):
     org_id = _resolve_org_id(membership)
     grant = db.get(M.MembershipRole, grant_id)
@@ -533,6 +537,7 @@ def create_invite(
     user: Optional[M.UserAccount] = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(require(P_ORG_INVITE)),
+    __: None = require_step_up("admin_grant"),
 ):
     org_id = _resolve_org_id(membership)
 
@@ -623,6 +628,7 @@ def revoke_invite(
     user: Optional[M.UserAccount] = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(require(P_ORG_INVITE)),
+    __: None = require_step_up("admin_grant"),
 ):
     org_id = _resolve_org_id(membership)
     inv = db.get(M.OrgInvite, invite_id)
@@ -839,6 +845,7 @@ def archive_role(
     user: Optional[M.UserAccount] = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(require(P_ORG_ADMIN)),
+    __: None = require_step_up("admin_grant"),
 ):
     org_id = _resolve_org_id(membership)
     role = db.get(M.Role, role_id)

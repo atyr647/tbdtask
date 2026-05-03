@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Verify with passkey{% endblock %}
+{% block page_title %}Verify with passkey{% endblock %}
+{% block head_extra %}
+<script src="/static/webauthn.js" defer></script>
+{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Verify it's you</h1>
+  <p>
+    This action requires a fresh passkey check. Use the device or
+    security key you registered to confirm — Face ID, fingerprint,
+    Windows Hello, or your hardware key.
+  </p>
+
+  <form method="post" action="/step-up"
+        data-options-json='{{ options_json | safe }}'
+        class="form full-width">
+    <input type="hidden" name="csrf_token"
+           value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+    <input type="hidden" name="purpose" value="{{ purpose }}" />
+    <input type="hidden" name="next" value="{{ next }}" />
+    <div class="form-actions">
+      <button type="button" class="btn" data-passkey-verify>
+        Use passkey
+      </button>
+      <a class="btn-ghost" href="{{ next or '/' }}">Cancel</a>
+    </div>
+  </form>
+
+  <p class="muted small">
+    The verification stays valid for the next 10 minutes for this
+    action. We never store the bytes from your authenticator — only
+    the signature it produces in response to the challenge.
+  </p>
+</section>
+{% endblock %}

@@ -579,6 +579,9 @@ button {
 }
 .row-list-item:hover { background: var(--panel-2); text-decoration: none; color: var(--text); border-color: var(--border); }
 .row-list-item:active { transform: translateY(1px); }
+.row-list-item.static { cursor: default; }
+.row-list-item.static:hover { background: var(--panel); }
+.row-list-item.static:active { transform: none; }
 .row-list-item .avatar {
   width: 36px; height: 36px; flex-shrink: 0;
   border-radius: var(--radius-pill);

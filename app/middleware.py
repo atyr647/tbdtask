@@ -27,6 +27,7 @@ from __future__ import annotations
 import ipaddress
 import os
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from typing import Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -325,7 +326,15 @@ class SessionMiddleware(BaseHTTPMiddleware):
             request.state.user = user
             request.state.membership = membership
 
-            if membership is None:
+            # Phase 8a: passkey enrollment enforcement. After the
+            # grace-period date (configured via env), users without an
+            # active credential are redirected to /passkey/register on
+            # any non-passkey, non-auth page. Before the date, this
+            # block is a no-op so the rollout is gradual.
+            redirect = _passkey_enrollment_redirect(db, request, user)
+            if redirect is not None:
+                response = redirect
+            elif membership is None:
                 # Logged in but no org bound — only ``/no-orgs`` and the org
                 # picker are reachable. Anything else redirects there.
                 if request.url.path not in ("/no-orgs", "/orgs/select"):
@@ -354,6 +363,67 @@ def _redirect_to_login(request: Request) -> Response:
         target = f"{target}?{request.url.query}"
     location = f"/login?next={target}" if target != "/" else "/login"
     return Response(status_code=302, headers={"Location": location})
+
+
+# Paths that must remain reachable even when passkey enrollment is
+# enforced — otherwise the user gets stuck in a redirect loop.
+_PASSKEY_ENROLL_EXEMPT = (
+    "/passkey/",
+    "/step-up",
+    "/auth/",
+    "/login",
+    "/orgs/select",
+    "/no-orgs",
+    "/healthz",
+    "/static/",
+    "/favicon",
+)
+
+
+def _passkey_enrollment_redirect(db, request, user):
+    """Return a 303 to /passkey/register if enrollment is enforced and
+    the user lacks an active credential, else None.
+
+    Enforcement is gated by two env vars so a deployment can opt in
+    gradually:
+
+    * ``TBDTASK_WEBAUTHN_ENABLED=1`` — feature available at all.
+    * ``TBDTASK_WEBAUTHN_ENFORCED_AFTER`` — ISO date (YYYY-MM-DD) after
+      which users without a credential are redirected. Before this
+      date, enrollment is offered but not forced.
+
+    Both unset = no-op.
+    """
+    if user is None:
+        return None
+    from .auth import webauthn as wa
+
+    if not wa.is_enabled():
+        return None
+    enforced_after = os.environ.get("TBDTASK_WEBAUTHN_ENFORCED_AFTER")
+    if not enforced_after:
+        return None
+    try:
+        cutoff = datetime.strptime(enforced_after, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    if datetime.now(timezone.utc).date() < cutoff:
+        return None
+
+    path = request.url.path
+    if any(path == p or path.startswith(p) for p in _PASSKEY_ENROLL_EXEMPT):
+        return None
+
+    if wa.has_active_credential(db, user=user):
+        return None
+
+    target = path
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return Response(
+        status_code=303,
+        headers={"Location": f"/passkey/register?next={target}"},
+    )
 
 
 # ---------------------------------------------------------------------------

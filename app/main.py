@@ -21,6 +21,7 @@ from .routes import (
     auth as auth_routes,
     home,
     onboarding as onboarding_routes,
+    passkey as passkey_routes,
     personnel,
     quals,
     tasks,
@@ -44,6 +45,26 @@ def create_app() -> FastAPI:
     def healthz():
         return {"status": "ok"}
 
+    # Step-up gate: when a sensitive route raises StepUpRequired, redirect
+    # the browser to /step-up rather than returning a JSON 403. API
+    # callers still get the 403 with a structured detail (Accept header
+    # negotiates).
+    from .auth.step_up import StepUpRequired
+    from fastapi.responses import RedirectResponse, JSONResponse
+    from fastapi import Request
+
+    @app.exception_handler(StepUpRequired)
+    async def _step_up_handler(request: Request, exc: StepUpRequired):
+        accept = (request.headers.get("accept") or "").lower()
+        wants_html = "text/html" in accept
+        nxt = exc.next_path or str(request.url)
+        if wants_html:
+            return RedirectResponse(
+                f"/step-up?purpose={exc.purpose}&next={nxt}",
+                status_code=303,
+            )
+        return JSONResponse(exc.detail, status_code=exc.status_code)
+
     # Middleware order matters (Starlette runs them outside-in for the
     # request, inside-out for the response). Read top-to-bottom as the
     # response journey: app → CSRF → Session → AuthRateLimit → SecureHeaders
@@ -60,6 +81,7 @@ def create_app() -> FastAPI:
     # SINGLE_TENANT mode because the SessionMiddleware short-circuits
     # before reaching them and /login itself redirects to /.
     app.include_router(auth_routes.router)
+    app.include_router(passkey_routes.router)
     app.include_router(onboarding_routes.router)
 
     app.include_router(home.router)

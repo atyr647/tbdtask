@@ -37,6 +37,7 @@ from ..auth.dependencies import (
 )
 from ..auth.permissions import ROLE_TEMPLATES
 from ..auth.security import CSRF_COOKIE_NAME, issue_csrf_token
+from ..auth.step_up import require_step_up
 from ..middleware import _client_ip
 from ..templating import templates
 
@@ -645,6 +646,7 @@ def org_delete(
     user: M.UserAccount = Depends(require_user),
     session: M.UserSession = Depends(get_current_session),
     db: Session = Depends(get_db),
+    _: None = require_step_up("admin_grant"),
 ):
     """Delete the entire organization.
 

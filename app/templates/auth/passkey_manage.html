@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty_state, icon_plus %}
+{% block title %}Your passkeys{% endblock %}
+{% block page_title %}Passkeys{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Your passkeys</h1>
+  <div class="page-actions">
+    <a class="btn" href="/passkey/register">{{ icon_plus() }} <span>Add passkey</span></a>
+  </div>
+</div>
+<p class="muted">
+  Each device that can sign in has its own passkey. Adding a second device
+  is the simplest recovery path.
+</p>
+
+{% if not credentials %}
+  {% call empty_state(title="No passkeys yet", icon="info") %}
+    Add a passkey to enable biometric sign-in and the step-up prompts
+    on sensitive actions.
+    <div class="empty-actions">
+      <a class="btn" href="/passkey/register">{{ icon_plus() }} <span>Add passkey</span></a>
+    </div>
+  {% endcall %}
+{% else %}
+<section class="block">
+  <ul class="row-list">
+    {% for c in credentials %}
+    <li>
+      <div class="row-list-item static">
+        <span class="row-main">
+          <span class="row-title">
+            {{ c.nickname or "Unnamed passkey" }}
+            {% if c.revoked_at %}<span class="pill pill-bad">revoked</span>
+            {% elif c.prf_supported %}<span class="pill pill-good">PRF</span>
+            {% else %}<span class="pill pill-neutral">no PRF</span>{% endif %}
+          </span>
+          <span class="row-sub">
+            Added {{ c.created_at.strftime("%Y-%m-%d") }}
+            {% if c.last_used_at %}· Last used {{ c.last_used_at.strftime("%Y-%m-%d %H:%M") }}{% endif %}
+            {% if c.aaguid %}· AAGUID {{ c.aaguid[:8] }}…{% endif %}
+          </span>
+        </span>
+        {% if not c.revoked_at %}
+        <span class="row-meta">
+          <form method="post" action="/passkey/{{ c.id }}/rename" class="form-inline-row">
+            <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+            <input name="nickname" value="{{ c.nickname or '' }}" placeholder="Nickname" />
+            <button type="submit" class="btn-ghost btn-sm">Rename</button>
+          </form>
+          <form method="post" action="/passkey/{{ c.id }}/revoke" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+            <button type="submit" class="btn-ghost btn-sm"
+                    data-confirm="Revoke this passkey? You'll need to sign in again on that device.">
+              Revoke
+            </button>
+          </form>
+        </span>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}
