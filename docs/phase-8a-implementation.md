@@ -10,17 +10,36 @@
 ## Goals
 
 1. Every member has at least one registered WebAuthn credential after a grace period.
-2. PRF support is detected at registration and recorded; non-PRF credentials are usable for step-up but not for future field decrypt (8c+).
+2. PRF support is detected at registration and the *boolean fact of support* is recorded. Non-PRF credentials are usable for step-up but not for future field decrypt (8c+).
 3. Sensitive admin actions require a recent passkey verification (step-up), not just a session cookie.
 4. The credential layer is audited at the same fidelity as the existing OIDC layer.
 
 ## Non-goals (deferred)
 
 - Field-level encryption (Phase 8c).
-- KEK derivation / key wrapping (Phase 8b — only the PRF *output handle* is captured, not used).
+- KEK derivation / key wrapping (Phase 8b — 8a does not derive, transmit, or store any KEK).
 - Admin recovery flow (Phase 8b).
 - Member-removal rotation (Phase 8e).
 - Mobile-mediated desktop QR approval (Phase 8b/c interaction).
+
+## PRF handling rule (load-bearing)
+
+**PRF output bytes are never stored, logged, transmitted, or echoed back to
+the server.** In 8a, the registration flow probes PRF support by attempting
+an evaluation client-side; the only thing that crosses the wire is a boolean
+`prf_supported` flag derived from "did the authenticator return *any* PRF
+output?". The PRF bytes themselves are discarded immediately after the probe.
+
+In 8b, when PRF output is actually needed to derive `KEK_credential`, the
+output exists only in the browser tab's RAM, only for the few milliseconds
+between `navigator.credentials.get()` returning and `HKDF` consuming it. It
+is then zeroed (or dropped to GC for non-extractable `CryptoKey` paths,
+preferred) and never re-derived without a fresh user verification.
+
+This rule is in the spec to defend against the most common implementation
+mistake: a developer who, while debugging, logs the PRF output once and
+silently keeps the line in. Code review and a lint rule (no `console.log`
+inside `webauthn.js`) enforce the property.
 
 ## Schema additions
 
@@ -358,7 +377,7 @@ No client-side library; Web Crypto + native `navigator.credentials` are sufficie
 - `user_webauthn_credentials.id` is the FK target for `credential_keys.credential_id`.
 - `user_webauthn_credentials.prf_supported` gates whether a credential can be used for KEK derivation.
 - Step-up infrastructure (`step_up_grants`, `require_step_up`) is reused unchanged; 8b adds new purposes (`enrollment_wrap`, `recovery_unwrap`).
-- The PRF probe in `webauthn.js` returns the actual PRF output for the second eval — 8a captures *whether* PRF works; 8b uses the *output*.
+- The `webauthn.js` PRF probe is reused, but 8b extends it: instead of discarding the PRF output, 8b feeds it into a non-extractable `CryptoKey` via `subtle.importKey` + `subtle.deriveKey(HKDF)`, all within the same tick of the event loop. The raw PRF bytes still never leave the browser tab. 8a captures *whether* PRF works; 8b uses the output transiently in RAM only.
 
 ---
 

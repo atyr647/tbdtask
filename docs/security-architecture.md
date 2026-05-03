@@ -16,10 +16,25 @@
 ### Protects against
 - Database dump exposure (cloud provider snoop, lost backup tape, S3 misconfiguration).
 - Encrypted backups exposed in transit or at rest.
-- Accidental plaintext logging of sensitive fields (the encrypted column never appears as plaintext in app logs because the app only handles ciphertext on the server side).
+- Accidental plaintext logging of sensitive fields. On the **normal request path**, the server handles ciphertext only — encrypted columns never appear as plaintext in app logs, error reports, or APM traces, because the application code never decrypts them.
 - Sideways/upward access blocked by the existing authz layer; if that layer leaks rows, the leaked rows are still ciphertext under a key the leaker doesn't hold.
 - Removed members accessing **future** encrypted writes (post-compromise security).
 - Ordinary server-side authorization bugs leaking encrypted rows: ciphertext alone is useless without the key.
+
+### Server's role on the key path
+
+The server's relationship to key material is path-dependent:
+
+| Path | Server access to key material |
+|---|---|
+| **Normal request** (read/write a sensitive field) | Ciphertext only. Decryption is client-side after passkey unlock. The server never holds an unwrapped DEK or KEK on this path. |
+| **Recovery / rotation** (admin recovery, member-removal rotation, KEK rollover) | The server uses the KMS-held operator key (§9) to unwrap and re-wrap key material. This is a deliberate, audited, rate-limited capability — not a general decryption capability for sensitive fields. The operator key wraps `KEK_org_master`; it does not directly wrap individual DEKs or any field ciphertext. |
+| **Backup / DR restore** | Wrapped DEKs and wrapped KEKs are restored as ciphertext. Restoring a backup does not give the server access to unwrapped keys. |
+
+This is why the system is honestly framed as "client-side encrypted with
+authorized admin recovery," not zero-knowledge: the operator-key path means
+the server *can* (under the controls in §8) participate in unwrapping. It
+does not mean the server *does* on every request.
 
 ### Does not fully protect against
 - A malicious server operator shipping altered client JS that exfiltrates plaintext from RAM after unlock. This is the fundamental ceiling of "encrypted SaaS in a browser" — see §13 (Build Integrity) for what's done to raise the bar.
@@ -92,7 +107,7 @@ not part of MVP.
 - **KDF: HKDF-SHA256** for deriving KEKs from PRF output and for recovery-phrase paths.
 - **Server crypto:** `cryptography` (PyCA) only. No hand-rolled primitives.
 - **Client crypto:** Web Crypto API only (`subtle.encrypt`, `subtle.deriveKey`). No `sjcl`, no random NPM packages, no userland CryptoJS.
-- **Key wrapping:** AES-256-GCM key wrap (RFC 5116 AEAD-style, not RFC 3394 — Web Crypto exposes GCM, not the standalone wrap).
+- **Envelope wrapping:** wrap operations encrypt the wrappee (a DEK or KEK) as the *plaintext input* of an AES-256-GCM encryption under the wrapping key, with a fresh random IV and the same wire format as §6. This is **AEAD envelope wrapping**, *not* RFC 3394 AES-KW (NIST SP 800-38F). The distinction matters: AES-KW is a deterministic block-cipher mode without a public IV; what we use is GCM with a fresh IV per wrap and the standard auth tag. The Web Crypto API exposes GCM directly; AES-KW is exposed separately as `AES-KW` and we deliberately do **not** use it. Wrapped blobs include the §6 header, so a wrapped key is byte-compatible with any other ciphertext on the wire.
 
 ## 6. Wire Format
 
@@ -106,7 +121,7 @@ Every encrypted blob on the wire and at rest:
 |---|---|---|
 | `version` | 1 | Currently `0x01` |
 | `algo` | 1 | `0x01` = AES-256-GCM |
-| `key_id` | 16 | UUIDv4 of the `data_keys` row (or KEK row, depending on context) |
+| `key_id` | 16 | UUIDv4 of the `data_keys` row (or KEK row, depending on context). Encoded **big-endian (network byte order)** as defined by RFC 4122 §4.1.2 — `time_low` (4 bytes BE), `time_mid` (2 BE), `time_hi_and_version` (2 BE), `clock_seq_hi_and_reserved` (1), `clock_seq_low` (1), `node` (6). Same layout PostgreSQL uses for `uuid` on the wire. Never store as hex or as Python's `bytes_le`. |
 | `iv` | 12 | Random per-encrypt; never reused with the same key |
 | `ciphertext` | N | Variable |
 | `tag` | 16 | AES-GCM auth tag |
@@ -128,7 +143,7 @@ context at decrypt time, so any swap fails the GCM tag check.
 ```sql
 credential_keys
   id                          uuid pk
-  credential_id               fk → user_webauthn_credential
+  credential_id               fk → user_webauthn_credentials.id
   org_id                      fk → organizations
   wrapped_org_kek             bytea            -- KEK_org_master wrapped under KEK_credential
   prf_salt                    bytea (32)       -- input to PRF for this credential×org
@@ -284,15 +299,29 @@ rotation completes.
 A new device cannot recover existing data on its own — its
 `KEK_credential` is unrelated to any existing credential's KEK.
 
+**PRF outputs stay device-local.** The old device never receives the new
+device's PRF output, and the new device never receives the old device's PRF
+output. They establish an authenticated ephemeral channel and pass only
+`KEK_org_master` (the wrappee), which the new device then wraps under its
+*own* locally-derived `KEK_credential_new`.
+
 Flow:
-1. Old trusted device opens migration page → biometric/passkey unlock with PRF.
-2. Server creates short-lived (≤60 s) single-use migration token, bound to: source OAuth `sub`, org_id, TLS channel hash.
-3. Old device displays QR encoding only `{ session_id, new_device_pubkey_slot }` — no key material, no plaintext.
-4. New device scans QR → completes OAuth login (must match source `sub`) → registers passkey, proves PRF support.
-5. Old device unwraps `KEK_org_master` locally, derives `KEK_credential_new` from new device's PRF output via the standard HKDF chain, rewraps `KEK_org_master` under it.
-6. Server stores the new wrapped blob in `credential_keys` with `wrapped_by_credential_id` = old device's credential.
-7. Migration token is burned.
-8. Audit log records the new device registration.
+1. **Old device** opens migration page, performs biometric/passkey unlock with PRF, derives `KEK_credential_old` *in-tab* (PRF output never leaves the device).
+2. **Server** creates a short-lived (≤60 s) single-use migration token bound to: source OAuth `sub`, `org_id`, and TLS channel hash. Token does **not** carry any key material.
+3. **Old device** displays a QR encoding `{ session_id, migration_token, rp_id }`. No key material in the QR.
+4. **New device** scans the QR, completes OAuth login (must match source `sub`), registers a passkey, and proves PRF support. The new device derives `KEK_credential_new` *in-tab* (PRF output never leaves the device).
+5. **New device** generates an ephemeral X25519 (or P-256) key pair `(eph_priv_B, eph_pub_B)` *in-tab* and posts `eph_pub_B` to the server, scoped to the migration token.
+6. **Old device** fetches `eph_pub_B`, derives a one-shot transport key via ECDH(`eph_priv_A` ephemeral generated in-tab, `eph_pub_B`) → HKDF, unwraps `KEK_org_master` locally with `KEK_credential_old`, and re-encrypts it under the transport key.
+7. **Old device** posts `eph_pub_A` and the transport-encrypted `KEK_org_master` to the server, addressed to the migration token.
+8. **New device** fetches `eph_pub_A` and the transport-encrypted blob, completes ECDH, decrypts to recover `KEK_org_master` *in-tab*, re-wraps it under `KEK_credential_new` *locally*, and posts the new wrapped blob to the server.
+9. **Server** stores the new wrapped blob in `credential_keys` with `wrapped_by_credential_id` = old device's credential. Server has only ever seen the transport-encrypted intermediate and the final ciphertext-wrapped blob.
+10. Migration token is burned. Audit log records the new device registration.
+
+Properties:
+- Each device's PRF output is consumed only inside the device that produced it.
+- The transport channel is one-shot, ephemeral, and authenticated by the migration token.
+- The server holds only ciphertext at every step of the handoff.
+- Replay or token theft yields nothing decryptable: the transport key is bound to the ephemeral `(A, B)` ECDH pair the legitimate parties generated.
 
 If old device is unavailable: only the admin recovery path (§8) can
 mint a new wrap.
