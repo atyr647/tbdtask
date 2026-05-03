@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Choose an organization{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Choose an organization</h1>
+  <p>You belong to more than one. Pick the one you want to work in.</p>
+  {% for m in memberships %}
+    <form method="post" action="/orgs/select" class="org-pick">
+      <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+      <input type="hidden" name="membership_id" value="{{ m.membership_id }}" />
+      <button type="submit">{{ m.org_name }}</button>
+    </form>
+  {% endfor %}
+</section>
+{% endblock %}

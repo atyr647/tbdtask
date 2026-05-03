@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Worklist Tracker{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Sign in</h1>
+  {% if providers %}
+    <p>Continue with one of the providers your org supports.</p>
+    <ul class="auth-providers">
+      {% for p in providers %}
+        <li>
+          <a class="auth-provider auth-provider--{{ p.name }}"
+             href="/auth/{{ p.name }}/login{% if next and next != '/' %}?next={{ next|urlencode }}{% endif %}">
+            Sign in with {{ p.display_name }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="auth-empty">
+      No identity providers are configured for this deployment.
+      Set <code>OIDC_GOOGLE_CLIENT_ID</code>, <code>OIDC_MICROSOFT_CLIENT_ID</code>,
+      or <code>OIDC_APPLE_CLIENT_ID</code> (with their corresponding secrets)
+      and restart the app.
+    </p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -10,12 +10,24 @@ dependencies = [
     "alembic>=1.13",
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
+    # Auth + security utilities (Phase 1). Authlib drives the OIDC clients
+    # for Apple/Google/Microsoft; itsdangerous signs CSRF tokens and the
+    # state/nonce we round-trip through OIDC redirects; httpx is Authlib's
+    # async transport.
+    "authlib>=1.3",
+    "httpx>=0.27",
+    "itsdangerous>=2.2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "httpx>=0.27",
+]
+# Hosted-mode dependency. Not pulled in by the AppImage build, which uses
+# the bundled SQLite. Install with ``pip install -e .[postgres]`` to run
+# the hosted/multi-tenant backend (Phase 0+).
+postgres = [
+    "psycopg[binary]>=3.2",
 ]
 
 [build-system]

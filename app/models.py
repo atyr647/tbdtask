@@ -32,6 +32,263 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+from .tenancy import TenantScopedMixin
+
+
+# ---------------------------------------------------------------------------
+# Organization (tenant root)
+# ---------------------------------------------------------------------------
+
+class Organization(Base):
+    """A tenant. Every row in a tenant-scoped table FKs back to one of these.
+
+    ``slug`` is the URL-stable identifier. ``settings_json`` holds per-org
+    configuration (retention windows, allowed providers, sensitive-info
+    re-acknowledgment interval) — fully populated in later phases.
+    """
+
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    settings_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Identity & sessions (Phase 1)
+# ---------------------------------------------------------------------------
+
+# Allowed values for ``identity.provider``. Any new provider must land here
+# AND in the OIDC client registry — the auth code asserts the two are in sync.
+IDENTITY_PROVIDERS: tuple[str, ...] = ("apple", "google", "microsoft")
+
+# Allowed values for ``org_membership.status``. ``pending`` covers an
+# invite that hasn't been accepted; ``suspended`` keeps the row around (for
+# audit + restoration) without granting access.
+MEMBERSHIP_STATUSES: tuple[str, ...] = ("active", "pending", "suspended")
+
+
+class UserAccount(Base):
+    """A login identity. Not tied to any one organization.
+
+    Auth is OIDC-only: there is no password column, no recovery token, no
+    email-link fallback. Recovery routes through the upstream IdP. ``email``
+    is the canonical contact address (lowercased, unique) but is *not* used
+    on its own to identify a user during sign-in — that's always
+    ``(provider, subject)`` from the IdP.
+    """
+
+    __tablename__ = "user_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)
+    display_name: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+        nullable=False,
+    )
+    # Set when the account is administratively disabled. Sessions belonging
+    # to a disabled user are revoked on next request, not retroactively
+    # purged.
+    disabled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    identities: Mapped[list["Identity"]] = relationship(back_populates="user")
+    memberships: Mapped[list["OrgMembership"]] = relationship(back_populates="user")
+
+
+class Identity(Base):
+    """An OIDC identity attached to a ``UserAccount``.
+
+    Lookup at sign-in is always ``(provider, subject)`` since ``subject`` is
+    the only stable identifier across email changes upstream. Email-based
+    matching is allowed only as a candidate for *explicit* linking — never
+    for silent merge. Apple private-relay addresses are flagged via
+    ``email_verified=False`` on the linking path even when Apple says
+    verified, since they prove relay control, not mailbox control.
+    """
+
+    __tablename__ = "identities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user_accounts.id"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    subject: Mapped[str] = mapped_column(String(256), nullable=False)
+    # Snapshot at link time; used only for display, never for lookup.
+    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    linked_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+
+    user: Mapped["UserAccount"] = relationship(back_populates="identities")
+
+    __table_args__ = (
+        UniqueConstraint("provider", "subject", name="uq_identity_provider_subject"),
+        CheckConstraint(
+            "provider IN ('apple','google','microsoft')",
+            name="ck_identity_provider",
+        ),
+    )
+
+
+class OrgMembership(Base):
+    """Links a ``UserAccount`` to an ``Organization`` with a status.
+
+    ``role_template_id`` is added in Phase 2. Until then, every active
+    member has the same effective permissions (i.e. "logged in") — real
+    authorization gates land with the permission catalog.
+    """
+
+    __tablename__ = "org_memberships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user_accounts.id"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    suspended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    user: Mapped["UserAccount"] = relationship(back_populates="memberships")
+    organization: Mapped["Organization"] = relationship()
+
+    __table_args__ = (
+        # A user can have at most one membership per org; multi-org users
+        # have separate rows. Distinct memberships per status (e.g. archived
+        # + active) are not modelled — we soft-suspend instead.
+        UniqueConstraint("org_id", "user_id", name="uq_org_membership_org_user"),
+        CheckConstraint(
+            "status IN ('active','pending','suspended')",
+            name="ck_org_membership_status",
+        ),
+    )
+
+
+class UserSession(Base):
+    """Server-side session record. The cookie carries only the opaque ``id``.
+
+    Every authenticated request looks the row up, verifies ``revoked_at IS
+    NULL``, ``last_seen_at`` within the idle window, and ``created_at``
+    within the absolute window. Suspending a membership or disabling a user
+    revokes their sessions on the next request, not retroactively (sessions
+    cleaned up by a periodic sweep — Phase 7).
+
+    Not tenant-scoped: a user can hold sessions across multiple orgs in
+    different tabs/devices, each session bound to a specific membership.
+    """
+
+    __tablename__ = "user_sessions"
+
+    # Random URL-safe token (256 bits). Stored as the primary key so cookie
+    # validation is a single PK lookup. Never logged in plaintext.
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user_accounts.id"), nullable=False, index=True
+    )
+    # Nullable until the user picks an org (zero-org users land on
+    # ``/no-orgs`` with a session that has no membership bound).
+    current_membership_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("org_memberships.id"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+
+
+class OrgInvite(Base):
+    """A signed invite token an org admin issues so an outsider can join.
+
+    Invite tokens are stored hashed so a DB leak doesn't expose live
+    invitations. The signed token (sent to the invitee out-of-band) is
+    never persisted in plaintext. ``intended_email`` is optional — when
+    set, the accept flow refuses to bind the invite to any other user.
+    Phase 2 builds the admin UI that creates these; Phase 1 only ships
+    the model + accept endpoint so users with no orgs can be onboarded.
+    """
+
+    __tablename__ = "org_invites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    # SHA-256 hex digest of the raw invite token. Lookup uses this; the
+    # raw token never touches the DB.
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    # Required: an invite is bound to one specific email and is rejected
+    # if the redeeming user's canonical email differs. Prevents a leaked
+    # invite from being claimed by anyone but the intended recipient.
+    intended_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user_accounts.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    accepted_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user_accounts.id"), nullable=True
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class AuthEvent(Base):
+    """Minimal audit trail for auth-flow events.
+
+    Phase 4 introduces the full ``audit_event`` table with structured
+    before/after diffs for tenant data; this table covers only the
+    auth-layer events that need to be auditable from day one (login,
+    logout, link, unlink, suspended-session-revoke). Kept separate so the
+    auth audit trail survives even if the broader audit subsystem is
+    misconfigured.
+    """
+
+    __tablename__ = "auth_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("user_accounts.id"), nullable=True, index=True
+    )
+    session_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    provider: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    # Free-form, but never contains tokens, secrets, or full IdP responses
+    # — only metadata like ``{"reason": "membership_suspended"}``.
+    detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    ip: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False, index=True
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +323,7 @@ class ProvenanceMixin:
 # Provenance / import tracking
 # ---------------------------------------------------------------------------
 
-class ImportBatch(Base, TimestampMixin):
+class ImportBatch(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "import_batches"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -85,7 +342,7 @@ class ImportBatch(Base, TimestampMixin):
 # Personnel
 # ---------------------------------------------------------------------------
 
-class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "persons"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -122,7 +379,7 @@ def _effective_date_cols():
     )
 
 
-class PersonRate(Base, TimestampMixin, ProvenanceMixin):
+class PersonRate(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_rates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -140,7 +397,7 @@ class PersonRate(Base, TimestampMixin, ProvenanceMixin):
     )
 
 
-class PersonDutySection(Base, TimestampMixin, ProvenanceMixin):
+class PersonDutySection(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_duty_sections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -156,7 +413,7 @@ class PersonDutySection(Base, TimestampMixin, ProvenanceMixin):
     )
 
 
-class PersonPrd(Base, TimestampMixin, ProvenanceMixin):
+class PersonPrd(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     """Projected Rotation Date. New row per change (initial / extension / correction)."""
 
     __tablename__ = "person_prds"
@@ -172,7 +429,7 @@ class PersonPrd(Base, TimestampMixin, ProvenanceMixin):
     person: Mapped["Person"] = relationship(back_populates="prds")
 
 
-class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin):
+class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_roster_status"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -192,7 +449,7 @@ class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin):
     )
 
 
-class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin):
+class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_drivers_licenses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -209,7 +466,7 @@ class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin):
 # Qualifications
 # ---------------------------------------------------------------------------
 
-class Qualification(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Qualification(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "qualifications"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -239,7 +496,7 @@ PERSON_QUAL_STATUSES = (
 )
 
 
-class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_quals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -269,16 +526,19 @@ class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
 # Absences
 # ---------------------------------------------------------------------------
 
-class AbsenceCode(Base, TimestampMixin, SoftDeleteMixin):
+class AbsenceCode(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "absence_codes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Code is unique per-org (Phase 3 swaps the global UNIQUE for a composite
+    # one over (org_id, code)). Kept globally unique for now since the
+    # backfilled DB has only one org.
     code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
-class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "absences"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -303,16 +563,18 @@ class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
 # Crews (plumbing only for now)
 # ---------------------------------------------------------------------------
 
-class Crew(Base, TimestampMixin, SoftDeleteMixin):
+class Crew(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "crews"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Same per-org-uniqueness story as AbsenceCode.code — global UNIQUE for
+    # now, becomes (org_id, name) composite in Phase 3.
     name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
 
-class CrewMembership(Base, TimestampMixin):
+class CrewMembership(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "crew_memberships"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -327,10 +589,12 @@ class CrewMembership(Base, TimestampMixin):
 # Tasks
 # ---------------------------------------------------------------------------
 
-class TaskCategory(Base, TimestampMixin, SoftDeleteMixin):
+class TaskCategory(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "task_categories"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Same per-org-uniqueness story as AbsenceCode/Crew. Phase 3 swaps the
+    # global UNIQUE for (org_id, name).
     name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -343,7 +607,7 @@ CARRY_OVER_POLICIES = (
 )
 
 
-class TaskTemplate(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class TaskTemplate(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "task_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -391,7 +655,7 @@ TASK_INSTANCE_STATUSES = (
 )
 
 
-class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "worklists"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -408,7 +672,7 @@ class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
-class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
+class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "task_instances"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -441,7 +705,7 @@ class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin):
     )
 
 
-class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin):
+class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "task_assignments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -477,7 +741,7 @@ class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin):
 # Alerts
 # ---------------------------------------------------------------------------
 
-class Alert(Base, TimestampMixin):
+class Alert(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

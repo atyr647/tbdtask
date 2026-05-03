@@ -10,6 +10,9 @@ data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
+# Per-install dev fallback for TBDTASK_SECRET_KEY. Hosted deployments
+# must set the env var explicitly; the file shouldn't ship in git.
+data/secret_key
 .env
 
 # Build artifacts: keep the final AppImages, throw away the intermediate
