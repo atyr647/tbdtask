@@ -7,6 +7,7 @@ Conventions:
 - Imported rows are tagged with import_batch_id for provenance.
 - Display ordering is explicit via display_order where the UI is order-sensitive.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime, time
@@ -38,6 +39,7 @@ from .tenancy import TenantScopedMixin
 # ---------------------------------------------------------------------------
 # Organization (tenant root)
 # ---------------------------------------------------------------------------
+
 
 class Organization(Base):
     """A tenant. Every row in a tenant-scoped table FKs back to one of these.
@@ -310,6 +312,7 @@ class AuthEvent(Base):
 # Authorization (Phase 2): workcenters, roles, permission grants
 # ---------------------------------------------------------------------------
 
+
 class Workcenter(Base):
     """A nested grouping inside an org used for permission scoping.
 
@@ -422,9 +425,7 @@ class Role(Base):
         # template_slug NULL and aren't subject to this constraint;
         # SQLite doesn't enforce uniqueness on NULL columns by default,
         # which is what we want here.
-        UniqueConstraint(
-            "org_id", "template_slug", name="uq_role_org_template_slug"
-        ),
+        UniqueConstraint("org_id", "template_slug", name="uq_role_org_template_slug"),
     )
 
 
@@ -510,6 +511,7 @@ class MembershipRole(Base):
 # Mixins
 # ---------------------------------------------------------------------------
 
+
 class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), nullable=False
@@ -538,12 +540,15 @@ class ProvenanceMixin:
 # Provenance / import tracking
 # ---------------------------------------------------------------------------
 
+
 class ImportBatch(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "import_batches"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_file: Mapped[str] = mapped_column(String(512), nullable=False)
-    source_workbook_version: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    source_workbook_version: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True
+    )
     started_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), nullable=False
     )
@@ -556,6 +561,7 @@ class ImportBatch(Base, TimestampMixin, TenantScopedMixin):
 # ---------------------------------------------------------------------------
 # Personnel
 # ---------------------------------------------------------------------------
+
 
 class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "persons"
@@ -571,20 +577,36 @@ class Person(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScope
     # Incoming / arrival tracking. Populated for personnel still en route;
     # cleared (or just ignored) once they're on board and active.
     arrival_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    sponsor_person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persons.id"), nullable=True)
-    orders_received: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    itinerary_received: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    sponsor_person_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("persons.id"), nullable=True
+    )
+    orders_received: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    itinerary_received: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     aob_scheduled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    barracks_assigned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    barracks_assigned: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     rates: Mapped[list["PersonRate"]] = relationship(back_populates="person")
-    duty_sections: Mapped[list["PersonDutySection"]] = relationship(back_populates="person")
+    duty_sections: Mapped[list["PersonDutySection"]] = relationship(
+        back_populates="person"
+    )
     prds: Mapped[list["PersonPrd"]] = relationship(back_populates="person")
-    roster_statuses: Mapped[list["PersonRosterStatus"]] = relationship(back_populates="person")
-    drivers_licenses: Mapped[list["PersonDriversLicense"]] = relationship(back_populates="person")
+    roster_statuses: Mapped[list["PersonRosterStatus"]] = relationship(
+        back_populates="person"
+    )
+    drivers_licenses: Mapped[list["PersonDriversLicense"]] = relationship(
+        back_populates="person"
+    )
     quals: Mapped[list["PersonQual"]] = relationship(back_populates="person")
     absences: Mapped[list["Absence"]] = relationship(back_populates="person")
-    sponsor: Mapped[Optional["Person"]] = relationship(remote_side=[id], foreign_keys=[sponsor_person_id])
+    sponsor: Mapped[Optional["Person"]] = relationship(
+        remote_side=[id], foreign_keys=[sponsor_person_id]
+    )
 
 
 def _effective_date_cols():
@@ -598,7 +620,9 @@ class PersonRate(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_rates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
     rate: Mapped[str] = mapped_column(String(32), nullable=False)
     paygrade: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
@@ -607,16 +631,16 @@ class PersonRate(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
 
     person: Mapped["Person"] = relationship(back_populates="rates")
 
-    __table_args__ = (
-        Index("ix_person_rates_current", "person_id", "valid_to"),
-    )
+    __table_args__ = (Index("ix_person_rates_current", "person_id", "valid_to"),)
 
 
 class PersonDutySection(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_duty_sections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
     duty_section: Mapped[int] = mapped_column(Integer, nullable=False)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -634,9 +658,13 @@ class PersonPrd(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixin):
     __tablename__ = "person_prds"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
     prd_date: Mapped[date] = mapped_column(Date, nullable=False)
-    change_reason: Mapped[str] = mapped_column(String(32), default="initial", nullable=False)
+    change_reason: Mapped[str] = mapped_column(
+        String(32), default="initial", nullable=False
+    )
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -648,7 +676,9 @@ class PersonRosterStatus(Base, TimestampMixin, ProvenanceMixin, TenantScopedMixi
     __tablename__ = "person_roster_status"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -668,7 +698,9 @@ class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin, TenantScopedMi
     __tablename__ = "person_drivers_licenses"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
     has_license: Mapped[bool] = mapped_column(Boolean, nullable=False)
     expires_on: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
@@ -681,7 +713,10 @@ class PersonDriversLicense(Base, TimestampMixin, ProvenanceMixin, TenantScopedMi
 # Qualifications
 # ---------------------------------------------------------------------------
 
-class Qualification(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
+
+class Qualification(
+    Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin
+):
     __tablename__ = "qualifications"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -693,11 +728,11 @@ class Qualification(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, Tena
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    person_quals: Mapped[list["PersonQual"]] = relationship(back_populates="qualification")
-
-    __table_args__ = (
-        UniqueConstraint("name", name="uq_qualification_name"),
+    person_quals: Mapped[list["PersonQual"]] = relationship(
+        back_populates="qualification"
     )
+
+    __table_args__ = (UniqueConstraint("name", name="uq_qualification_name"),)
 
 
 PERSON_QUAL_STATUSES = (
@@ -711,12 +746,18 @@ PERSON_QUAL_STATUSES = (
 )
 
 
-class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
+class PersonQual(
+    Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin
+):
     __tablename__ = "person_quals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
-    qual_id: Mapped[int] = mapped_column(ForeignKey("qualifications.id"), nullable=False, index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
+    qual_id: Mapped[int] = mapped_column(
+        ForeignKey("qualifications.id"), nullable=False, index=True
+    )
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     achieved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -741,6 +782,7 @@ class PersonQual(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantS
 # Absences
 # ---------------------------------------------------------------------------
 
+
 class AbsenceCode(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "absence_codes"
 
@@ -753,11 +795,15 @@ class AbsenceCode(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
-class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
+class Absence(
+    Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin
+):
     __tablename__ = "absences"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
     code_id: Mapped[int] = mapped_column(ForeignKey("absence_codes.id"), nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -769,14 +815,13 @@ class Absence(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScop
     person: Mapped["Person"] = relationship(back_populates="absences")
     code: Mapped["AbsenceCode"] = relationship()
 
-    __table_args__ = (
-        Index("ix_absences_dates", "start_date", "end_date"),
-    )
+    __table_args__ = (Index("ix_absences_dates", "start_date", "end_date"),)
 
 
 # ---------------------------------------------------------------------------
 # Crews (plumbing only for now)
 # ---------------------------------------------------------------------------
+
 
 class Crew(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "crews"
@@ -793,8 +838,12 @@ class CrewMembership(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "crew_memberships"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    crew_id: Mapped[int] = mapped_column(ForeignKey("crews.id"), nullable=False, index=True)
-    person_id: Mapped[int] = mapped_column(ForeignKey("persons.id"), nullable=False, index=True)
+    crew_id: Mapped[int] = mapped_column(
+        ForeignKey("crews.id"), nullable=False, index=True
+    )
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("persons.id"), nullable=False, index=True
+    )
     role: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -803,6 +852,7 @@ class CrewMembership(Base, TimestampMixin, TenantScopedMixin):
 # ---------------------------------------------------------------------------
 # Tasks
 # ---------------------------------------------------------------------------
+
 
 class TaskCategory(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     __tablename__ = "task_categories"
@@ -822,12 +872,16 @@ CARRY_OVER_POLICIES = (
 )
 
 
-class TaskTemplate(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
+class TaskTemplate(
+    Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin
+):
     __tablename__ = "task_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
-    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("task_categories.id"), nullable=True)
+    category_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("task_categories.id"), nullable=True
+    )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     estimated_hours: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     splittable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -836,9 +890,13 @@ class TaskTemplate(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, Tenan
         String(32), default="auto_same_person", nullable=False
     )
     recurrence_rule: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    required_drivers_license: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    required_drivers_license: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     required_duty_section: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    required_crew_id: Mapped[Optional[int]] = mapped_column(ForeignKey("crews.id"), nullable=True)
+    required_crew_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("crews.id"), nullable=True
+    )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -858,7 +916,9 @@ class TaskTemplateRequiredQual(Base):
     task_template_id: Mapped[int] = mapped_column(
         ForeignKey("task_templates.id"), primary_key=True
     )
-    qual_id: Mapped[int] = mapped_column(ForeignKey("qualifications.id"), primary_key=True)
+    qual_id: Mapped[int] = mapped_column(
+        ForeignKey("qualifications.id"), primary_key=True
+    )
 
 
 TASK_INSTANCE_STATUSES = (
@@ -870,14 +930,18 @@ TASK_INSTANCE_STATUSES = (
 )
 
 
-class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
+class Worklist(
+    Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin
+):
     __tablename__ = "worklists"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     week_starting: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("worklists.id"), nullable=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("worklists.id"), nullable=True
+    )
     locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     locked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     locked_by_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
@@ -887,14 +951,24 @@ class Worklist(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantSco
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
-class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin):
+class TaskInstance(
+    Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, TenantScopedMixin
+):
     __tablename__ = "task_instances"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    template_id: Mapped[Optional[int]] = mapped_column(ForeignKey("task_templates.id"), nullable=True)
-    worklist_id: Mapped[Optional[int]] = mapped_column(ForeignKey("worklists.id"), nullable=True, index=True)
-    scheduled_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
-    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("task_categories.id"), nullable=True)
+    template_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("task_templates.id"), nullable=True
+    )
+    worklist_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("worklists.id"), nullable=True, index=True
+    )
+    scheduled_date: Mapped[Optional[date]] = mapped_column(
+        Date, nullable=True, index=True
+    )
+    category_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("task_categories.id"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="open", nullable=False)
@@ -909,7 +983,9 @@ class TaskInstance(Base, TimestampMixin, SoftDeleteMixin, ProvenanceMixin, Tenan
     )
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    assignments: Mapped[list["TaskAssignment"]] = relationship(back_populates="instance")
+    assignments: Mapped[list["TaskAssignment"]] = relationship(
+        back_populates="instance"
+    )
     category: Mapped[Optional["TaskCategory"]] = relationship()
 
     __table_args__ = (
@@ -927,9 +1003,13 @@ class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
     instance_id: Mapped[int] = mapped_column(
         ForeignKey("task_instances.id"), nullable=False, index=True
     )
-    person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persons.id"), nullable=True)
+    person_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("persons.id"), nullable=True
+    )
     is_poic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    external_poic_name: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    external_poic_name: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True
+    )
     completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     completion_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     hours_worked: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -956,13 +1036,16 @@ class TaskAssignment(Base, TimestampMixin, SoftDeleteMixin, TenantScopedMixin):
 # Alerts
 # ---------------------------------------------------------------------------
 
+
 class Alert(Base, TimestampMixin, TenantScopedMixin):
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     alert_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(16), default="info", nullable=False)
-    person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persons.id"), nullable=True, index=True)
+    person_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("persons.id"), nullable=True, index=True
+    )
     task_instance_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("task_instances.id"), nullable=True
     )
@@ -977,6 +1060,7 @@ class Alert(Base, TimestampMixin, TenantScopedMixin):
 # Settings
 # ---------------------------------------------------------------------------
 
+
 class Setting(Base, TimestampMixin):
     __tablename__ = "settings"
 
@@ -988,6 +1072,7 @@ class Setting(Base, TimestampMixin):
 # ---------------------------------------------------------------------------
 # Data audit log (Phase 4)
 # ---------------------------------------------------------------------------
+
 
 class DataAuditEvent(Base, TenantScopedMixin):
     """Immutable record of who changed what tenant data and when.

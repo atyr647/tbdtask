@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Absence calendar{% endblock %}
+{% block page_title %}Absence calendar{% endblock %}
 {% block content %}
 {% include "absences/_tabs.html" %}
 <h1>Absence calendar</h1>
@@ -74,35 +75,6 @@
   </tbody>
 </table>
 </div>
-
-<script>
-(function() {
-  const input = document.getElementById("cal-search");
-  const countEl = document.getElementById("cal-search-count");
-  const rows = Array.from(document.querySelectorAll("tr.cal-row"));
-  function apply() {
-    const q = input.value.trim().toLowerCase();
-    let visible = 0;
-    for (const row of rows) {
-      const haystack = row.dataset.search || "";
-      const match = !q || haystack.includes(q);
-      row.style.display = match ? "" : "none";
-      if (match) visible++;
-    }
-    countEl.textContent = q ? `${visible} of ${rows.length} match` : "";
-  }
-  input.addEventListener("input", apply);
-
-  // Click anywhere on a row (except the person link) to toggle a sticky
-  // highlight, so an operator scanning a wide grid can pin a single row.
-  for (const row of rows) {
-    row.addEventListener("click", (ev) => {
-      if (ev.target.closest("a")) return;
-      row.classList.toggle("selected");
-    });
-  }
-})();
-</script>
 
 <section class="block">
   <h2>Legend</h2>

@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Set up {{ worklist.name }}{% endblock %}
+{% block page_title %}Set up week{% endblock %}
 {% block content %}
-<p><a href="/worklists">&lsaquo; All worklists</a></p>
+{{ back_link("/worklists", "All worklists") }}
 
 <div class="wizard-head">
   <div>
@@ -78,7 +80,7 @@
         <td>
           <form method="post" action="/tasks/{{ primary.instance.id }}/archive" class="form-inline-row">
             <input type="hidden" name="reason" value="removed during setup" />
-            <button type="submit" class="ghost" onclick="return confirm('Remove this task?');">Remove</button>
+            <button type="submit" class="ghost" data-confirm="Remove this task?" >Remove</button>
           </form>
         </td>
       </tr>
@@ -130,60 +132,4 @@
   <a class="btn-link" href="/worklists/{{ worklist.id }}">Open the finished worklist &rsaquo;</a>
 </div>
 
-<script>
-(function() {
-  const peopleData = JSON.parse(document.getElementById("people-data").textContent);
-  function setupCombobox(root) {
-    const input = root.querySelector("[data-combo-input]");
-    const results = root.querySelector("[data-combo-results]");
-    const chips = root.querySelector("[data-combo-chips]");
-    const targetName = input.dataset.targetName;
-    const selected = new Map();
-    function render() {
-      chips.innerHTML = "";
-      root.querySelectorAll("input[type=hidden][data-combo-hidden]").forEach(n => n.remove());
-      for (const [id, label] of selected) {
-        const li = document.createElement("li");
-        li.className = "combobox-chip";
-        li.textContent = label + " ✕";
-        li.title = "Click to remove";
-        li.addEventListener("click", () => { selected.delete(id); render(); });
-        chips.appendChild(li);
-        const h = document.createElement("input");
-        h.type = "hidden"; h.name = targetName; h.value = id;
-        h.dataset.comboHidden = "1";
-        root.appendChild(h);
-      }
-    }
-    function show(query) {
-      const q = (query || "").trim().toLowerCase();
-      results.innerHTML = "";
-      const matches = peopleData
-        .filter(p => !selected.has(String(p.id)))
-        .filter(p => !q || p.label.toLowerCase().includes(q))
-        .slice(0, 10);
-      if (!matches.length) { results.classList.remove("open"); return; }
-      for (const m of matches) {
-        const div = document.createElement("div");
-        div.className = "combobox-result";
-        div.textContent = m.label;
-        div.addEventListener("mousedown", (ev) => {
-          ev.preventDefault();
-          selected.set(String(m.id), m.label);
-          input.value = "";
-          results.classList.remove("open");
-          render();
-          input.focus();
-        });
-        results.appendChild(div);
-      }
-      results.classList.add("open");
-    }
-    input.addEventListener("focus", () => show(input.value));
-    input.addEventListener("input", () => show(input.value));
-    input.addEventListener("blur", () => setTimeout(() => results.classList.remove("open"), 150));
-  }
-  for (const root of document.querySelectorAll("[data-combo]")) setupCombobox(root);
-})();
-</script>
 {% endblock %}

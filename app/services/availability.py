@@ -5,6 +5,7 @@ Answers "who's at work, who isn't, and why" for a given date. The output is
 derived on demand from absence records and effective-dated roster status, so
 there's no duplicated state to keep in sync.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -52,7 +53,9 @@ class DayReport:
     def percent_present(self) -> float:
         if self.total == 0:
             return 0.0
-        return round((self.present_full + self.partial_absent / 2) / self.total * 100, 1)
+        return round(
+            (self.present_full + self.partial_absent / 2) / self.total * 100, 1
+        )
 
 
 def _current_attr(rows, attr):
@@ -70,8 +73,7 @@ def get_day_report(session: Session, on_date: date) -> DayReport:
     ).all()
     # Active absence rows that overlap on_date.
     absences = session.scalars(
-        select(M.Absence)
-        .where(
+        select(M.Absence).where(
             M.Absence.active == True,  # noqa: E712
             M.Absence.start_date <= on_date,
             M.Absence.end_date >= on_date,
@@ -96,18 +98,28 @@ def get_day_report(session: Session, on_date: date) -> DayReport:
             else:
                 full_absent += 1
             by_code[code] = by_code.get(code, 0) + 1
-        rows.append(PersonDay(
-            person=p, rate=rate, duty_section=ds,
-            absence=absence, code=code, partial=partial,
-            start_time=absence.start_time if absence else None,
-            end_time=absence.end_time if absence else None,
-            reason=absence.reason if absence else None,
-        ))
+        rows.append(
+            PersonDay(
+                person=p,
+                rate=rate,
+                duty_section=ds,
+                absence=absence,
+                code=code,
+                partial=partial,
+                start_time=absence.start_time if absence else None,
+                end_time=absence.end_time if absence else None,
+                reason=absence.reason if absence else None,
+            )
+        )
 
     total = len(rows)
     present_full = total - full_absent - partial_absent
     return DayReport(
-        on_date=on_date, rows=rows, total=total,
-        full_absent=full_absent, partial_absent=partial_absent,
-        present_full=present_full, by_code=by_code,
+        on_date=on_date,
+        rows=rows,
+        total=total,
+        full_absent=full_absent,
+        partial_absent=partial_absent,
+        present_full=present_full,
+        by_code=by_code,
     )

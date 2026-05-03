@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}You're not in any organization yet{% endblock %}
+{% block page_title %}Welcome{% endblock %}
 {% block content %}
-<section class="auth-card">
-  <h1>You're signed in, but not in an organization yet</h1>
-  <p>Pick one of the options below.</p>
+<section class="auth-card auth-card--wide">
+  <h1>You're signed in</h1>
+  <p>You're not in any organization yet. Pick one of the options below to get started.</p>
 
   {% if pending_invites %}
     <h2>Pending invites</h2>
@@ -14,7 +15,7 @@
           <form method="post" action="/orgs/select" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
             <input type="hidden" name="membership_id" value="{{ invite.membership_id }}" />
-            <button type="submit">Accept</button>
+            <button type="submit" class="btn-sm">Accept</button>
           </form>
         </li>
       {% endfor %}
@@ -22,31 +23,35 @@
   {% endif %}
 
   <h2>Redeem an invite link</h2>
-  <p>Paste the invite token an org admin sent you.</p>
-  <form method="post" action="/invites/accept">
+  <p class="muted">Paste the invite token an admin sent you.</p>
+  <form method="post" action="/invites/accept" class="form full-width">
     <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-    <label>
-      Invite token
+    <label>Invite token
       <input type="text" name="token" autocomplete="off" required />
     </label>
-    <button type="submit">Redeem</button>
+    <div class="form-actions">
+      <button type="submit" class="btn">Redeem</button>
+    </div>
   </form>
 
+  <hr />
+
   <h2>Or create a new organization</h2>
-  <p>You'll be the founding member.</p>
-  <form method="post" action="/orgs/create">
+  <p class="muted">You'll be the founding member.</p>
+  <form method="post" action="/orgs/create" class="form full-width">
     <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-    <label>
-      Organization name
+    <label>Organization name
       <input type="text" name="name" maxlength="128" required />
     </label>
-    <button type="submit">Create</button>
+    <div class="form-actions">
+      <button type="submit" class="btn">Create</button>
+    </div>
   </form>
 
   <hr />
   <form method="post" action="/auth/logout" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-    <button type="submit" class="link-button">Sign out</button>
+    <button type="submit" class="btn-ghost btn-block">Sign out</button>
   </form>
 </section>
 {% endblock %}

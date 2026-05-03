@@ -14,10 +14,9 @@ covered in ``test_phase2_authz`` for the gate, and individual route
 behaviour is tested by calling the route handler functions directly
 with a real DB session and a stubbed request.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import pytest
 from sqlalchemy import select
@@ -31,6 +30,7 @@ from app.routes import admin as admin_mod
 # ---------------------------------------------------------------------------
 # Helpers (mirror test_phase2_authz to keep tests independent)
 # ---------------------------------------------------------------------------
+
 
 def _make_org(session, *, slug="alpha", name="Alpha Org"):
     org = M.Organization(slug=slug, name=name)
@@ -89,6 +89,7 @@ def _grant(session, *, membership, role, workcenter=None):
 # Slug helper
 # ---------------------------------------------------------------------------
 
+
 class TestSlugify:
     def test_basic(self):
         assert admin_mod._slugify("Deck Division") == "deck-division"
@@ -105,13 +106,14 @@ class TestSlugify:
 # Last-owner guard
 # ---------------------------------------------------------------------------
 
+
 class TestLastOwnerGuard:
     def test_returns_id_when_only_one_owner(self, session):
         org = _make_org(session)
         u1 = _make_user(session, email="a@example.com")
         u2 = _make_user(session, email="b@example.com")
         m1 = _make_membership(session, org=org, user=u1)
-        m2 = _make_membership(session, org=org, user=u2)
+        _make_membership(session, org=org, user=u2)
         roles = _seed_all_roles(session, org.id)
         _grant(session, membership=m1, role=roles["org_owner"])
         # m2 has only LPO, not owner
@@ -166,6 +168,7 @@ class TestLastOwnerGuard:
 # Invite helpers — ensure the admin route's entry point validates inputs
 # ---------------------------------------------------------------------------
 
+
 class TestInviteCreation:
     def test_create_invite_lowercases_email(self, session):
         org = _make_org(session)
@@ -214,15 +217,14 @@ class TestInviteCreation:
         )
         invite = session.get(M.OrgInvite, issued.invite_id)
         assert invite.token_hash != issued.raw_token  # not the raw token
-        assert invite.token_hash == invites_mod.hash_invite_token(
-            issued.raw_token
-        )
+        assert invite.token_hash == invites_mod.hash_invite_token(issued.raw_token)
 
 
 # ---------------------------------------------------------------------------
 # Workcenter cycle protection — the admin route checks ancestry on save.
 # We exercise the same ancestor walker the routes call into.
 # ---------------------------------------------------------------------------
+
 
 class TestWorkcenterReparentValidation:
     def test_self_parent_creates_loop_caught_by_walker(self, session):
@@ -256,6 +258,7 @@ class TestWorkcenterReparentValidation:
 # Role catalog defence — admin route refuses unknown perm codes
 # ---------------------------------------------------------------------------
 
+
 class TestRoleCatalogDefence:
     def test_is_known_permission_rejects_garbage(self):
         from app.auth.permissions import is_known_permission
@@ -270,14 +273,15 @@ class TestRoleCatalogDefence:
 # Org creation grants founder the org_owner role
 # ---------------------------------------------------------------------------
 
+
 class TestOrgCreatorRoleGrant:
     def test_founding_member_gets_org_owner_role(self, session):
         """When a user creates a new org, the onboarding route grants
         them the ``org_owner`` role so they can administer it immediately."""
-        from app.routes.onboarding import org_create
 
         org = _make_org(session)
-        roles = {t.slug: _seed_role(session, org.id, t) for t in ROLE_TEMPLATES}
+        for t in ROLE_TEMPLATES:
+            _seed_role(session, org.id, t)
 
         # Simulate what the route does: create org + membership, then
         # grant the org_owner role (the code we added in onboarding.py).

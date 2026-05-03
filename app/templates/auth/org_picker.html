@@ -1,19 +1,29 @@
 {% extends "base.html" %}
+{% from "_macros.html" import avatar %}
 {% block title %}Choose an organization{% endblock %}
+{% block page_title %}Choose organization{% endblock %}
 {% block content %}
-<section class="auth-card">
+<section class="org-picker">
   <h1>Choose an organization</h1>
   {% if memberships|length > 1 %}
     <p>You belong to more than one. Pick the one you want to work in.</p>
   {% else %}
     <p>Select your organization to continue.</p>
   {% endif %}
-  {% for m in memberships %}
-    <form method="post" action="/orgs/select" class="org-pick">
-      <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-      <input type="hidden" name="membership_id" value="{{ m.membership_id }}" />
-      <button type="submit">{{ m.org_name }}</button>
-    </form>
-  {% endfor %}
+  <div class="org-picker-list">
+    {% for m in memberships %}
+      <form method="post" action="/orgs/select" class="inline-form d-block">
+        <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+        <input type="hidden" name="membership_id" value="{{ m.membership_id }}" />
+        <button type="submit" class="org-picker-card">
+          {{ avatar(m.org_name, size=40) }}
+          <span class="org-name">{{ m.org_name }}</span>
+          <span class="org-arrow" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </span>
+        </button>
+      </form>
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}

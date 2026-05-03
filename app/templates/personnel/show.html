@@ -1,8 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}{{ person.full_display }}{% endblock %}
+{% block page_title %}Person{% endblock %}
 {% block content %}
-<p><a href="/personnel">&lsaquo; Back to roster</a></p>
-<h1>{{ person.full_display }} <a class="btn-link" href="/personnel/{{ person.id }}/edit">Edit</a></h1>
+{{ back_link("/personnel", "Back to roster") }}
+<div class="page-header">
+  <h1>{{ person.full_display }}</h1>
+  <div class="page-actions">
+    <a class="btn-secondary" href="/personnel/{{ person.id }}/edit">Edit</a>
+  </div>
+</div>
 {% if person.notes %}<p class="muted">{{ person.notes }}</p>{% endif %}
 {% if not person.active %}<p class="warn">Departed{% if person.archived_reason %}: {{ person.archived_reason }}{% endif %}</p>{% endif %}
 

@@ -1,11 +1,14 @@
 """Tests for the availability service — % present math, partial-day handling."""
+
 from __future__ import annotations
 
 from datetime import date, time as time_t, timedelta
 
 from app.services.availability import get_day_report
 from tests.conftest import (
-    make_absence, make_absence_codes, make_person,
+    make_absence,
+    make_absence_codes,
+    make_person,
 )
 
 
@@ -29,8 +32,13 @@ def test_full_day_absences_subtract_from_present(session):
     make_person(session, "Here1", display_order=1)
     make_person(session, "Here2", display_order=2)
     make_person(session, "Here3", display_order=3)
-    make_absence(session, person_id=p1.id, code_id=codes["Leave"].id,
-                 start_date=out_today, end_date=out_today)
+    make_absence(
+        session,
+        person_id=p1.id,
+        code_id=codes["Leave"].id,
+        start_date=out_today,
+        end_date=out_today,
+    )
     session.commit()
 
     rep = get_day_report(session, out_today)
@@ -49,10 +57,16 @@ def test_partial_day_counts_as_half_present(session):
         make_person(session, f"P{i}", display_order=i)
     p_partial = make_person(session, "Appt", display_order=4)
     # 5 people total; 1 with partial-day Appt 09:00–11:00
-    make_absence(session, person_id=p_partial.id, code_id=codes["Appt"].id,
-                 start_date=today, end_date=today,
-                 start_time=time_t(9, 0), end_time=time_t(11, 0),
-                 reason="dental")
+    make_absence(
+        session,
+        person_id=p_partial.id,
+        code_id=codes["Appt"].id,
+        start_date=today,
+        end_date=today,
+        start_time=time_t(9, 0),
+        end_time=time_t(11, 0),
+        reason="dental",
+    )
     session.commit()
 
     rep = get_day_report(session, today)
@@ -69,13 +83,29 @@ def test_mixed_full_and_partial_combine_correctly(session):
     codes = make_absence_codes(session)
     today = date(2026, 5, 5)
     persons = [make_person(session, f"P{i}", display_order=i) for i in range(36)]
-    make_absence(session, person_id=persons[0].id, code_id=codes["Leave"].id,
-                 start_date=today, end_date=today)
-    make_absence(session, person_id=persons[1].id, code_id=codes["TAD"].id,
-                 start_date=today, end_date=today)
-    make_absence(session, person_id=persons[2].id, code_id=codes["Appt"].id,
-                 start_date=today, end_date=today,
-                 start_time=time_t(9, 0), end_time=time_t(11, 0))
+    make_absence(
+        session,
+        person_id=persons[0].id,
+        code_id=codes["Leave"].id,
+        start_date=today,
+        end_date=today,
+    )
+    make_absence(
+        session,
+        person_id=persons[1].id,
+        code_id=codes["TAD"].id,
+        start_date=today,
+        end_date=today,
+    )
+    make_absence(
+        session,
+        person_id=persons[2].id,
+        code_id=codes["Appt"].id,
+        start_date=today,
+        end_date=today,
+        start_time=time_t(9, 0),
+        end_time=time_t(11, 0),
+    )
     session.commit()
 
     rep = get_day_report(session, today)
@@ -93,8 +123,13 @@ def test_multi_day_absence_covers_each_day_in_range(session):
     p1 = make_person(session, "OnLeave", display_order=0)
     make_person(session, "Here", display_order=1)
     monday = date(2026, 5, 4)
-    make_absence(session, person_id=p1.id, code_id=codes["Leave"].id,
-                 start_date=monday, end_date=monday + timedelta(days=4))
+    make_absence(
+        session,
+        person_id=p1.id,
+        code_id=codes["Leave"].id,
+        start_date=monday,
+        end_date=monday + timedelta(days=4),
+    )
     session.commit()
 
     for offset in range(5):
@@ -108,6 +143,7 @@ def test_multi_day_absence_covers_each_day_in_range(session):
 
 def test_archived_personnel_not_counted_in_total(session):
     from datetime import datetime as _dt
+
     p1 = make_person(session, "Active", display_order=0)
     p2 = make_person(session, "Departed", display_order=1)
     p2.active = False
@@ -125,12 +161,27 @@ def test_by_code_breakdown_groups_correctly(session):
     pa = make_person(session, "A", display_order=0)
     pb = make_person(session, "B", display_order=1)
     pc = make_person(session, "C", display_order=2)
-    make_absence(session, person_id=pa.id, code_id=codes["Leave"].id,
-                 start_date=today, end_date=today)
-    make_absence(session, person_id=pb.id, code_id=codes["Leave"].id,
-                 start_date=today, end_date=today)
-    make_absence(session, person_id=pc.id, code_id=codes["TAD"].id,
-                 start_date=today, end_date=today)
+    make_absence(
+        session,
+        person_id=pa.id,
+        code_id=codes["Leave"].id,
+        start_date=today,
+        end_date=today,
+    )
+    make_absence(
+        session,
+        person_id=pb.id,
+        code_id=codes["Leave"].id,
+        start_date=today,
+        end_date=today,
+    )
+    make_absence(
+        session,
+        person_id=pc.id,
+        code_id=codes["TAD"].id,
+        start_date=today,
+        end_date=today,
+    )
     session.commit()
 
     rep = get_day_report(session, today)

@@ -36,11 +36,13 @@ def _sensitive_warnings(*texts: Optional[str]) -> list[str]:
 
 
 def _codes(s):
-    return list(s.scalars(
-        select(M.AbsenceCode)
-        .where(M.AbsenceCode.active == True)  # noqa: E712
-        .order_by(M.AbsenceCode.display_order)
-    ).all())
+    return list(
+        s.scalars(
+            select(M.AbsenceCode)
+            .where(M.AbsenceCode.active == True)  # noqa: E712
+            .order_by(M.AbsenceCode.display_order)
+        ).all()
+    )
 
 
 def _parse_time(value: Optional[str]) -> Optional[time]:
@@ -133,7 +135,9 @@ def new_absence_form(request: Request, _: None = Depends(require(P_ABSENCES_WRIT
                 .order_by(M.Person.display_order)
             ).all()
         )
-    return render(request, "absences/new.html", person=None, codes=codes, all_people=people)
+    return render(
+        request, "absences/new.html", person=None, codes=codes, all_people=people
+    )
 
 
 @router.post("/absences")
@@ -159,13 +163,16 @@ async def create_absence(
             people = list(
                 s.scalars(
                     select(M.Person)
-                    .where(M.Person.active == True)
+                    .where(M.Person.active == True)  # noqa: E712
                     .order_by(M.Person.display_order)
                 ).all()
             )
         return render(
-            request, "absences/new.html",
-            person=None, codes=codes, all_people=people,
+            request,
+            "absences/new.html",
+            person=None,
+            codes=codes,
+            all_people=people,
             sensitive_warnings=field_warnings,
             form_data={
                 "person_id": person_id,
@@ -242,8 +249,11 @@ async def update_absence(
             p = s.get(M.Person, a.person_id)
             codes = _codes(s)
             return render(
-                request, "absences/edit.html",
-                absence=a, person=p, codes=codes,
+                request,
+                "absences/edit.html",
+                absence=a,
+                person=p,
+                codes=codes,
                 sensitive_warnings=field_warnings,
             )
 

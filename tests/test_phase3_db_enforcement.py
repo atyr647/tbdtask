@@ -4,6 +4,7 @@ These tests prove that the database itself blocks cross-org access,
 even if the app layer forgets to filter. They run against the actual
 DB engine (not just the ORM) to verify RLS / constraint enforcement.
 """
+
 import uuid
 import pytest
 from datetime import date
@@ -23,7 +24,8 @@ def _ensure_rls_test_role():
         return
     try:
         with engine.begin() as conn:
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 DO $$
                 BEGIN
                     IF NOT EXISTS (
@@ -33,15 +35,20 @@ def _ensure_rls_test_role():
                     END IF;
                 END
                 $$;
-            """))
+            """)
+            )
             conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {RLS_TEST_ROLE}"))
-            conn.execute(text(
-                f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public "
-                f"TO {RLS_TEST_ROLE}"
-            ))
-            conn.execute(text(
-                f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {RLS_TEST_ROLE}"
-            ))
+            conn.execute(
+                text(
+                    f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public "
+                    f"TO {RLS_TEST_ROLE}"
+                )
+            )
+            conn.execute(
+                text(
+                    f"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {RLS_TEST_ROLE}"
+                )
+            )
     except Exception as exc:
         pytest.skip(f"cannot create/grant RLS test role: {exc}")
 
@@ -62,7 +69,11 @@ def _make_person(session, org_id, last_name="Test"):
 
 
 def _make_worklist(session, org_id, name="WL"):
-    wl = M.Worklist(week_starting=date(2026, 1, 5), name=f"{name}-{uuid.uuid4().hex[:8]}", org_id=org_id)
+    wl = M.Worklist(
+        week_starting=date(2026, 1, 5),
+        name=f"{name}-{uuid.uuid4().hex[:8]}",
+        org_id=org_id,
+    )
     session.add(wl)
     session.flush()
     return wl
@@ -71,6 +82,7 @@ def _make_worklist(session, org_id, name="WL"):
 # ---------------------------------------------------------------------------
 # Test 1: Cross-org read blocked at DB level
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(IS_SQLITE, reason="RLS is Postgres-only")
 def test_cross_org_read_blocked_db_level():
@@ -92,19 +104,27 @@ def test_cross_org_read_blocked_db_level():
             conn.execute(text(f"SET app.current_org_id = '{org_a.id}'"))
 
             # Should only see Alice.
-            result = conn.execute(text(f"SELECT * FROM persons WHERE org_id = {org_a.id}"))
+            result = conn.execute(
+                text(f"SELECT * FROM persons WHERE org_id = {org_a.id}")
+            )
             assert len(result.fetchall()) == 1
 
-            result = conn.execute(text(f"SELECT * FROM persons WHERE org_id = {org_b.id}"))
+            result = conn.execute(
+                text(f"SELECT * FROM persons WHERE org_id = {org_b.id}")
+            )
             assert len(result.fetchall()) == 0  # RLS blocks org B rows
 
             conn.execute(text("RESET ROLE"))
     finally:
         session.rollback()
         if p_a and p_b:
-            session.query(M.Person).filter(M.Person.id.in_([p_a.id, p_b.id])).delete(synchronize_session=False)
+            session.query(M.Person).filter(M.Person.id.in_([p_a.id, p_b.id])).delete(
+                synchronize_session=False
+            )
         if org_a and org_b:
-            session.query(M.Organization).filter(M.Organization.id.in_([org_a.id, org_b.id])).delete(synchronize_session=False)
+            session.query(M.Organization).filter(
+                M.Organization.id.in_([org_a.id, org_b.id])
+            ).delete(synchronize_session=False)
         session.commit()
         session.close()
 
@@ -112,6 +132,7 @@ def test_cross_org_read_blocked_db_level():
 # ---------------------------------------------------------------------------
 # Test 2: Cross-org insert blocked at DB level
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(IS_SQLITE, reason="RLS is Postgres-only")
 def test_cross_org_insert_blocked_db_level():
@@ -135,7 +156,9 @@ def test_cross_org_insert_blocked_db_level():
             nested = outer_conn.begin_nested()
             try:
                 outer_conn.execute(
-                    text(f"INSERT INTO persons (last_name, full_display, org_id) VALUES ('Spy', 'Spy', {org_b.id})")
+                    text(
+                        f"INSERT INTO persons (last_name, full_display, org_id) VALUES ('Spy', 'Spy', {org_b.id})"
+                    )
                 )
                 outer_conn.commit()
                 assert False, "RLS should have blocked the insert"
@@ -146,9 +169,13 @@ def test_cross_org_insert_blocked_db_level():
             outer_conn.commit()
     finally:
         session.rollback()
-        session.query(M.Person).filter(M.Person.last_name == "Spy").delete(synchronize_session=False)
+        session.query(M.Person).filter(M.Person.last_name == "Spy").delete(
+            synchronize_session=False
+        )
         if org_a and org_b:
-            session.query(M.Organization).filter(M.Organization.id.in_([org_a.id, org_b.id])).delete(synchronize_session=False)
+            session.query(M.Organization).filter(
+                M.Organization.id.in_([org_a.id, org_b.id])
+            ).delete(synchronize_session=False)
         session.commit()
         session.close()
 
@@ -156,6 +183,7 @@ def test_cross_org_insert_blocked_db_level():
 # ---------------------------------------------------------------------------
 # Test 3: App bug simulation — bypass filter, DB still enforces
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(IS_SQLITE, reason="RLS is Postgres-only")
 def test_app_bypass_still_blocked_by_db():
@@ -185,9 +213,13 @@ def test_app_bypass_still_blocked_by_db():
     finally:
         session.rollback()
         if wl_a and wl_b:
-            session.query(M.Worklist).filter(M.Worklist.id.in_([wl_a.id, wl_b.id])).delete(synchronize_session=False)
+            session.query(M.Worklist).filter(
+                M.Worklist.id.in_([wl_a.id, wl_b.id])
+            ).delete(synchronize_session=False)
         if org_a and org_b:
-            session.query(M.Organization).filter(M.Organization.id.in_([org_a.id, org_b.id])).delete(synchronize_session=False)
+            session.query(M.Organization).filter(
+                M.Organization.id.in_([org_a.id, org_b.id])
+            ).delete(synchronize_session=False)
         session.commit()
         session.close()
 
@@ -195,6 +227,7 @@ def test_app_bypass_still_blocked_by_db():
 # ---------------------------------------------------------------------------
 # Test 4: Fail-closed — no org_id set means no access
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.skipif(IS_SQLITE, reason="RLS is Postgres-only")
 def test_fail_closed_no_org_set():
@@ -220,9 +253,13 @@ def test_fail_closed_no_org_set():
     finally:
         session.rollback()
         if p:
-            session.query(M.Person).filter(M.Person.id == p.id).delete(synchronize_session=False)
+            session.query(M.Person).filter(M.Person.id == p.id).delete(
+                synchronize_session=False
+            )
         if org:
-            session.query(M.Organization).filter(M.Organization.id == org.id).delete(synchronize_session=False)
+            session.query(M.Organization).filter(M.Organization.id == org.id).delete(
+                synchronize_session=False
+            )
         session.commit()
         session.close()
 
@@ -230,6 +267,7 @@ def test_fail_closed_no_org_set():
 # ---------------------------------------------------------------------------
 # Test 5: NOT NULL constraint enforced (SQLite + Postgres)
 # ---------------------------------------------------------------------------
+
 
 def test_org_id_not_null_enforced(session):
     """Inserting a tenant-scoped row without org_id must fail."""
@@ -244,13 +282,16 @@ def test_org_id_not_null_enforced(session):
 # Test 6: resolve_org_id helper works correctly
 # ---------------------------------------------------------------------------
 
+
 def test_resolve_org_id_from_explicit():
     from app.tenancy import resolve_org_id
+
     assert resolve_org_id(explicit=42) == 42
 
 
 def test_resolve_org_id_from_worklist(session):
     from app.tenancy import resolve_org_id
+
     org = _make_org(session)
     wl = _make_worklist(session, org.id)
     assert resolve_org_id(worklist=wl) == org.id
@@ -258,6 +299,7 @@ def test_resolve_org_id_from_worklist(session):
 
 def test_resolve_org_id_from_person(session):
     from app.tenancy import resolve_org_id
+
     org = _make_org(session)
     p = _make_person(session, org.id)
     assert resolve_org_id(person=p) == org.id
@@ -266,6 +308,7 @@ def test_resolve_org_id_from_person(session):
 def test_resolve_org_id_priority(session):
     """Explicit > worklist > person."""
     from app.tenancy import resolve_org_id
+
     org_a = _make_org(session, "A")
     org_b = _make_org(session, "B")
     wl = _make_worklist(session, org_a.id)
@@ -280,6 +323,7 @@ def test_resolve_org_id_priority(session):
 
 def test_resolve_org_id_raises_when_no_source():
     from app.tenancy import resolve_org_id
+
     with pytest.raises(ValueError, match="Cannot resolve org_id"):
         resolve_org_id()
 
@@ -287,6 +331,7 @@ def test_resolve_org_id_raises_when_no_source():
 # ---------------------------------------------------------------------------
 # Test 7: @validates('org_id') catches None at model level
 # ---------------------------------------------------------------------------
+
 
 def test_validates_org_id_catches_none():
     p = M.Person(last_name="Test", full_display="Test")

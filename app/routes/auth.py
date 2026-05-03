@@ -19,12 +19,13 @@ OIDC state validation is independent of CSRF — both are required defences
 in depth. The state proves "this callback belongs to this user's redirect"
 (prevents login CSRF / mix-up); CSRF tokens guard non-GET app routes.
 """
+
 from __future__ import annotations
 
 from typing import Optional
 
 from authlib.integrations.starlette_client import OAuthError
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -56,6 +57,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Login page
 # ---------------------------------------------------------------------------
+
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: Optional[str] = None) -> Response:
@@ -91,6 +93,7 @@ def login_page(request: Request, next: Optional[str] = None) -> Response:
 # Login start
 # ---------------------------------------------------------------------------
 
+
 @router.get("/auth/{provider}/login")
 async def login_start(
     provider: str,
@@ -112,6 +115,7 @@ async def login_start(
 # Link start (existing user attaching another provider)
 # ---------------------------------------------------------------------------
 
+
 @router.get("/auth/{provider}/link")
 async def link_start(
     provider: str,
@@ -132,6 +136,7 @@ async def link_start(
 # ---------------------------------------------------------------------------
 # Callback (shared between login + link)
 # ---------------------------------------------------------------------------
+
 
 @router.get("/auth/{provider}/callback", name="oidc_callback")
 async def oidc_callback(
@@ -325,6 +330,7 @@ def _handle_link_callback(
 # Logout
 # ---------------------------------------------------------------------------
 
+
 @router.post("/auth/logout")
 def logout(
     request: Request,
@@ -348,15 +354,25 @@ def logout(
 
     response = RedirectResponse("/login", status_code=302)
     response.delete_cookie(
-        sess_mod.SESSION_COOKIE_NAME, path="/", secure=sess_mod.SESSION_COOKIE_SECURE, httponly=True, samesite="lax"
+        sess_mod.SESSION_COOKIE_NAME,
+        path="/",
+        secure=sess_mod.SESSION_COOKIE_SECURE,
+        httponly=True,
+        samesite="lax",
     )
-    response.delete_cookie(CSRF_COOKIE_NAME, path="/", secure=sess_mod.SESSION_COOKIE_SECURE, samesite="lax")
+    response.delete_cookie(
+        CSRF_COOKIE_NAME,
+        path="/",
+        secure=sess_mod.SESSION_COOKIE_SECURE,
+        samesite="lax",
+    )
     return response
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _set_session_cookie(response: Response, session_id: str) -> None:
     response.set_cookie(

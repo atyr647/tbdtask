@@ -6,10 +6,9 @@ already exists for the same (template_id, scheduled_date, worklist_id).
 This way an operator can re-run "Generate recurring tasks" safely after
 adding new templates without producing duplicates.
 """
+
 from __future__ import annotations
 
-from datetime import date, timedelta
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,8 +24,7 @@ def generate_for_worklist(session: Session, worklist: M.Worklist, days: int = 7)
     week_start = worklist.week_starting
     templates = list(
         session.scalars(
-            select(M.TaskTemplate)
-            .where(
+            select(M.TaskTemplate).where(
                 M.TaskTemplate.active == True,  # noqa: E712
                 M.TaskTemplate.recurrence_rule.is_not(None),
             )

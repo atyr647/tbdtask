@@ -1,44 +1,62 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, icon_plus %}
 {% block title %}Qualifications{% endblock %}
+{% block page_title %}Qualifications{% endblock %}
 {% block content %}
 {% include "quals/_tabs.html" %}
-<h1>Qualification catalog</h1>
+
+<div class="page-header">
+  <h1>Qualification catalog</h1>
+  <div class="page-actions">
+    <button type="button" class="btn" data-open-target="add-qual-disclosure">{{ icon_plus() }} <span>Add qualification</span></button>
+  </div>
+</div>
 <p class="muted">Counts reflect the current (most recent) status row per person × qual.</p>
 
-<details class="inline-create">
+<details class="inline-create" id="add-qual-disclosure">
   <summary>+ Add a qualification</summary>
   <form method="post" action="/quals" class="form quick-add">
     <div class="quick-add-row">
       <label class="grow">Name
-        <input name="name" placeholder="e.g. POOW, HMMWV, Tagout Authority" required />
+        <input name="name" placeholder="e.g. Tagout Authority, HMMWV, POOW" required />
       </label>
       <button type="submit">Add</button>
     </div>
   </form>
 </details>
 
-<table class="grid">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Assigned</th>
-      <th>Qualified</th>
-      <th>In progress</th>
-      <th>Dinq</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for row in catalog %}
-    <tr>
-      <td>{{ row.qual.name }}</td>
-      <td>{{ row.assigned }}</td>
-      <td class="status-q">{{ row.qualified }}</td>
-      <td class="status-ip">{{ row.in_progress }}</td>
-      <td class="status-d">{{ row.dinq }}</td>
-      <td><a href="/quals/{{ row.qual.id }}/edit">Edit</a></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+{% if not catalog %}
+{% call empty_state(title="No qualifications yet", icon="info") %}
+  Create the first qualification to start tracking who is qualified, in progress, or dinq.
+{% endcall %}
+{% else %}
+<section class="block">
+  <div class="table-wrap">
+    <table class="grid responsive-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Assigned</th>
+          <th>Qualified</th>
+          <th>In progress</th>
+          <th>Dinq</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in catalog %}
+        <tr>
+          <td data-label="Qualification" data-stretch="true">{{ row.qual.name }}</td>
+          <td data-label="Assigned">{{ row.assigned }}</td>
+          <td data-label="Qualified" class="status-q">{{ row.qualified }}</td>
+          <td data-label="In progress" class="status-ip">{{ row.in_progress }}</td>
+          <td data-label="Dinq" class="status-d">{{ row.dinq }}</td>
+          <td data-label=""><a class="btn-ghost btn-sm" href="/quals/{{ row.qual.id }}/edit">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

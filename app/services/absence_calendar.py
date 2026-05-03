@@ -2,6 +2,7 @@
 Builds the people x days grid for the leave/absence overview, mirroring the
 legacy 'BPT Master Leave Tracker' sheet but as a live computed view.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -90,8 +91,7 @@ def build_calendar(session: Session, start: date, days: int = 28) -> CalendarVie
     )
     absences = list(
         session.scalars(
-            select(M.Absence)
-            .where(
+            select(M.Absence).where(
                 M.Absence.active == True,  # noqa: E712
                 M.Absence.start_date <= end,
                 M.Absence.end_date >= start,
@@ -118,7 +118,9 @@ def build_calendar(session: Session, start: date, days: int = 28) -> CalendarVie
                 cells.append(CalendarCell(code=None, partial=False, reason=None))
             else:
                 partial = bool(hit.start_time or hit.end_time)
-                cells.append(CalendarCell(code=hit.code.code, partial=partial, reason=hit.reason))
+                cells.append(
+                    CalendarCell(code=hit.code.code, partial=partial, reason=hit.reason)
+                )
                 if partial:
                     daily_partial[i] += 1
                 else:
@@ -126,7 +128,10 @@ def build_calendar(session: Session, start: date, days: int = 28) -> CalendarVie
         rows.append(CalendarRow(person=p, cells=cells))
 
     return CalendarView(
-        start_date=start, days=day_dates, rows=rows,
-        daily_full=daily_full, daily_partial=daily_partial,
+        start_date=start,
+        days=day_dates,
+        rows=rows,
+        daily_full=daily_full,
+        daily_partial=daily_partial,
         daily_total=len(people),
     )

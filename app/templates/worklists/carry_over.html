@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Carry-over — {{ worklist.name }}{% endblock %}
+{% block page_title %}Carry-over review{% endblock %}
 {% block content %}
-<p><a href="/worklists/{{ worklist.id }}">&lsaquo; Back to {{ worklist.name }}</a></p>
+{{ back_link("/worklists/" ~ worklist.id, "Back to " ~ worklist.name) }}
 <h1>Carry-over review</h1>
 <p class="muted">Tasks below were left open or in-progress in earlier weeks. Default action follows the task template's carry-over policy; override per row as needed.</p>
 
@@ -70,69 +72,8 @@
   </table>
   <div class="form-actions">
     <button type="submit">Apply selections</button>
-    <a href="/worklists/{{ worklist.id }}" class="btn-link">Cancel</a>
+    <a href="/worklists/{{ worklist.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
-
-<script>
-(function() {
-  const peopleData = JSON.parse(document.getElementById("people-data").textContent);
-  function setupCombobox(root) {
-    const input = root.querySelector("[data-combo-input]");
-    const results = root.querySelector("[data-combo-results]");
-    const chips = root.querySelector("[data-combo-chips]");
-    const targetName = input.dataset.targetName;
-    const selected = new Map();
-    function render() {
-      chips.innerHTML = "";
-      // Remove old hidden inputs
-      root.querySelectorAll("input[type=hidden][data-target-name]").forEach(n => n.remove());
-      for (const [id, label] of selected) {
-        const li = document.createElement("li");
-        li.className = "combobox-chip";
-        li.textContent = label + " ✕";
-        li.addEventListener("click", () => { selected.delete(id); render(); });
-        chips.appendChild(li);
-        const h = document.createElement("input");
-        h.type = "hidden"; h.name = targetName; h.value = id;
-        h.dataset.targetName = targetName;
-        root.appendChild(h);
-      }
-    }
-    function show(query) {
-      const q = (query || "").trim().toLowerCase();
-      results.innerHTML = "";
-      const matches = peopleData
-        .filter(p => !selected.has(String(p.id)))
-        .filter(p => !q || p.label.toLowerCase().includes(q))
-        .slice(0, 8);
-      if (!matches.length) { results.classList.remove("open"); return; }
-      for (const m of matches) {
-        const div = document.createElement("div");
-        div.className = "combobox-result";
-        div.textContent = m.label;
-        div.addEventListener("mousedown", (ev) => {
-          ev.preventDefault();
-          selected.set(String(m.id), m.label);
-          input.value = "";
-          results.classList.remove("open");
-          render();
-        });
-        results.appendChild(div);
-      }
-      results.classList.add("open");
-    }
-    input.addEventListener("focus", () => show(input.value));
-    input.addEventListener("input", () => show(input.value));
-    input.addEventListener("blur", () => setTimeout(() => results.classList.remove("open"), 150));
-  }
-  for (const root of document.querySelectorAll("[data-combo]")) setupCombobox(root);
-})();
-</script>
-<style>
-.combobox-chips { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.combobox-chip { background: var(--panel-3); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer; }
-.combobox-chip:hover { background: rgba(239,93,110,.18); }
-</style>
 {% endif %}
 {% endblock %}

@@ -1,15 +1,17 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}New worklist{% endblock %}
+{% block page_title %}New worklist{% endblock %}
 {% block content %}
-<p><a href="/worklists">&lsaquo; Back to worklists</a></p>
+{{ back_link("/worklists", "Back to worklists") }}
 <h1>New weekly worklist</h1>
 <form method="post" action="/worklists" class="form">
   <label>Week starting (any day in the week — will snap to Monday)
     <input type="date" name="week_starting" value="{{ suggested_monday }}" required />
   </label>
   <div class="form-actions">
-    <button type="submit">Create &amp; manage tasks</button>
-    <a href="/worklists" class="btn-link">Cancel</a>
+    <button type="submit" class="btn">Create &amp; manage tasks</button>
+    <a href="/worklists" class="btn-ghost">Cancel</a>
   </div>
 </form>
 {% endblock %}

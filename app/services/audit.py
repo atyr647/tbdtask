@@ -7,26 +7,27 @@ audit trail is immutable: rows are INSERT-only.
 The audit system also powers the notification fan-out: certain event types
 trigger in-app notifications to org admins and owners.
 """
+
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from functools import wraps
 from typing import Any, Callable, Optional
 
 from fastapi import Request
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models as M
 
 # Actions that trigger notifications to org admins.
-_NOTIFY_ACTIONS = frozenset({
-    "archive",
-    "delete",
-    "lock",
-    "amend",
-})
+_NOTIFY_ACTIONS = frozenset(
+    {
+        "archive",
+        "delete",
+        "lock",
+        "amend",
+    }
+)
 
 
 def _serialize(obj: Any) -> Any:
@@ -140,6 +141,7 @@ def audit_write(
             # For create actions, try to get the new id from the redirect.
             if row_id is None and action == "create":
                 from fastapi.responses import RedirectResponse
+
                 if isinstance(result, RedirectResponse):
                     # The redirect URL often contains the new id.
                     loc = result.headers.get("location", "")
@@ -157,6 +159,7 @@ def audit_write(
                 # recorded with minimal info; richer snapshots require the
                 # route to call ``record_audit_event`` directly.
                 from ..db import SessionLocal
+
                 with SessionLocal() as db:
                     # Resolve org_id from the membership.
                     resolved_org_id = None
@@ -192,7 +195,9 @@ def audit_write(
                         )
 
             return result
+
         return wrapper
+
     return decorator
 
 

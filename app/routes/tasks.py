@@ -74,21 +74,29 @@ async def create_task(
         if len(person_ids) == 1 and poic_id_int is None and not ext:
             poic_id_int = person_ids[0]
         for pid in person_ids:
-            s.add(M.TaskAssignment(
-                instance_id=inst.id,
-                person_id=pid,
-                is_poic=(pid == poic_id_int),
-                org_id=wl.org_id,
-            ))
+            s.add(
+                M.TaskAssignment(
+                    instance_id=inst.id,
+                    person_id=pid,
+                    is_poic=(pid == poic_id_int),
+                    org_id=wl.org_id,
+                )
+            )
         if ext:
-            s.add(M.TaskAssignment(
-                instance_id=inst.id,
-                external_poic_name=ext,
-                is_poic=True,
-                org_id=wl.org_id,
-            ))
+            s.add(
+                M.TaskAssignment(
+                    instance_id=inst.id,
+                    external_poic_name=ext,
+                    is_poic=True,
+                    org_id=wl.org_id,
+                )
+            )
         s.commit()
-    redirect_to = f"/worklists/{worklist_id}/setup" if form.get("next") == "setup" else f"/worklists/{worklist_id}"
+    redirect_to = (
+        f"/worklists/{worklist_id}/setup"
+        if form.get("next") == "setup"
+        else f"/worklists/{worklist_id}"
+    )
     return RedirectResponse(redirect_to, status_code=303)
 
 
@@ -103,23 +111,40 @@ def edit_task_form(
         if not inst:
             raise HTTPException(404)
         wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
-        categories = list(s.scalars(
-            select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
-        ).all())
-        people = list(s.scalars(
-            select(M.Person).where(M.Person.active == True).order_by(M.Person.display_order)  # noqa: E712
-        ).all())
-        assignments = list(s.scalars(
-            select(M.TaskAssignment)
-            .where(M.TaskAssignment.instance_id == inst.id, M.TaskAssignment.active == True)  # noqa: E712
-            .options(selectinload(M.TaskAssignment.person))
-        ).all())
+        categories = list(
+            s.scalars(
+                select(M.TaskCategory)
+                .where(M.TaskCategory.active == True)  # noqa: E712
+                .order_by(M.TaskCategory.display_order)
+            ).all()
+        )
+        people = list(
+            s.scalars(
+                select(M.Person)
+                .where(M.Person.active == True)  # noqa: E712
+                .order_by(M.Person.display_order)
+            ).all()
+        )
+        assignments = list(
+            s.scalars(
+                select(M.TaskAssignment)
+                .where(
+                    M.TaskAssignment.instance_id == inst.id,
+                    M.TaskAssignment.active == True,  # noqa: E712
+                )
+                .options(selectinload(M.TaskAssignment.person))
+            ).all()
+        )
         suggestions = candidates_for(s, inst)[:6] if inst.template_id else []
     return render(
         request,
         "tasks/edit.html",
-        instance=inst, worklist=wl, categories=categories, people=people,
-        assignments=assignments, suggestions=suggestions,
+        instance=inst,
+        worklist=wl,
+        categories=categories,
+        people=people,
+        assignments=assignments,
+        suggestions=suggestions,
     )
 
 
@@ -142,20 +167,24 @@ def update_task(
         wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
         _ensure_unlocked(wl)
         inst.name = name.strip()[:240]
-        inst.scheduled_date = date.fromisoformat(scheduled_date) if scheduled_date else None
+        inst.scheduled_date = (
+            date.fromisoformat(scheduled_date) if scheduled_date else None
+        )
         inst.category_id = category_id or None
         inst.status = status
         inst.hours = hours
-        inst.description = (description or None)
+        inst.description = description or None
         inst.notes = None  # consolidated into description
-        inst.completion_notes = (completion_notes or None)
+        inst.completion_notes = completion_notes or None
         if status == "done" and inst.completed_at is None:
             inst.completed_at = datetime.now()
         if status != "done":
             inst.completed_at = None
         s.commit()
         wl_id = inst.worklist_id
-    return RedirectResponse(f"/worklists/{wl_id}" if wl_id else "/worklists", status_code=303)
+    return RedirectResponse(
+        f"/worklists/{wl_id}" if wl_id else "/worklists", status_code=303
+    )
 
 
 @router.post("/tasks/{task_id}/archive")
@@ -175,7 +204,9 @@ def archive_task(
         inst.archived_reason = reason or None
         s.commit()
         wl_id = inst.worklist_id
-    return RedirectResponse(f"/worklists/{wl_id}" if wl_id else "/worklists", status_code=303)
+    return RedirectResponse(
+        f"/worklists/{wl_id}" if wl_id else "/worklists", status_code=303
+    )
 
 
 @router.post("/tasks/{task_id}/assignments")
@@ -187,7 +218,7 @@ def add_assignment(
     _: None = Depends(require(P_TASKS_WRITE)),
 ):
     if not person_id and not external_poic_name:
-            raise HTTPException(400, "must provide a person or an external lead name")
+        raise HTTPException(400, "must provide a person or an external lead name")
     with SessionLocal() as s:
         inst = s.get(M.TaskInstance, task_id)
         if not inst:
@@ -206,15 +237,17 @@ def add_assignment(
             ).all()
             for a in existing:
                 a.is_poic = False
-        s.add(M.TaskAssignment(
-            instance_id=inst.id,
-            person_id=person_id or None,
-            external_poic_name=(external_poic_name or None) and external_poic_name.strip(),
-            is_poic=is_poic_bool,
-            org_id=inst.org_id,
-        ))
+        s.add(
+            M.TaskAssignment(
+                instance_id=inst.id,
+                person_id=person_id or None,
+                external_poic_name=(external_poic_name or None)
+                and external_poic_name.strip(),
+                is_poic=is_poic_bool,
+                org_id=inst.org_id,
+            )
+        )
         s.commit()
-        wl_id = inst.worklist_id
     return RedirectResponse(f"/tasks/{task_id}/edit", status_code=303)
 
 
@@ -249,7 +282,7 @@ def update_assignment(
         a.is_poic = new_poic
         a.completed = bool(completed)
         a.hours_worked = hours_worked
-        a.completion_notes = (completion_notes or None)
+        a.completion_notes = completion_notes or None
         s.commit()
     return RedirectResponse(f"/tasks/{task_id}/edit", status_code=303)
 

@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Edit absence{% endblock %}
+{% block page_title %}Edit absence{% endblock %}
 {% block content %}
-<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+{{ back_link("/personnel/" ~ person.id, "Back to " ~ person.full_display) }}
 <h1>Edit absence — {{ person.full_display }}</h1>
 
 <form method="post" action="/absences/{{ absence.id }}" class="form">
@@ -40,12 +42,12 @@
 
   <div class="form-actions">
     <button type="submit">Save</button>
-    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+    <a href="/personnel/{{ person.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
 
 <form method="post" action="/absences/{{ absence.id }}/archive" class="form-inline danger">
   <label>Archive reason <input name="reason" placeholder="optional" /></label>
-  <button type="submit" onclick="return confirm('Archive this absence record?');">Archive</button>
+  <button type="submit" data-confirm="Archive this absence record?" >Archive</button>
 </form>
 {% endblock %}

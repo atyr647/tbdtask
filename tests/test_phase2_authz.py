@@ -21,23 +21,19 @@ hosted-mode middleware (e.g. for the admin UI or to assert 403s on
 gated routes), it spins up a fresh app with ``TBDTASK_SINGLE_TENANT=0``
 and stubs the membership onto request.state.
 """
+
 from __future__ import annotations
 
-import os
-from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import pytest
 from sqlalchemy import select
 
 from app import models as M
 from app.auth import authorization as authz
-from app.auth import permissions as perm_mod
 from app.auth.permissions import (
     PERMISSION_CODES,
     PERMISSIONS,
     P_ALERTS_ACT,
-    P_ORG_ADMIN,
     P_ORG_VIEW,
     P_PERSONNEL_VIEW,
     P_PERSONNEL_WRITE,
@@ -54,6 +50,7 @@ from app.auth.permissions import (
 # ---------------------------------------------------------------------------
 # Helpers — minimal seed for tests that don't go through the migration
 # ---------------------------------------------------------------------------
+
 
 def _make_org(session, *, slug="alpha", name="Alpha Org"):
     org = M.Organization(slug=slug, name=name)
@@ -133,6 +130,7 @@ def _make_workcenter(session, *, org, name, parent=None, slug=None):
 # Catalog self-consistency
 # ---------------------------------------------------------------------------
 
+
 class TestCatalog:
     def test_no_duplicate_permission_codes(self):
         codes = [p.code for p in PERMISSIONS]
@@ -164,6 +162,7 @@ class TestCatalog:
 # ---------------------------------------------------------------------------
 # Migration seed parity
 # ---------------------------------------------------------------------------
+
 
 def _load_phase2_migration():
     """Import the Phase 2 migration module by file path.
@@ -229,6 +228,7 @@ class TestMigrationSeedParity:
 # ---------------------------------------------------------------------------
 # load_effective_permissions + has_permission
 # ---------------------------------------------------------------------------
+
 
 class TestEffectivePermissions:
     def test_org_wide_grant_yields_org_wide_set(self, session):
@@ -339,9 +339,7 @@ class TestHasPermission:
         m = _make_membership(session, org=org, user=u)
         roles = _seed_all_roles(session, org.id)
         deck = _make_workcenter(session, org=org, name="Deck", slug="deck")
-        eng = _make_workcenter(
-            session, org=org, name="Engineering", slug="eng"
-        )
+        eng = _make_workcenter(session, org=org, name="Engineering", slug="eng")
         _grant(session, membership=m, role=roles["lpo"], workcenter=deck)
 
         assert not authz.has_permission(
@@ -410,6 +408,7 @@ class TestWorkcenterAncestors:
 # Role-template membership predicate
 # ---------------------------------------------------------------------------
 
+
 class TestMembershipHasRoleTemplate:
     def test_true_for_org_wide_owner_grant(self, session):
         org = _make_org(session)
@@ -452,6 +451,7 @@ class TestMembershipHasRoleTemplate:
 # ---------------------------------------------------------------------------
 # @require dependency
 # ---------------------------------------------------------------------------
+
 
 class TestRequireDependency:
     def test_unknown_perm_raises_at_decorator_build(self):
@@ -606,6 +606,7 @@ class TestRequireDependency:
 # Catalog defence: an unknown code in role_permissions must surface
 # ---------------------------------------------------------------------------
 
+
 class TestCatalogDefence:
     def test_unknown_code_in_role_permissions_is_loud(self, session):
         """If a future migration accidentally inserts an unknown code,
@@ -626,8 +627,6 @@ class TestCatalogDefence:
         session.add(bad)
         session.flush()
 
-        codes = list(
-            session.scalars(select(M.RolePermission.permission_code))
-        )
+        codes = list(session.scalars(select(M.RolePermission.permission_code)))
         unknown = [c for c in codes if not is_known_permission(c)]
         assert unknown == ["garbage.code"]

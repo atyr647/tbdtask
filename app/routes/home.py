@@ -28,8 +28,7 @@ def home(request: Request, _: None = Depends(require(P_ORG_VIEW))):
         # Active worklist (current week if one exists).
         monday = today - timedelta(days=today.weekday())
         current_wl = s.scalar(
-            select(M.Worklist)
-            .where(
+            select(M.Worklist).where(
                 M.Worklist.active == True,  # noqa: E712
                 M.Worklist.week_starting == monday,
                 M.Worklist.parent_id.is_(None),
@@ -54,10 +53,18 @@ def home(request: Request, _: None = Depends(require(P_ORG_VIEW))):
                     return f"{name} — {qual} {type_label.lower()}"
                 return f"{name} — {type_label}"
             if a.alert_type == "worklist_carry_over_pending":
-                wl = s.get(M.Worklist, p.get("worklist_id")) if p.get("worklist_id") else None
+                wl = (
+                    s.get(M.Worklist, p.get("worklist_id"))
+                    if p.get("worklist_id")
+                    else None
+                )
                 return f"{wl.name if wl else 'worklist'} — {p.get('count')} carry-over pending"
             return type_label
-        banner_items = [{"alert": a, "label": _subject(a), "type_label": _alert_label(a.alert_type)} for a in (urgent + warn)[:8]]
+
+        banner_items = [
+            {"alert": a, "label": _subject(a), "type_label": _alert_label(a.alert_type)}
+            for a in (urgent + warn)[:8]
+        ]
 
         # Per-code rollup for "out today by reason"
         by_code = report.by_code
@@ -76,6 +83,8 @@ def home(request: Request, _: None = Depends(require(P_ORG_VIEW))):
         info_count=len(info),
         total_active=len(active),
         tomorrow=(today + timedelta(days=1)).isoformat(),
-        next_monday=(today + timedelta(days=(7 - today.weekday()) % 7 or 7)).isoformat(),
+        next_monday=(
+            today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+        ).isoformat(),
         prev_day=(today - timedelta(days=1)).isoformat(),
     )

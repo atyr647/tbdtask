@@ -34,6 +34,7 @@ All POSTs are CSRF-protected by the global middleware. Mutating
 helpers run inside the ambient tenant context entered by
 ``SessionMiddleware``, so writes can never cross orgs.
 """
+
 from __future__ import annotations
 
 import re
@@ -101,6 +102,7 @@ def _resolve_org_id(membership: M.OrgMembership) -> int:
 # Landing
 # ---------------------------------------------------------------------------
 
+
 @router.get("")
 def admin_index(
     request: Request,
@@ -114,12 +116,16 @@ def admin_index(
     is_owner = membership_has_role_template(db, membership.id, "org_owner")
 
     # Check if this is the sole active member (for org deletion option).
-    active_count = db.execute(
-        select(M.OrgMembership).where(
-            M.OrgMembership.org_id == org_id,
-            M.OrgMembership.status == "active",
+    active_count = (
+        db.execute(
+            select(M.OrgMembership).where(
+                M.OrgMembership.org_id == org_id,
+                M.OrgMembership.status == "active",
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     is_sole_owner = is_owner and len(active_count) == 1
 
     return render(
@@ -135,6 +141,7 @@ def admin_index(
 # Members
 # ---------------------------------------------------------------------------
 
+
 @router.get("/members")
 def list_members(
     request: Request,
@@ -143,29 +150,21 @@ def list_members(
     _: None = Depends(require(P_ORG_VIEW)),
 ):
     org_id = _resolve_org_id(membership)
-    rows = (
-        db.execute(
-            select(M.OrgMembership, M.UserAccount)
-            .join(M.UserAccount, M.UserAccount.id == M.OrgMembership.user_id)
-            .where(M.OrgMembership.org_id == org_id)
-            .order_by(M.OrgMembership.id)
-        )
-        .all()
-    )
+    rows = db.execute(
+        select(M.OrgMembership, M.UserAccount)
+        .join(M.UserAccount, M.UserAccount.id == M.OrgMembership.user_id)
+        .where(M.OrgMembership.org_id == org_id)
+        .order_by(M.OrgMembership.id)
+    ).all()
     members = []
     for m, u in rows:
-        grants = (
-            db.execute(
-                select(M.MembershipRole, M.Role, M.Workcenter)
-                .join(M.Role, M.Role.id == M.MembershipRole.role_id)
-                .outerjoin(
-                    M.Workcenter, M.Workcenter.id == M.MembershipRole.workcenter_id
-                )
-                .where(M.MembershipRole.membership_id == m.id)
-                .order_by(M.Role.name)
-            )
-            .all()
-        )
+        grants = db.execute(
+            select(M.MembershipRole, M.Role, M.Workcenter)
+            .join(M.Role, M.Role.id == M.MembershipRole.role_id)
+            .outerjoin(M.Workcenter, M.Workcenter.id == M.MembershipRole.workcenter_id)
+            .where(M.MembershipRole.membership_id == m.id)
+            .order_by(M.Role.name)
+        ).all()
         members.append(
             {
                 "membership": m,
@@ -252,9 +251,7 @@ def suspend_member(
         # themselves out by accident.
         raise HTTPException(400, "you cannot suspend your own membership")
     if target.id == _last_owner_id(db, org_id):
-        raise HTTPException(
-            400, "cannot suspend the last remaining org owner"
-        )
+        raise HTTPException(400, "cannot suspend the last remaining org owner")
     target.status = "suspended"
     target.suspended_at = _now()
     sess_mod.revoke_all_for_membership(db, target.id)
@@ -391,9 +388,7 @@ def revoke_role(
         and grant.workcenter_id is None
         and target.id == _last_owner_id(db, org_id)
     ):
-        raise HTTPException(
-            400, "cannot remove the last remaining org owner"
-        )
+        raise HTTPException(400, "cannot remove the last remaining org owner")
 
     db.delete(grant)
     db.add(
@@ -447,22 +442,15 @@ def kick_member(
 
     # Cannot kick the last org_owner.
     if target.id == _last_owner_id(db, org_id):
-        raise HTTPException(
-            400, "Cannot kick the last remaining org owner."
-        )
+        raise HTTPException(400, "Cannot kick the last remaining org owner.")
 
     # Role hierarchy check: non-owners cannot kick owners.
     from ..auth.authorization import membership_has_role_template
-    kicker_is_owner = membership_has_role_template(
-        db, membership.id, "org_owner"
-    )
-    target_is_owner = membership_has_role_template(
-        db, target.id, "org_owner"
-    )
+
+    kicker_is_owner = membership_has_role_template(db, membership.id, "org_owner")
+    target_is_owner = membership_has_role_template(db, target.id, "org_owner")
     if target_is_owner and not kicker_is_owner:
-        raise HTTPException(
-            403, "Only org owners can kick other org owners."
-        )
+        raise HTTPException(403, "Only org owners can kick other org owners.")
 
     # Soft-delete: set status to suspended.
     target.status = "suspended"
@@ -492,6 +480,7 @@ def kick_member(
 # ---------------------------------------------------------------------------
 # Invites
 # ---------------------------------------------------------------------------
+
 
 @router.get("/invites")
 def list_invites(
@@ -658,6 +647,7 @@ def revoke_invite(
 # ---------------------------------------------------------------------------
 # Roles
 # ---------------------------------------------------------------------------
+
 
 @router.get("/roles")
 def list_roles(
@@ -862,9 +852,7 @@ def archive_role(
         select(M.MembershipRole.id).where(M.MembershipRole.role_id == role.id).limit(1)
     ).scalar_one_or_none()
     if in_use is not None:
-        raise HTTPException(
-            400, "role is in use; revoke its grants before archiving"
-        )
+        raise HTTPException(400, "role is in use; revoke its grants before archiving")
     role.archived_at = _now()
     db.add(
         M.AuthEvent(
@@ -881,6 +869,7 @@ def archive_role(
 # ---------------------------------------------------------------------------
 # Workcenters
 # ---------------------------------------------------------------------------
+
 
 @router.get("/workcenters")
 def list_workcenters(

@@ -14,6 +14,7 @@ Design notes:
   can forget. CSP starts strict; per-route relaxations (e.g. for inline
   styles) are explicit.
 """
+
 from __future__ import annotations
 
 import os
@@ -32,6 +33,7 @@ def random_token(num_bytes: int = 32) -> str:
 # ---------------------------------------------------------------------------
 # Signing — single source for app-internal HMAC signatures
 # ---------------------------------------------------------------------------
+
 
 # Read once at import. Set ``TBDTASK_SECRET_KEY`` in any environment that
 # isn't a transient test process. The dev fallback is intentionally

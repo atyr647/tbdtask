@@ -1,4 +1,5 @@
 """TaskTemplate CRUD: the originating definition for recurring tasks."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -79,23 +80,36 @@ def list_templates(request: Request, _: None = Depends(require(P_TASKS_VIEW))):
         cats = {c.id: c.name for c in s.scalars(select(M.TaskCategory)).all()}
     descriptions = {t.id: describe(t.recurrence_rule or {}) for t in templates}
     return render(
-        request, "templates/list.html",
-        templates=templates, cats=cats, descriptions=descriptions,
+        request,
+        "templates/list.html",
+        templates=templates,
+        cats=cats,
+        descriptions=descriptions,
     )
 
 
 @router.get("/task-templates/new")
 def new_template_form(request: Request, _: None = Depends(require(P_TASKS_WRITE))):
     with SessionLocal() as s:
-        cats = list(s.scalars(
-            select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
-        ).all())
-        quals = list(s.scalars(
-            select(M.Qualification).where(M.Qualification.active == True).order_by(M.Qualification.display_order)  # noqa: E712
-        ).all())
+        cats = list(
+            s.scalars(
+                select(M.TaskCategory)
+                .where(M.TaskCategory.active == True)  # noqa: E712
+                .order_by(M.TaskCategory.display_order)
+            ).all()
+        )
+        quals = list(
+            s.scalars(
+                select(M.Qualification)
+                .where(M.Qualification.active == True)  # noqa: E712
+                .order_by(M.Qualification.display_order)
+            ).all()
+        )
     return render(
-        request, "templates/new.html",
-        cats=cats, quals=quals,
+        request,
+        "templates/new.html",
+        cats=cats,
+        quals=quals,
         carry_over_policies=CARRY_OVER_POLICIES,
         recurrence_kinds=RECURRENCE_KINDS,
         weekday_options=WEEKDAY_OPTIONS,
@@ -114,22 +128,32 @@ async def create_template(
     with SessionLocal() as s:
         tmpl = M.TaskTemplate(
             name=name[:240],
-            category_id=int(form.get("category_id")) if form.get("category_id") else None,
+            category_id=int(form.get("category_id"))
+            if form.get("category_id")
+            else None,
             description=(form.get("description") or None),
-            estimated_hours=float(form.get("estimated_hours")) if form.get("estimated_hours") else None,
+            estimated_hours=float(form.get("estimated_hours"))
+            if form.get("estimated_hours")
+            else None,
             splittable=bool(form.get("splittable")),
             reassignable=bool(form.get("reassignable", "1")),
             carry_over_policy=form.get("carry_over_policy") or "auto_same_person",
             recurrence_rule=_parse_recurrence(form),
             required_drivers_license=bool(form.get("required_drivers_license")),
-            required_duty_section=int(form.get("required_duty_section")) if form.get("required_duty_section") else None,
+            required_duty_section=int(form.get("required_duty_section"))
+            if form.get("required_duty_section")
+            else None,
             notes=(form.get("notes") or None),
         )
         s.add(tmpl)
         s.flush()
         for qid in form.getlist("required_quals"):
             try:
-                s.add(M.TaskTemplateRequiredQual(task_template_id=tmpl.id, qual_id=int(qid)))
+                s.add(
+                    M.TaskTemplateRequiredQual(
+                        task_template_id=tmpl.id, qual_id=int(qid)
+                    )
+                )
             except ValueError:
                 continue
         s.commit()
@@ -146,18 +170,33 @@ def edit_template_form(
         tmpl = s.get(M.TaskTemplate, template_id)
         if not tmpl:
             raise HTTPException(404)
-        cats = list(s.scalars(
-            select(M.TaskCategory).where(M.TaskCategory.active == True).order_by(M.TaskCategory.display_order)  # noqa: E712
-        ).all())
-        quals = list(s.scalars(
-            select(M.Qualification).where(M.Qualification.active == True).order_by(M.Qualification.display_order)  # noqa: E712
-        ).all())
-        required_qual_ids = set(s.scalars(
-            select(M.TaskTemplateRequiredQual.qual_id).where(M.TaskTemplateRequiredQual.task_template_id == template_id)
-        ).all())
+        cats = list(
+            s.scalars(
+                select(M.TaskCategory)
+                .where(M.TaskCategory.active == True)  # noqa: E712
+                .order_by(M.TaskCategory.display_order)
+            ).all()
+        )
+        quals = list(
+            s.scalars(
+                select(M.Qualification)
+                .where(M.Qualification.active == True)  # noqa: E712
+                .order_by(M.Qualification.display_order)
+            ).all()
+        )
+        required_qual_ids = set(
+            s.scalars(
+                select(M.TaskTemplateRequiredQual.qual_id).where(
+                    M.TaskTemplateRequiredQual.task_template_id == template_id
+                )
+            ).all()
+        )
     return render(
-        request, "templates/edit.html",
-        template=tmpl, cats=cats, quals=quals,
+        request,
+        "templates/edit.html",
+        template=tmpl,
+        cats=cats,
+        quals=quals,
         required_qual_ids=required_qual_ids,
         carry_over_policies=CARRY_OVER_POLICIES,
         recurrence_kinds=RECURRENCE_KINDS,
@@ -177,15 +216,23 @@ async def update_template(
         if not tmpl:
             raise HTTPException(404)
         tmpl.name = (form.get("name") or "").strip()[:240]
-        tmpl.category_id = int(form.get("category_id")) if form.get("category_id") else None
+        tmpl.category_id = (
+            int(form.get("category_id")) if form.get("category_id") else None
+        )
         tmpl.description = form.get("description") or None
-        tmpl.estimated_hours = float(form.get("estimated_hours")) if form.get("estimated_hours") else None
+        tmpl.estimated_hours = (
+            float(form.get("estimated_hours")) if form.get("estimated_hours") else None
+        )
         tmpl.splittable = bool(form.get("splittable"))
         tmpl.reassignable = bool(form.get("reassignable"))
         tmpl.carry_over_policy = form.get("carry_over_policy") or "auto_same_person"
         tmpl.recurrence_rule = _parse_recurrence(form)
         tmpl.required_drivers_license = bool(form.get("required_drivers_license"))
-        tmpl.required_duty_section = int(form.get("required_duty_section")) if form.get("required_duty_section") else None
+        tmpl.required_duty_section = (
+            int(form.get("required_duty_section"))
+            if form.get("required_duty_section")
+            else None
+        )
         tmpl.notes = form.get("notes") or None
         # Reset required quals.
         s.query(M.TaskTemplateRequiredQual).filter(
@@ -193,7 +240,11 @@ async def update_template(
         ).delete()
         for qid in form.getlist("required_quals"):
             try:
-                s.add(M.TaskTemplateRequiredQual(task_template_id=tmpl.id, qual_id=int(qid)))
+                s.add(
+                    M.TaskTemplateRequiredQual(
+                        task_template_id=tmpl.id, qual_id=int(qid)
+                    )
+                )
             except ValueError:
                 continue
         s.commit()

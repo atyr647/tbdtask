@@ -29,6 +29,7 @@ The runtime check (``has_permission``) is in
 imported anywhere (migrations, tests, routes) without dragging session
 state along.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -38,6 +39,7 @@ from typing import FrozenSet
 # ---------------------------------------------------------------------------
 # Permission catalog
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class Permission:
@@ -83,7 +85,9 @@ P_ORG_MANAGE_WORKCENTERS = Permission(
 
 # Personnel
 P_PERSONNEL_VIEW = Permission(
-    "personnel.view", "View personnel", "Read the personnel roster and per-person history."
+    "personnel.view",
+    "View personnel",
+    "Read the personnel roster and per-person history.",
 )
 P_PERSONNEL_WRITE = Permission(
     "personnel.write",
@@ -92,12 +96,16 @@ P_PERSONNEL_WRITE = Permission(
     "update planned departure dates, drivers licenses, team/group, position.",
 )
 P_PERSONNEL_ARCHIVE = Permission(
-    "personnel.archive", "Archive personnel", "Soft-delete (depart) and restore personnel records."
+    "personnel.archive",
+    "Archive personnel",
+    "Soft-delete (depart) and restore personnel records.",
 )
 
 # Qualifications
 P_QUALS_VIEW = Permission(
-    "quals.view", "View qualifications", "Read the qualification catalog and per-person matrix."
+    "quals.view",
+    "View qualifications",
+    "Read the qualification catalog and per-person matrix.",
 )
 P_QUALS_WRITE = Permission(
     "quals.write",
@@ -106,7 +114,9 @@ P_QUALS_WRITE = Permission(
     "update qualification status and dates.",
 )
 P_QUALS_ARCHIVE = Permission(
-    "quals.archive", "Archive qualifications", "Soft-delete qualifications from the catalog."
+    "quals.archive",
+    "Archive qualifications",
+    "Soft-delete qualifications from the catalog.",
 )
 
 # Absences
@@ -135,7 +145,9 @@ P_TASKS_ARCHIVE = Permission(
 
 # Worklists
 P_WORKLISTS_VIEW = Permission(
-    "worklists.view", "View worklists", "Read worklists, day overviews, and printable views."
+    "worklists.view",
+    "View worklists",
+    "Read worklists, day overviews, and printable views.",
 )
 P_WORKLISTS_WRITE = Permission(
     "worklists.write",
@@ -158,9 +170,7 @@ P_WORKLISTS_ARCHIVE = Permission(
 )
 
 # Alerts
-P_ALERTS_VIEW = Permission(
-    "alerts.view", "View alerts", "Read the alerts queue."
-)
+P_ALERTS_VIEW = Permission("alerts.view", "View alerts", "Read the alerts queue.")
 P_ALERTS_TRIAGE = Permission(
     "alerts.triage",
     "Triage alerts",
@@ -323,9 +333,7 @@ ROLE_LPO = RoleTemplate(
 ROLE_DLPO = RoleTemplate(
     slug="dlpo",
     name="Assistant Team Lead",
-    description=(
-        "Same as Team Lead minus lock/amend authority."
-    ),
+    description=("Same as Team Lead minus lock/amend authority."),
     permissions=(
         *_VIEW_ALL,
         *_OPS_WRITE,

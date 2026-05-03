@@ -1,11 +1,13 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}New absence{% endblock %}
+{% block page_title %}Record absence{% endblock %}
 {% block content %}
 {% if person %}
-  <p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+  {{ back_link("/personnel/" ~ person.id, "Back to " ~ person.full_display) }}
   <h1>Record absence — {{ person.full_display }}</h1>
 {% else %}
-  <p><a href="/absences">&lsaquo; Back to absences</a></p>
+  {{ back_link("/absences", "Back to absences") }}
   <h1>Record absence</h1>
 {% endif %}
 
@@ -57,7 +59,7 @@
 
   <div class="form-actions">
     <button type="submit">Record</button>
-    <a href="{{ '/personnel/' ~ person.id if person else '/absences' }}" class="btn-link">Cancel</a>
+    <a href="{{ '/personnel/' ~ person.id if person else '/absences' }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
 {% endblock %}

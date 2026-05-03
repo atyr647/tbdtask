@@ -1,57 +1,66 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link, icon_plus %}
 {% block title %}Roles — Admin{% endblock %}
+{% block page_title %}Roles{% endblock %}
 {% block content %}
 <section class="admin-section">
-  <h1>Roles</h1>
-  <p><a href="/admin">&larr; Back to admin</a></p>
+  {{ back_link("/admin", "Back to admin") }}
+  <div class="page-header">
+    <h1>Roles</h1>
+    <div class="page-actions">
+      <a href="/admin/roles/new" class="btn">{{ icon_plus() }} <span>Create custom role</span></a>
+    </div>
+  </div>
 
-  <p>
-    <a href="/admin/roles/new" class="button">Create custom role</a>
-  </p>
-
-  <table class="admin-table">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Source</th>
-        <th>Scope</th>
-        <th>Permissions</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for role in roles %}
-        <tr {% if role.archived_at %}class="archived"{% endif %}>
-          <td>
-            <strong>{{ role.name }}</strong>
-            {% if role.description %}<br /><small>{{ role.description }}</small>{% endif %}
-          </td>
-          <td>
-            {% if role.builtin %}
-              built-in ({{ role.template_slug }})
-            {% else %}
-              custom
-            {% endif %}
-          </td>
-          <td>
-            {% if role.workcenter_scopable %}org-wide or workcenter{% else %}org-wide only{% endif %}
-          </td>
-          <td>{{ role.permissions|length }} permission{{ role.permissions|length != 1 and 's' or '' }}</td>
-          <td>
-            {% if not role.archived_at %}
-              <a href="/admin/roles/{{ role.id }}/edit">edit</a>
-              {% if not role.builtin %}
-                &middot;
-                <form method="post" action="/admin/roles/{{ role.id }}/archive" class="inline-form">
-                  <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
-                  <button type="submit" class="link-button">archive</button>
-                </form>
-              {% endif %}
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <section class="block">
+    <div class="table-wrap">
+      <table class="grid responsive-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Source</th>
+            <th>Scope</th>
+            <th>Permissions</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for role in roles %}
+            <tr {% if role.archived_at %}class="archived"{% endif %}>
+              <td data-label="Name" data-stretch="true">
+                <strong>{{ role.name }}</strong>
+                {% if role.description %}<div class="muted small">{{ role.description }}</div>{% endif %}
+              </td>
+              <td data-label="Source">
+                {% if role.builtin %}
+                  <span class="pill pill-info">built-in</span>
+                  <span class="muted small">{{ role.template_slug }}</span>
+                {% else %}
+                  <span class="pill pill-neutral">custom</span>
+                {% endif %}
+              </td>
+              <td data-label="Scope">
+                {% if role.workcenter_scopable %}org-wide or workcenter{% else %}org-wide only{% endif %}
+              </td>
+              <td data-label="Permissions">{{ role.permissions|length }} permission{{ role.permissions|length != 1 and 's' or '' }}</td>
+              <td data-label="Actions">
+                {% if not role.archived_at %}
+                  <div class="btn-row">
+                    <a class="btn-ghost btn-sm" href="/admin/roles/{{ role.id }}/edit">Edit</a>
+                    {% if not role.builtin %}
+                      <form method="post" action="/admin/roles/{{ role.id }}/archive" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+                        <button type="submit" class="btn-ghost btn-sm">Archive</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </section>
 {% endblock %}

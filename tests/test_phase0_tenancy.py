@@ -13,6 +13,7 @@ future regression that loosens isolation surfaces here, not in production.
 The ``test_cross_org_*`` cases map directly to the make-or-break security
 questions agreed for this rollout.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -32,6 +33,7 @@ from app.tenancy import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _seed_two_orgs(session):
     org_a = M.Organization(slug="alpha", name="Alpha Org")
@@ -55,6 +57,7 @@ def _make_person(session, *, org_id, last_name):
 # ---------------------------------------------------------------------------
 # Source-of-truth parity
 # ---------------------------------------------------------------------------
+
 
 def test_tenant_scoped_tables_list_matches_models():
     """Every model with TenantScopedMixin or an explicit ``org_id`` column
@@ -105,6 +108,7 @@ def test_settings_table_is_not_tenant_scoped():
 # Context manager lifecycle
 # ---------------------------------------------------------------------------
 
+
 def test_tenant_context_sets_and_clears():
     assert current_org_id() is None
     with tenant_context(7):
@@ -140,6 +144,7 @@ def test_tenant_context_clears_on_exception():
 # Listener: filtering behaviour
 # ---------------------------------------------------------------------------
 
+
 def test_query_without_context_sees_all_rows(session):
     """Phase 0 listener must be a no-op when no context is active."""
     org_a, org_b = _seed_two_orgs(session)
@@ -167,6 +172,7 @@ def test_query_inside_context_filters_to_one_org(session):
 # Make-or-break: cross-org isolation cannot leak through any access path
 # ---------------------------------------------------------------------------
 
+
 def test_cross_org_read_denied_via_select(session):
     """User in Org A cannot read Org B data via a SELECT, even with a WHERE
     clause that names the row directly."""
@@ -174,9 +180,11 @@ def test_cross_org_read_denied_via_select(session):
     _make_person(session, org_id=org_b.id, last_name="Secret")
 
     with tenant_context(org_a.id):
-        result = session.execute(
-            select(M.Person).where(M.Person.last_name == "Secret")
-        ).scalars().all()
+        result = (
+            session.execute(select(M.Person).where(M.Person.last_name == "Secret"))
+            .scalars()
+            .all()
+        )
         assert result == [], "cross-org SELECT must return no rows"
 
 
@@ -193,9 +201,7 @@ def test_cross_org_read_denied_via_session_get_fresh_session(session_factory):
     org_b = M.Organization(slug="bravo", name="Bravo Org")
     setup.add_all([org_a, org_b])
     setup.flush()
-    target = M.Person(
-        last_name="Secret", full_display="Secret S", org_id=org_b.id
-    )
+    target = M.Person(last_name="Secret", full_display="Secret S", org_id=org_b.id)
     setup.add(target)
     setup.flush()
     # Snapshot ids before commit; the ORM expires attributes on commit
@@ -237,9 +243,12 @@ def test_session_get_identity_map_caveat_phase3_will_close(session):
         assert session.get(M.Person, target.id) is target
 
         # ``select()`` always issues a query, so the filter applies.
-        assert session.execute(
-            select(M.Person).where(M.Person.id == target.id)
-        ).scalar_one_or_none() is None
+        assert (
+            session.execute(
+                select(M.Person).where(M.Person.id == target.id)
+            ).scalar_one_or_none()
+            is None
+        )
 
 
 def test_cross_org_count_returns_zero(session):
@@ -248,9 +257,7 @@ def test_cross_org_count_returns_zero(session):
         _make_person(session, org_id=org_b.id, last_name=f"B{i}")
 
     with tenant_context(org_a.id):
-        assert session.execute(
-            select(M.Person)
-        ).scalars().all() == []
+        assert session.execute(select(M.Person)).scalars().all() == []
 
 
 def test_isolation_applies_to_sibling_tenant_tables(session):
@@ -262,19 +269,25 @@ def test_isolation_applies_to_sibling_tenant_tables(session):
     """
     org_a, org_b = _seed_two_orgs(session)
 
-    session.add_all([
-        M.Qualification(name="Q-A", display_order=0, org_id=org_a.id),
-        M.Qualification(name="Q-B", display_order=0, org_id=org_b.id),
-        M.Worklist(week_starting=date(2026, 1, 5), name="WL-A", org_id=org_a.id),
-        M.Worklist(week_starting=date(2026, 1, 5), name="WL-B", org_id=org_b.id),
-        M.Alert(alert_type="x", severity="info", org_id=org_a.id),
-        M.Alert(alert_type="x", severity="info", org_id=org_b.id),
-    ])
+    session.add_all(
+        [
+            M.Qualification(name="Q-A", display_order=0, org_id=org_a.id),
+            M.Qualification(name="Q-B", display_order=0, org_id=org_b.id),
+            M.Worklist(week_starting=date(2026, 1, 5), name="WL-A", org_id=org_a.id),
+            M.Worklist(week_starting=date(2026, 1, 5), name="WL-B", org_id=org_b.id),
+            M.Alert(alert_type="x", severity="info", org_id=org_a.id),
+            M.Alert(alert_type="x", severity="info", org_id=org_b.id),
+        ]
+    )
     session.flush()
 
     with tenant_context(org_a.id):
-        assert [q.name for q in session.execute(select(M.Qualification)).scalars()] == ["Q-A"]
-        assert [w.name for w in session.execute(select(M.Worklist)).scalars()] == ["WL-A"]
+        assert [q.name for q in session.execute(select(M.Qualification)).scalars()] == [
+            "Q-A"
+        ]
+        assert [w.name for w in session.execute(select(M.Worklist)).scalars()] == [
+            "WL-A"
+        ]
         assert session.execute(select(M.Alert)).scalars().all() != []
         for alert in session.execute(select(M.Alert)).scalars():
             assert alert.org_id == org_a.id
@@ -298,6 +311,7 @@ def test_global_tables_unaffected_by_context(session):
 # Schema sanity
 # ---------------------------------------------------------------------------
 
+
 def test_every_tenant_model_has_org_id_column():
     for m in M.Base.registry.mappers:
         if issubclass(m.class_, TenantScopedMixin):
@@ -313,6 +327,7 @@ def test_organization_model_has_no_org_id():
 # ---------------------------------------------------------------------------
 # Phase 3: NOT NULL enforcement
 # ---------------------------------------------------------------------------
+
 
 def test_org_id_not_null_on_tenant_tables(session):
     """Phase 3 makes org_id NOT NULL on every tenant-scoped table. This test

@@ -1,12 +1,14 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, icon_check %}
 {% block title %}Qual overview{% endblock %}
+{% block page_title %}Qual overview{% endblock %}
 {% block content %}
 {% include "quals/_tabs.html" %}
 <h1>Qualification overview</h1>
 <p class="muted">Per-qual rollups across the active roster. Gaps flagged when fewer than {{ threshold }} qualified.</p>
 <form method="get" action="/quals/overview" class="form-inline">
-  <label>Gap threshold <input type="number" name="threshold" min="1" max="10" value="{{ threshold }}" style="width:70px" /></label>
-  <button type="submit">Apply</button>
+  <label>Gap threshold <input type="number" name="threshold" min="1" max="10" value="{{ threshold }}" class="w-narrow" /></label>
+  <button type="submit" class="btn-ghost">Apply</button>
 </form>
 
 <section class="block">
@@ -19,34 +21,42 @@
     {% endfor %}
   </ul>
   {% else %}
-  <p class="muted">All qualifications meet the threshold.</p>
+  <div class="alerts-clear">
+    <span class="empty-icon success" aria-hidden="true">{{ icon_check() }}</span>
+    <div>
+      <div class="alerts-clear-title">All qualifications meet the threshold</div>
+      <div class="muted small">Coverage is healthy across all tracked quals.</div>
+    </div>
+  </div>
   {% endif %}
 </section>
 
 <section class="block">
   <h2>Per-qualification rollup</h2>
-  <table class="grid">
-    <thead>
-      <tr>
-        <th>Qual</th>
-        <th>Qualified</th>
-        <th>In&nbsp;progress</th>
-        <th>Dinq</th>
-        <th>Gap</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in summaries %}
-      <tr>
-        <td><a href="/quals/{{ s.qual.id }}/edit">{{ s.qual.name }}</a></td>
-        <td>{{ s.counts.get("qualified", 0) }}</td>
-        <td>{{ s.counts.get("in_progress", 0) }}</td>
-        <td>{{ s.counts.get("dinq", 0) }}</td>
-        <td>{% if s.gap %}<span class="warn">⚠</span>{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="grid responsive-table">
+      <thead>
+        <tr>
+          <th>Qual</th>
+          <th>Qualified</th>
+          <th>In&nbsp;progress</th>
+          <th>Dinq</th>
+          <th>Gap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in summaries %}
+        <tr>
+          <td data-label="Qualification" data-stretch="true"><a href="/quals/{{ s.qual.id }}/edit">{{ s.qual.name }}</a></td>
+          <td data-label="Qualified">{{ s.counts.get("qualified", 0) }}</td>
+          <td data-label="In progress">{{ s.counts.get("in_progress", 0) }}</td>
+          <td data-label="Dinq">{{ s.counts.get("dinq", 0) }}</td>
+          <td data-label="Gap">{% if s.gap %}<span class="pill pill-warn">⚠ gap</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section class="block">
@@ -55,7 +65,7 @@
     <details class="qual-detail">
       <summary><strong>{{ s.qual.name }}</strong>
         <span class="muted">— {{ s.counts.get("qualified", 0) }} qualified, {{ s.counts.get("in_progress", 0) }} in progress, {{ s.counts.get("dinq", 0) }} dinq</span>
-        {% if s.gap %}<span class="warn">gap</span>{% endif %}
+        {% if s.gap %}<span class="pill pill-warn ml-2">gap</span>{% endif %}
       </summary>
       <dl class="kv">
         <dt>Qualified</dt><dd>{{ s.qualified_names|join(", ") if s.qualified_names else "—" }}</dd>
@@ -65,4 +75,5 @@
     </details>
   {% endfor %}
 </section>
+
 {% endblock %}

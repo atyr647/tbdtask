@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Edit {{ qual.name }} for {{ person.full_display }}{% endblock %}
+{% block page_title %}Edit person qual{% endblock %}
 {% block content %}
-<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+{{ back_link("/personnel/" ~ person.id, "Back to " ~ person.full_display) }}
 <h1>{{ qual.name }} <span class="muted">— {{ person.full_display }}</span></h1>
 <p class="muted">Saving here closes the current row and inserts a new one. The history is preserved below.</p>
 
@@ -23,7 +25,7 @@
   <label>Notes <textarea name="notes" rows="2">{{ pq.notes or '' }}</textarea></label>
   <div class="form-actions">
     <button type="submit">Save</button>
-    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+    <a href="/personnel/{{ person.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
 

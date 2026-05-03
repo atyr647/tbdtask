@@ -14,6 +14,7 @@
 * ``POST /orgs/select`` — binds the chosen membership to the session and
   rotates the session id. CSRF protected.
 """
+
 from __future__ import annotations
 
 import re
@@ -28,7 +29,12 @@ from sqlalchemy.orm import Session
 from .. import models as M
 from ..auth import invites as invites_mod
 from ..auth import sessions as sess_mod
-from ..auth.dependencies import get_current_session, get_current_user, get_db, require_user
+from ..auth.dependencies import (
+    get_current_session,
+    get_current_user,
+    get_db,
+    require_user,
+)
 from ..auth.permissions import ROLE_TEMPLATES
 from ..auth.security import CSRF_COOKIE_NAME, issue_csrf_token
 from ..middleware import _client_ip
@@ -83,17 +89,14 @@ def no_orgs(
     user: M.UserAccount = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    pending = (
-        db.execute(
-            select(M.OrgMembership, M.Organization)
-            .join(M.Organization, M.Organization.id == M.OrgMembership.org_id)
-            .where(
-                M.OrgMembership.user_id == user.id,
-                M.OrgMembership.status == "pending",
-            )
+    pending = db.execute(
+        select(M.OrgMembership, M.Organization)
+        .join(M.Organization, M.Organization.id == M.OrgMembership.org_id)
+        .where(
+            M.OrgMembership.user_id == user.id,
+            M.OrgMembership.status == "pending",
         )
-        .all()
-    )
+    ).all()
     return templates.TemplateResponse(
         request,
         "auth/no_orgs.html",
@@ -113,17 +116,14 @@ def org_picker(
     user: M.UserAccount = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    memberships = (
-        db.execute(
-            select(M.OrgMembership, M.Organization)
-            .join(M.Organization, M.Organization.id == M.OrgMembership.org_id)
-            .where(
-                M.OrgMembership.user_id == user.id,
-                M.OrgMembership.status == "active",
-            )
+    memberships = db.execute(
+        select(M.OrgMembership, M.Organization)
+        .join(M.Organization, M.Organization.id == M.OrgMembership.org_id)
+        .where(
+            M.OrgMembership.user_id == user.id,
+            M.OrgMembership.status == "active",
         )
-        .all()
-    )
+    ).all()
     return templates.TemplateResponse(
         request,
         "auth/org_picker.html",
@@ -366,20 +366,24 @@ def _accept_invite(
 
         # If a title was provided, create the initial PersonRate row.
         if invite.rate:
-            db.add(M.PersonRate(
+            db.add(
+                M.PersonRate(
+                    person_id=person.id,
+                    rate=invite.rate,
+                    paygrade=invite.paygrade,
+                    valid_from=datetime.now().date(),
+                    org_id=invite.org_id,
+                )
+            )
+        # Initial roster status.
+        db.add(
+            M.PersonRosterStatus(
                 person_id=person.id,
-                rate=invite.rate,
-                paygrade=invite.paygrade,
+                status="active",
                 valid_from=datetime.now().date(),
                 org_id=invite.org_id,
-            ))
-        # Initial roster status.
-        db.add(M.PersonRosterStatus(
-            person_id=person.id,
-            status="active",
-            valid_from=datetime.now().date(),
-            org_id=invite.org_id,
-        ))
+            )
+        )
 
     invite.accepted_at = _now()
     invite.accepted_by_user_id = user.id
@@ -477,11 +481,7 @@ def org_select(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "no session")
 
     target = db.get(M.OrgMembership, membership_id)
-    if (
-        target is None
-        or target.user_id != user.id
-        or target.status != "active"
-    ):
+    if target is None or target.user_id != user.id or target.status != "active":
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "membership not found or inactive"
         )
@@ -554,19 +554,22 @@ def org_leave(
 
     # Check: cannot leave if this is the last org_owner.
     from ..auth.authorization import membership_has_role_template
+
     is_owner = membership_has_role_template(db, membership.id, "org_owner")
     if is_owner:
-        other_owners = db.execute(
-            select(M.OrgMembership)
-            .where(
-                M.OrgMembership.org_id == org_id,
-                M.OrgMembership.id != membership.id,
-                M.OrgMembership.status == "active",
+        other_owners = (
+            db.execute(
+                select(M.OrgMembership).where(
+                    M.OrgMembership.org_id == org_id,
+                    M.OrgMembership.id != membership.id,
+                    M.OrgMembership.status == "active",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         has_other_owner = any(
-            membership_has_role_template(db, m.id, "org_owner")
-            for m in other_owners
+            membership_has_role_template(db, m.id, "org_owner") for m in other_owners
         )
         if not has_other_owner:
             raise HTTPException(
@@ -581,12 +584,16 @@ def org_leave(
 
     # Determine redirect: if user has other active memberships, bind to
     # the first one; otherwise leave session unbound.
-    other_memberships = db.execute(
-        select(M.OrgMembership).where(
-            M.OrgMembership.user_id == user.id,
-            M.OrgMembership.status == "active",
+    other_memberships = (
+        db.execute(
+            select(M.OrgMembership).where(
+                M.OrgMembership.user_id == user.id,
+                M.OrgMembership.status == "active",
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     next_membership_id = other_memberships[0].id if other_memberships else None
 
@@ -654,21 +661,25 @@ def org_delete(
     org_id = membership.org_id
 
     from ..auth.authorization import membership_has_role_template
+
     if not membership_has_role_template(db, membership.id, "org_owner"):
         raise HTTPException(403, "Only org owners can delete the organization.")
 
     # Check: must be the only active member.
-    active_members = db.execute(
-        select(M.OrgMembership).where(
-            M.OrgMembership.org_id == org_id,
-            M.OrgMembership.status == "active",
+    active_members = (
+        db.execute(
+            select(M.OrgMembership).where(
+                M.OrgMembership.org_id == org_id,
+                M.OrgMembership.status == "active",
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if len(active_members) > 1:
         raise HTTPException(
             400,
-            "Cannot delete: there are other active members. "
-            "Remove them first.",
+            "Cannot delete: there are other active members. Remove them first.",
         )
 
     org = db.get(M.Organization, org_id)

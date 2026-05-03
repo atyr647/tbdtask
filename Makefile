@@ -79,10 +79,11 @@ scan-licenses:
 	@command -v pip-licenses >/dev/null 2>&1 || { echo "pip-licenses not installed: pip install pip-licenses"; exit 1; }
 	pip-licenses --format=json --output-file /tmp/tbdtask-licenses.json
 	@python3 -c "\
-	import json; \
+	import json, re; \
 	with open('/tmp/tbdtask-licenses.json') as f: licenses = json.load(f); \
 	forbidden = {'GPL-3.0', 'GPL-2.0', 'AGPL-3.0', 'AGPL-2.0'}; \
-	bad = [p for p in licenses if any(f in p.get('License', '') for f in forbidden)]; \
+	patterns = [re.compile(rf'\b{re.escape(f)}') for f in forbidden]; \
+	bad = [p for p in licenses if any(pat.search(p.get('License', '')) for pat in patterns)]; \
 	[print(f'  Forbidden: {p[\"Name\"]}: {p[\"License\"]}') for p in bad]; \
 	exit(1) if bad else print('No forbidden licenses found')"
 

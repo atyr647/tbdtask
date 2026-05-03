@@ -21,6 +21,7 @@ In ``SINGLE_TENANT`` mode, SessionMiddleware bypasses authentication
 entirely and binds every request to the default org. This keeps the
 AppImage offline path identical to its current behaviour.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -28,7 +29,6 @@ import os
 from contextvars import ContextVar
 from typing import Optional
 
-from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -95,6 +95,7 @@ def _is_trusted_proxy(ip_str: str) -> bool:
         return False
     return any(addr in net for net in TRUSTED_PROXY_NETWORKS)
 
+
 # Routes that bypass session enforcement. Keep this list short: every
 # entry is a place where the auth invariant doesn't hold by design.
 _PUBLIC_PATH_PREFIXES = (
@@ -128,9 +129,7 @@ _ONBOARDING_RATE_LIMITED_PATHS = (
     "/orgs/select",
     "/orgs/delete",
 )
-_INVITE_ACCEPT_RATE_LIMITED_PATHS = (
-    "/invites/accept",
-)
+_INVITE_ACCEPT_RATE_LIMITED_PATHS = ("/invites/accept",)
 
 
 def _is_public(path: str) -> bool:
@@ -222,6 +221,7 @@ def _client_ip(request: Request) -> str:
 # Secure headers (always on)
 # ---------------------------------------------------------------------------
 
+
 class SecureHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -237,6 +237,7 @@ class SecureHeadersMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 # Auth rate limiting (per-IP, narrow scope to auth endpoints)
 # ---------------------------------------------------------------------------
+
 
 class AuthRateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -358,6 +359,7 @@ def _redirect_to_login(request: Request) -> Response:
 # ---------------------------------------------------------------------------
 # CSRF
 # ---------------------------------------------------------------------------
+
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

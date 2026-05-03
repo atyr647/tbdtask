@@ -6,6 +6,7 @@ person been working on lately" without forcing the operator to scroll
 through every prior worklist. Elapsed time uses ``hours_worked`` from
 the assignment when present.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -66,19 +67,30 @@ def stats_for(
             M.TaskAssignment.completed == True,  # noqa: E712
             M.TaskAssignment.active == True,  # noqa: E712
         )
-        .order_by(M.TaskInstance.completed_at.desc().nulls_last(), M.TaskInstance.id.desc())
+        .order_by(
+            M.TaskInstance.completed_at.desc().nulls_last(), M.TaskInstance.id.desc()
+        )
     )
     if cutoff is not None:
         completed_q = completed_q.where(
-            (M.TaskInstance.completed_at.is_not(None) &
-             (M.TaskInstance.completed_at >= datetime.combine(cutoff, datetime.min.time())))
-            | (M.TaskInstance.scheduled_date.is_not(None) &
-               (M.TaskInstance.scheduled_date >= cutoff))
+            (
+                M.TaskInstance.completed_at.is_not(None)
+                & (
+                    M.TaskInstance.completed_at
+                    >= datetime.combine(cutoff, datetime.min.time())
+                )
+            )
+            | (
+                M.TaskInstance.scheduled_date.is_not(None)
+                & (M.TaskInstance.scheduled_date >= cutoff)
+            )
         )
 
     rows = list(session.execute(completed_q).all())
 
-    by_cat: dict[str, CategoryStat] = defaultdict(lambda: CategoryStat(name="Uncategorized"))
+    by_cat: dict[str, CategoryStat] = defaultdict(
+        lambda: CategoryStat(name="Uncategorized")
+    )
     by_cat_seen_names: set[str] = set()
     total_count = 0
     total_hours = 0.0
@@ -102,13 +114,15 @@ def stats_for(
         if hrs:
             total_hours += float(hrs)
         if len(recent) < recent_limit:
-            recent.append(RecentTask(
-                instance=instance,
-                category_name=cat_name,
-                completed_at=instance.completed_at,
-                hours_worked=hrs,
-                is_poic=assignment.is_poic,
-            ))
+            recent.append(
+                RecentTask(
+                    instance=instance,
+                    category_name=cat_name,
+                    completed_at=instance.completed_at,
+                    hours_worked=hrs,
+                    is_poic=assignment.is_poic,
+                )
+            )
 
     by_cat_list = sorted(by_cat.values(), key=lambda c: -c.count)
 

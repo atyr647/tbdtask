@@ -7,6 +7,7 @@ glance who's out and why on each day. Tasks with multiple assignees appear
 under each assignee's row with a shared marker; an unassigned bucket holds
 tasks with no person attached.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -62,6 +63,7 @@ class WeekView:
 # Compact print grid: person rows x day columns (legacy Excel layout).
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class GridDayCell:
     on_date: date
@@ -102,7 +104,15 @@ class WeekGrid:
     unassigned_by_day: dict[date, list[TaskRow]]
 
 
-WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+WEEKDAY_NAMES = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
 
 
 def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> WeekGrid:
@@ -114,7 +124,6 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
     """
     monday = worklist.week_starting
     day_dates = [monday + timedelta(days=i) for i in range(days)]
-    end = day_dates[-1]
 
     instances = list(
         session.scalars(
@@ -124,10 +133,16 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
                 M.TaskInstance.active == True,  # noqa: E712
             )
             .options(
-                selectinload(M.TaskInstance.assignments).selectinload(M.TaskAssignment.person),
+                selectinload(M.TaskInstance.assignments).selectinload(
+                    M.TaskAssignment.person
+                ),
                 selectinload(M.TaskInstance.category),
             )
-            .order_by(M.TaskInstance.scheduled_date, M.TaskInstance.display_order, M.TaskInstance.id)
+            .order_by(
+                M.TaskInstance.scheduled_date,
+                M.TaskInstance.display_order,
+                M.TaskInstance.id,
+            )
         ).all()
     )
 
@@ -162,15 +177,21 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
             if span:
                 label += f" {span}"
             out_summary.append(label)
-        headers.append(GridDayHeader(
-            on_date=d, weekday=WEEKDAY_NAMES[d.weekday()],
-            out_count=len(out), present_count=report.total - len(out),
-            percent_present=report.percent_present,
-            out_summary=out_summary,
-        ))
+        headers.append(
+            GridDayHeader(
+                on_date=d,
+                weekday=WEEKDAY_NAMES[d.weekday()],
+                out_count=len(out),
+                present_count=report.total - len(out),
+                percent_present=report.percent_present,
+                out_summary=out_summary,
+            )
+        )
 
     # Pre-collect labels for shared assignees.
-    def _other_labels(a: M.TaskAssignment, all_assignments: list[M.TaskAssignment]) -> list[str]:
+    def _other_labels(
+        a: M.TaskAssignment, all_assignments: list[M.TaskAssignment]
+    ) -> list[str]:
         return [_assignee_label(o) for o in all_assignments if o is not a and o.active]
 
     # Build per-person grid rows.
@@ -184,7 +205,10 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
         ds = _current_attr(person.duty_sections, "duty_section")
         cells = [
             GridDayCell(
-                on_date=d, absence_code=None, absence_partial=False, absence_reason=None,
+                on_date=d,
+                absence_code=None,
+                absence_partial=False,
+                absence_reason=None,
             )
             for d in day_dates
         ]
@@ -199,10 +223,18 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
                 cells[i].absence_reason = avail.reason
                 cells[i].absence_start_date = a.start_date
                 cells[i].absence_end_date = a.end_date
-                cells[i].absence_start_time = a.start_time.strftime("%H:%M") if a.start_time else None
-                cells[i].absence_end_time = a.end_time.strftime("%H:%M") if a.end_time else None
+                cells[i].absence_start_time = (
+                    a.start_time.strftime("%H:%M") if a.start_time else None
+                )
+                cells[i].absence_end_time = (
+                    a.end_time.strftime("%H:%M") if a.end_time else None
+                )
         row = GridPersonRow(
-            person=person, rate=rate, duty_section=ds, cells=cells, has_any_content=False,
+            person=person,
+            rate=rate,
+            duty_section=ds,
+            cells=cells,
+            has_any_content=False,
         )
         person_rows[person.id] = row
         return row
@@ -212,27 +244,43 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
             cat_name = inst.category.name if inst.category else None
             assignments = [a for a in inst.assignments if a.active]
             if not assignments:
-                unassigned_by_day[d].append(TaskRow(
-                    instance=inst, assignment=None, other_assignees=[],
-                    is_poic=False, external_poic=None, category_name=cat_name,
-                ))
+                unassigned_by_day[d].append(
+                    TaskRow(
+                        instance=inst,
+                        assignment=None,
+                        other_assignees=[],
+                        is_poic=False,
+                        external_poic=None,
+                        category_name=cat_name,
+                    )
+                )
                 continue
             for a in assignments:
                 others = _other_labels(a, assignments)
                 if a.person:
                     row = _ensure_row(a.person)
-                    row.cells[d_idx].tasks.append(TaskRow(
-                        instance=inst, assignment=a, other_assignees=others,
-                        is_poic=a.is_poic, external_poic=a.external_poic_name,
-                        category_name=cat_name,
-                    ))
+                    row.cells[d_idx].tasks.append(
+                        TaskRow(
+                            instance=inst,
+                            assignment=a,
+                            other_assignees=others,
+                            is_poic=a.is_poic,
+                            external_poic=a.external_poic_name,
+                            category_name=cat_name,
+                        )
+                    )
                     row.has_any_content = True
                 else:
-                    unassigned_by_day[d].append(TaskRow(
-                        instance=inst, assignment=a, other_assignees=others,
-                        is_poic=a.is_poic, external_poic=a.external_poic_name,
-                        category_name=cat_name,
-                    ))
+                    unassigned_by_day[d].append(
+                        TaskRow(
+                            instance=inst,
+                            assignment=a,
+                            other_assignees=others,
+                            is_poic=a.is_poic,
+                            external_poic=a.external_poic_name,
+                            category_name=cat_name,
+                        )
+                    )
 
     # Promote rows for personnel who are merely absent (no tasks) so the
     # printed page still shows their leave status.
@@ -249,7 +297,9 @@ def build_week_grid(session: Session, worklist: M.Worklist, days: int = 5) -> We
         key=lambda r: (r.person.display_order, r.person.id),
     )
     return WeekGrid(
-        worklist=worklist, headers=headers, rows=rows,
+        worklist=worklist,
+        headers=headers,
+        rows=rows,
         unassigned_by_day=unassigned_by_day,
     )
 
@@ -277,10 +327,16 @@ def build_week_view(session: Session, worklist: M.Worklist, days: int = 7) -> We
                 M.TaskInstance.active == True,  # noqa: E712
             )
             .options(
-                selectinload(M.TaskInstance.assignments).selectinload(M.TaskAssignment.person),
+                selectinload(M.TaskInstance.assignments).selectinload(
+                    M.TaskAssignment.person
+                ),
                 selectinload(M.TaskInstance.category),
             )
-            .order_by(M.TaskInstance.scheduled_date, M.TaskInstance.display_order, M.TaskInstance.id)
+            .order_by(
+                M.TaskInstance.scheduled_date,
+                M.TaskInstance.display_order,
+                M.TaskInstance.id,
+            )
         ).all()
     )
     instances_by_date: dict[Optional[date], list[M.TaskInstance]] = {}
@@ -308,10 +364,16 @@ def build_week_view(session: Session, worklist: M.Worklist, days: int = 7) -> We
             assignments = [a for a in inst.assignments if a.active]
             other_labels = [_assignee_label(a) for a in assignments]
             if not assignments:
-                block.unassigned_tasks.append(TaskRow(
-                    instance=inst, assignment=None, other_assignees=[],
-                    is_poic=False, external_poic=None, category_name=cat_name,
-                ))
+                block.unassigned_tasks.append(
+                    TaskRow(
+                        instance=inst,
+                        assignment=None,
+                        other_assignees=[],
+                        is_poic=False,
+                        external_poic=None,
+                        category_name=cat_name,
+                    )
+                )
                 continue
             for a in assignments:
                 others = [lbl for lbl in other_labels if lbl != _assignee_label(a)]
@@ -321,22 +383,34 @@ def build_week_view(session: Session, worklist: M.Worklist, days: int = 7) -> We
                         rate = _current_attr(a.person.rates, "rate")
                         ds = _current_attr(a.person.duty_sections, "duty_section")
                         pb = PersonDayBlock(
-                            person=a.person, rate=rate, duty_section=ds,
+                            person=a.person,
+                            rate=rate,
+                            duty_section=ds,
                             availability=availability_by_person.get(a.person.id),
                         )
                         person_block_by_id[a.person.id] = pb
-                    pb.tasks.append(TaskRow(
-                        instance=inst, assignment=a, other_assignees=others,
-                        is_poic=a.is_poic, external_poic=a.external_poic_name,
-                        category_name=cat_name,
-                    ))
+                    pb.tasks.append(
+                        TaskRow(
+                            instance=inst,
+                            assignment=a,
+                            other_assignees=others,
+                            is_poic=a.is_poic,
+                            external_poic=a.external_poic_name,
+                            category_name=cat_name,
+                        )
+                    )
                 else:
                     # External lead with no Person row (e.g., visiting supervisor).
-                    block.unassigned_tasks.append(TaskRow(
-                        instance=inst, assignment=a, other_assignees=others,
-                        is_poic=a.is_poic, external_poic=a.external_poic_name,
-                        category_name=cat_name,
-                    ))
+                    block.unassigned_tasks.append(
+                        TaskRow(
+                            instance=inst,
+                            assignment=a,
+                            other_assignees=others,
+                            is_poic=a.is_poic,
+                            external_poic=a.external_poic_name,
+                            category_name=cat_name,
+                        )
+                    )
         # Order person blocks by display_order on Person
         block.person_blocks = sorted(
             person_block_by_id.values(),

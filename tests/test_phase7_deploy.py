@@ -5,6 +5,7 @@ Covers:
 * InProcessLimiter thread safety and window reset
 * Secret-key fallback persistence
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -13,7 +14,6 @@ import threading
 import time
 from unittest.mock import patch
 
-import pytest
 
 from app.auth.rate_limit import InProcessLimiter
 
@@ -22,30 +22,41 @@ from app.auth.rate_limit import InProcessLimiter
 # Trusted proxy parsing
 # ---------------------------------------------------------------------------
 
+
 class TestTrustedProxyParsing:
     def test_default_trusted_ranges(self):
         """Without env override, only loopback ranges are trusted."""
         from app.middleware import _parse_trusted_proxies
+
         nets = _parse_trusted_proxies()
         assert any("127.0.0.0" in str(n) for n in nets)
         assert not any("192.168.0.0" in str(n) for n in nets)
 
     def test_empty_env_trusts_nothing(self):
         from app.middleware import _parse_trusted_proxies
+
         with patch.dict(os.environ, {"TBDTASK_TRUSTED_PROXIES": ""}, clear=False):
             nets = _parse_trusted_proxies()
             assert nets == []
 
     def test_custom_cidr(self):
         from app.middleware import _parse_trusted_proxies
-        with patch.dict(os.environ, {"TBDTASK_TRUSTED_PROXIES": "10.0.0.0/8"}, clear=False):
+
+        with patch.dict(
+            os.environ, {"TBDTASK_TRUSTED_PROXIES": "10.0.0.0/8"}, clear=False
+        ):
             nets = _parse_trusted_proxies()
             assert len(nets) == 1
             assert nets[0] == ipaddress.ip_network("10.0.0.0/8")
 
     def test_multiple_cidrs(self):
         from app.middleware import _parse_trusted_proxies
-        with patch.dict(os.environ, {"TBDTASK_TRUSTED_PROXIES": "10.0.0.0/8, 172.16.0.0/12"}, clear=False):
+
+        with patch.dict(
+            os.environ,
+            {"TBDTASK_TRUSTED_PROXIES": "10.0.0.0/8, 172.16.0.0/12"},
+            clear=False,
+        ):
             nets = _parse_trusted_proxies()
             assert len(nets) == 2
 
@@ -54,9 +65,11 @@ class TestTrustedProxyParsing:
 # _is_trusted_proxy
 # ---------------------------------------------------------------------------
 
+
 class TestIsTrustedProxy:
     def _get_networks(self):
         from app.middleware import _parse_trusted_proxies
+
         return _parse_trusted_proxies()
 
     def test_loopback_trusted_by_default(self):
@@ -81,6 +94,7 @@ class TestIsTrustedProxy:
 
     def test_invalid_ip_returns_false(self):
         from app.middleware import _is_trusted_proxy
+
         assert not _is_trusted_proxy("not-an-ip")
 
 
@@ -88,9 +102,11 @@ class TestIsTrustedProxy:
 # _client_ip
 # ---------------------------------------------------------------------------
 
+
 class TestClientIP:
     def _make_request(self, *, client_host="127.0.0.1", headers=None):
         """Create a minimal fake request object for _client_ip."""
+
         class FakeClient:
             def __init__(self):
                 self.host = client_host
@@ -98,6 +114,7 @@ class TestClientIP:
         class HeaderProxy:
             def __init__(self, d):
                 self._d = d
+
             def get(self, key, default=None):
                 return self._d.get(key, default)
 
@@ -110,11 +127,13 @@ class TestClientIP:
 
     def test_direct_connection_no_forwarded(self):
         from app.middleware import _client_ip
+
         req = self._make_request(client_host="127.0.0.1")
         assert _client_ip(req) == "127.0.0.1"
 
     def test_trusted_proxy_uses_forwarded(self):
         from app.middleware import _client_ip
+
         req = self._make_request(
             client_host="127.0.0.1",
             headers={"x-forwarded-for": "203.0.113.50, 10.0.0.1"},
@@ -125,6 +144,7 @@ class TestClientIP:
         """When the direct connection is not a trusted proxy, the
         ``x-forwarded-for`` header must be ignored even if present."""
         from app.middleware import _client_ip
+
         with patch("app.middleware.TRUSTED_PROXY_NETWORKS", []):
             req = self._make_request(
                 client_host="203.0.113.50",
@@ -134,14 +154,17 @@ class TestClientIP:
 
     def test_no_client_returns_unknown(self):
         from app.middleware import _client_ip
+
         class FakeRequest:
             client = None
             headers = type("H", (), {"get": lambda s, k, d=None: d})()
+
         assert _client_ip(FakeRequest()) == "unknown"
 
 
 # ---------------------------------------------------------------------------
 # InProcessLimiter
+
 
 class TestInProcessLimiter:
     def test_allows_up_to_limit(self):
@@ -199,6 +222,7 @@ class TestInProcessLimiter:
 # ---------------------------------------------------------------------------
 # Health check endpoint
 # ---------------------------------------------------------------------------
+
 
 class TestHealthz:
     def test_healthz_returns_ok(self):

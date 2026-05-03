@@ -34,13 +34,14 @@ Workcenter-scoped checks:
   workcenter or any of its ancestors. Phase 3's RLS pushes this into
   the DB, but for now the walk happens in Python.
 """
+
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from typing import Callable, FrozenSet, Optional, Sequence
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -59,6 +60,7 @@ def _single_tenant_mode() -> bool:
 # ---------------------------------------------------------------------------
 # Effective-permission resolution
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class EffectivePermissions:
@@ -80,9 +82,7 @@ class EffectivePermissions:
     by_workcenter: dict[int, FrozenSet[str]]
 
 
-def load_effective_permissions(
-    db: Session, membership_id: int
-) -> EffectivePermissions:
+def load_effective_permissions(db: Session, membership_id: int) -> EffectivePermissions:
     """Read every permission code granted to ``membership_id``.
 
     A single SQL hit (joined across membership_roles → roles →
@@ -202,9 +202,8 @@ def membership_has_role_template(
 # FastAPI dependency factory
 # ---------------------------------------------------------------------------
 
-def _resolve_workcenter_id(
-    request: Request, param: str
-) -> Optional[int]:
+
+def _resolve_workcenter_id(request: Request, param: str) -> Optional[int]:
     """Pull the workcenter id from the request, in priority order.
 
     Order: path params → query params → already-parsed form. We don't
@@ -287,9 +286,7 @@ def require(
                 if workcenter_param is not None
                 else None
             )
-            allowed = has_permission(
-                db, membership.id, code, workcenter_id=wc_id
-            )
+            allowed = has_permission(db, membership.id, code, workcenter_id=wc_id)
         finally:
             db.close()
 
@@ -360,7 +357,5 @@ def require_any(
             detail="permission denied",
         )
 
-    dependency.__name__ = "require_any_" + "_".join(
-        c.replace(".", "_") for c in codes
-    )
+    dependency.__name__ = "require_any_" + "_".join(c.replace(".", "_") for c in codes)
     return dependency

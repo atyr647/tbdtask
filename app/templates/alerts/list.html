@@ -1,16 +1,32 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, icon_check %}
 {% block title %}Alerts{% endblock %}
+{% block page_title %}Alerts{% endblock %}
 {% block content %}
-<h1>Alerts <span class="muted">({{ items|length }})</span></h1>
-<p class="muted">
-  <a href="/alerts?show=active" {% if show == "active" %}class="active-link"{% endif %}>Active</a> ·
-  <a href="/alerts?show=history" {% if show == "history" %}class="active-link"{% endif %}>History (last 200)</a>
-</p>
+<div class="page-header">
+  <h1>Alerts <span class="count">({{ items|length }})</span></h1>
+  <div class="page-actions">
+    <div class="segmented" role="tablist">
+      <a href="/alerts?show=active" {% if show == "active" %}class="active"{% endif %}>Active</a>
+      <a href="/alerts?show=history" {% if show == "history" %}class="active"{% endif %}>History (last 200)</a>
+    </div>
+  </div>
+</div>
 
 {% if not items %}
-<p>No alerts. ✓</p>
+{% if show == "active" %}
+{% call empty_state(title="All clear", icon="check", success=true) %}
+  No active alerts. Snoozed and resolved alerts appear under
+  <a href="/alerts?show=history">History</a>.
+{% endcall %}
 {% else %}
-<table class="grid alerts-table">
+{% call empty_state(title="No alerts in history", icon="info") %}
+  Once alerts are dismissed, snoozed, or resolved, they show up here.
+{% endcall %}
+{% endif %}
+{% else %}
+<div class="table-wrap">
+<table class="grid alerts-table responsive-table">
   <thead>
     <tr>
       <th>Severity</th>
@@ -26,9 +42,9 @@
     {% for item in items %}
     {% set a = item.alert %}
     <tr class="alert-row alert-{{ a.severity }}">
-      <td><span class="sev sev-{{ a.severity }}">{{ a.severity }}</span></td>
-      <td>{{ item.type_label }}</td>
-      <td>
+      <td data-label="Severity"><span class="sev sev-{{ a.severity }}">{{ a.severity }}</span></td>
+      <td data-label="Type">{{ item.type_label }}</td>
+      <td data-label="Subject" data-stretch="true">
         {% if item.person_label %}
           <a href="/personnel/{{ a.person_id }}">{{ item.person_label }}</a>
         {% elif item.worklist_label %}
@@ -37,7 +53,7 @@
           —
         {% endif %}
       </td>
-      <td class="muted">
+      <td data-label="Detail" data-stretch="true" class="muted">
         {% set p = a.payload or {} %}
         {% if a.alert_type.startswith("prd") %}
           Departure {{ p.get("prd") }} ({{ p.get("days") }} days)
@@ -51,16 +67,17 @@
           {{ p }}
         {% endif %}
       </td>
-      <td class="muted">{{ a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "" }}</td>
+      <td data-label="Created" class="muted">{{ a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "" }}</td>
       {% if show == "history" %}
-      <td class="muted">
+      <td data-label="State" class="muted">
         {% if a.dismissed_at %}dismissed
         {% elif a.resolved_at %}resolved
         {% else %}active{% endif %}
       </td>
       {% endif %}
-      <td>
+      <td data-label="Actions" data-stretch="true">
         {% if not a.dismissed_at and not a.resolved_at %}
+        <div class="alert-actions">
           {% if a.alert_type.startswith("prd") and a.person_id %}
           {% set current_prd = (a.payload or {}).get("prd") %}
           <details class="prd-popover">
@@ -71,50 +88,53 @@
               </label>
               <div class="prd-popover-actions">
                 <button type="submit">Save</button>
-                <button type="button" class="ghost-btn" onclick="this.closest('details').open=false">Cancel</button>
+                <button type="button" class="ghost-btn" data-action="close-details" >Cancel</button>
               </div>
             </form>
           </details>
           {% if a.alert_type == "prd_passed" %}
           <form method="post" action="/alerts/{{ a.id }}/archive-person" class="form-inline-row">
             <input name="reason" value="Departure date passed" />
-            <button type="submit" class="ghost-btn" onclick="return confirm('Archive this person? They are removed from the active roster but history is preserved.');">Archive person</button>
+            <button type="submit" class="ghost-btn" data-confirm="Archive this person? They are removed from the active roster but history is preserved." >Archive person</button>
           </form>
           {% endif %}
           {% endif %}
-        <details class="prd-popover">
-          <summary class="ghost-btn">Snooze</summary>
-          <form method="post" action="/alerts/{{ a.id }}/snooze" class="prd-popover-body">
-            <label>Snooze until
-              <input type="date" name="until" required autofocus />
-            </label>
-            <p class="muted small" style="margin:0">The alert reappears on this date.</p>
-            <div class="prd-popover-actions">
-              <button type="submit">Snooze</button>
-              <button type="button" class="ghost-btn" onclick="this.closest('details').open=false">Cancel</button>
-            </div>
+          <details class="prd-popover">
+            <summary class="ghost-btn">Snooze</summary>
+            <form method="post" action="/alerts/{{ a.id }}/snooze" class="prd-popover-body">
+              <label>Snooze until
+                <input type="date" name="until" required autofocus />
+              </label>
+              <p class="muted small m-0">The alert reappears on this date.</p>
+              <div class="prd-popover-actions">
+                <button type="submit">Snooze</button>
+                <button type="button" class="ghost-btn" data-action="close-details" >Cancel</button>
+              </div>
+            </form>
+          </details>
+          <details class="prd-popover">
+            <summary class="ghost-btn">Resolve</summary>
+            <form method="post" action="/alerts/{{ a.id }}/resolve" class="prd-popover-body">
+              <label>Resolution note (optional)
+                <textarea name="note" rows="2" placeholder="What did you do? e.g. Confirmed extension, updated records" autofocus></textarea>
+              </label>
+              <div class="prd-popover-actions">
+                <button type="submit">Mark resolved</button>
+                <button type="button" class="ghost-btn" data-action="close-details" >Cancel</button>
+              </div>
+            </form>
+          </details>
+          <form method="post" action="/alerts/{{ a.id }}/dismiss" class="inline-form">
+            <button type="submit" class="ghost-btn">Dismiss</button>
           </form>
-        </details>
-        <details class="prd-popover">
-          <summary class="ghost-btn">Resolve</summary>
-          <form method="post" action="/alerts/{{ a.id }}/resolve" class="prd-popover-body">
-            <label>Resolution note (optional)
-              <textarea name="note" rows="2" placeholder="What did you do? e.g. Confirmed extension, updated records" autofocus></textarea>
-            </label>
-            <div class="prd-popover-actions">
-              <button type="submit">Mark resolved</button>
-              <button type="button" class="ghost-btn" onclick="this.closest('details').open=false">Cancel</button>
-            </div>
-          </form>
-        </details>
-        <form method="post" action="/alerts/{{ a.id }}/dismiss" class="form-inline-row">
-          <button type="submit" class="ghost-btn">Dismiss</button>
-        </form>
+        </div>
         {% endif %}
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+</div>
+
 {% endif %}
 {% endblock %}

@@ -1,7 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}Assign qual to {{ person.full_display }}{% endblock %}
+{% block page_title %}Assign qual{% endblock %}
 {% block content %}
-<p><a href="/personnel/{{ person.id }}">&lsaquo; Back to {{ person.full_display }}</a></p>
+{{ back_link("/personnel/" ~ person.id, "Back to " ~ person.full_display) }}
 <h1>Assign qualification</h1>
 
 {% if not available %}
@@ -25,7 +27,7 @@
   <label>Notes <textarea name="notes" rows="2"></textarea></label>
   <div class="form-actions">
     <button type="submit">Assign</button>
-    <a href="/personnel/{{ person.id }}" class="btn-link">Cancel</a>
+    <a href="/personnel/{{ person.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
 {% endif %}

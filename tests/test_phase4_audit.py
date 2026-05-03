@@ -7,11 +7,11 @@ Covers:
 * Notification fan-out for significant events
 * Immutability invariant (no UPDATE/DELETE on audit rows)
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pytest
 from sqlalchemy import select
 
 from app import models as M
@@ -26,6 +26,7 @@ from app.services.audit import (
 # ---------------------------------------------------------------------------
 # Helpers (mirror test_phase2_authz to keep tests independent)
 # ---------------------------------------------------------------------------
+
 
 def _make_org(session, *, slug="alpha", name="Alpha Org"):
     org = M.Organization(slug=slug, name=name)
@@ -51,6 +52,7 @@ def _make_membership(session, *, org, user, status="active"):
 # ---------------------------------------------------------------------------
 # _serialize
 # ---------------------------------------------------------------------------
+
 
 class TestSerialize:
     def test_none_returns_none(self):
@@ -78,6 +80,7 @@ class TestSerialize:
 # ---------------------------------------------------------------------------
 # record_audit_event
 # ---------------------------------------------------------------------------
+
 
 class TestRecordAuditEvent:
     def test_creates_event_row(self, session):
@@ -143,6 +146,7 @@ class TestRecordAuditEvent:
 # ---------------------------------------------------------------------------
 # Notification fan-out
 # ---------------------------------------------------------------------------
+
 
 class TestNotificationFanOut:
     def test_archive_triggers_notification(self, session):
@@ -237,6 +241,7 @@ class TestNotificationFanOut:
 # ---------------------------------------------------------------------------
 # Notify actions set
 # ---------------------------------------------------------------------------
+
 
 class TestNotifyActions:
     def test_archive_is_notified(self):

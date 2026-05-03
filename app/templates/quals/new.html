@@ -1,13 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import back_link %}
 {% block title %}New qualification{% endblock %}
+{% block page_title %}Add qualification{% endblock %}
 {% block content %}
-<p><a href="/quals">&lsaquo; Back to qual catalog</a></p>
+{{ back_link("/quals", "Back to qual catalog") }}
 <h1>Add qualification</h1>
 <form method="post" action="/quals" class="form">
   <label>Name <input name="name" required /></label>
   <div class="form-actions">
     <button type="submit">Create</button>
-    <a href="/quals" class="btn-link">Cancel</a>
+    <a href="/quals" class="btn-ghost">Cancel</a>
   </div>
 </form>
 {% endblock %}

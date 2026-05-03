@@ -39,7 +39,7 @@
 
   <div class="rec-block rec-row" data-rec-kinds="every_n_weeks">
     <label>Every
-      <input type="number" name="rec_n" min="1" value="{{ rule.get('n', 2) if rule else 2 }}" style="width:70px" />
+      <input type="number" name="rec_n" min="1" value="{{ rule.get('n', 2) if rule else 2 }}" class="w-narrow" />
       weeks
     </label>
     <label>on
@@ -70,7 +70,7 @@
 
   <div class="rec-block rec-row" data-rec-kinds="monthly_date">
     <label>On day
-      <input type="number" name="rec_day" min="1" max="31" value="{{ rule.get('day', '') if rule else '' }}" style="width:70px" />
+      <input type="number" name="rec_day" min="1" max="31" value="{{ rule.get('day', '') if rule else '' }}" class="w-narrow" />
     </label>
     <span class="muted">of every month</span>
   </div>
@@ -101,19 +101,3 @@
   </div>
 </details>
 
-<script>
-(function() {
-  const sel = document.getElementById("rec_kind");
-  if (!sel) return;
-  const blocks = Array.from(document.querySelectorAll(".rec-block"));
-  function apply() {
-    const k = sel.value;
-    for (const b of blocks) {
-      const kinds = (b.dataset.recKinds || "").split(/\s+/);
-      b.style.display = (kinds.includes(k)) ? "" : "none";
-    }
-  }
-  sel.addEventListener("change", apply);
-  apply();
-})();
-</script>

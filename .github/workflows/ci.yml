@@ -144,13 +144,15 @@ jobs:
         run: |
           pip install pip-licenses
           pip-licenses --format=json --output-file licenses.json
-          # Fail if any GPL/AGPL licenses found (copyleft risk)
+          # Fail if any GPL/AGPL licenses found (copyleft risk).
+          # Word-boundary match avoids false positives on LGPL.
           if python -c "
-          import json
+          import json, re
           with open('licenses.json') as f:
               licenses = json.load(f)
           forbidden = {'GPL-3.0', 'GPL-2.0', 'AGPL-3.0', 'AGPL-2.0'}
-          bad = [pkg for pkg in licenses if any(f in pkg.get('License', '') for f in forbidden)]
+          patterns = [re.compile(rf'\b{re.escape(f)}') for f in forbidden]
+          bad = [pkg for pkg in licenses if any(p.search(pkg.get('License', '')) for p in patterns)]
           if bad:
               print('Forbidden licenses found:')
               for pkg in bad:
@@ -200,6 +202,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://tbdtask:tbdtask@localhost:5432/tbdtask
+          TBDTASK_SKIP_AUTOMIGRATE: "1"
+        run: |
+          alembic upgrade head
 
       - name: Run backup/restore test
         env:
