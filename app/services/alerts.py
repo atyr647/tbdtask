@@ -52,9 +52,26 @@ def _ensure_alert(
         if (a.payload or {}).get("key") == payload_key:
             a.payload = payload
             return a
+
+    # Derive org_id from the person or task_instance.
+    org_id = None
+    if person_id is not None:
+        person = session.get(M.Person, person_id)
+        if person is not None:
+            org_id = person.org_id
+    if org_id is None and task_instance_id is not None:
+        inst = session.get(M.TaskInstance, task_instance_id)
+        if inst is not None:
+            org_id = inst.org_id
+    if org_id is None and payload and "worklist_id" in payload:
+        wl = session.get(M.Worklist, payload["worklist_id"])
+        if wl is not None:
+            org_id = wl.org_id
+
     alert = M.Alert(
         alert_type=alert_type, severity=severity, person_id=person_id,
         task_instance_id=task_instance_id, payload=payload,
+        org_id=org_id,
     )
     session.add(alert)
     return alert
@@ -86,7 +103,7 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
     today = today or date.today()
     counts: dict[str, int] = {}
 
-    # PRD windows -----------------------------------------------------
+    # Planned departure windows --------------------------------------
     persons = list(
         session.scalars(
             select(M.Person).where(M.Person.active == True)  # noqa: E712

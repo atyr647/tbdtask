@@ -1,0 +1,56 @@
+# Byte-compiled and cached
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test and dev artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Data files (never ship DB into the image)
+data/
+*.db
+
+# Build output
+dist/
+build/
+*.egg-info/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+
+# Documentation (not needed at runtime)
+docs/
+README.md
+screenshots/
+resources/
+
+# AppImage build tools (separate artifact)
+tools/build_appimage.sh
+
+# Docker files (prevent recursive context)
+Dockerfile
+.dockerignore

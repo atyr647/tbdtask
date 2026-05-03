@@ -1,0 +1,49 @@
+# Development and production compose file.
+#
+# Usage:
+#   docker compose up           # dev mode (SQLite, single worker)
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up  # production
+#
+# Required environment variables (set via .env or export):
+#   TBDTASK_SECRET_KEY   — HMAC signing key (min 32 chars, random)
+#   DATABASE_URL         — postgresql+psycopg://user:pass@host:port/dbname
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - TBDTASK_SECRET_KEY=${TBDTASK_SECRET_KEY:-dev-secret-key-change-me}
+      - TBDTASK_SINGLE_TENANT=0
+      - TBDTASK_TRUSTED_PROXIES=172.16.0.0/12
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-tbdtask}:${POSTGRES_PASSWORD:-tbdtask}@db:5432/${POSTGRES_DB:-tbdtask}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  db:
+    image: postgres:16.3-alpine@sha256:5e2dbd466c330d8fd5a4f535a9b4f9c9b0e4c8c0f5e0e3c5a2b1d0f9e8d7c6b5
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-tbdtask}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-tbdtask}
+      - POSTGRES_DB=${POSTGRES_DB:-tbdtask}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tbdtask}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -21,6 +21,9 @@
       <a href="/quals" {% if p.startswith("/quals") %}class="active"{% endif %}>Qualifications</a>
       <a href="/absences" {% if p.startswith("/absences") %}class="active"{% endif %}>Absences</a>
       <a href="/alerts" {% if p.startswith("/alerts") %}class="active"{% endif %}>Alerts</a>
+      {% if request.state.membership is defined and request.state.membership %}
+      <a href="/admin" {% if p.startswith("/admin") %}class="active"{% endif %}>Admin</a>
+      {% endif %}
     </nav>
   </header>
   <main>

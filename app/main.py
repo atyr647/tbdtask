@@ -13,9 +13,11 @@ from .middleware import (
     SINGLE_TENANT_MODE,
     SecureHeadersMiddleware,
     SessionMiddleware,
+    TrustedProxyMiddleware,
 )
 from .routes import (
     absences,
+    admin as admin_routes,
     alerts as alerts_routes,
     auth as auth_routes,
     home,
@@ -37,14 +39,23 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Worklist Tracker", version="0.1.0")
     app.mount("/static", StaticFiles(directory=APP_ROOT / "static"), name="static")
 
+    # Health check — must register before middleware so it bypasses session/CSRF.
+    # The middleware allowlists /healthz, but the route still needs a handler.
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+
     # Middleware order matters (Starlette runs them outside-in for the
     # request, inside-out for the response). Read top-to-bottom as the
-    # response journey: app → CSRF → Session → AuthRateLimit → SecureHeaders.
-    # Headers go on every response including errors, so they're outermost.
+    # response journey: app → CSRF → Session → AuthRateLimit → SecureHeaders
+    # → TrustedProxy. TrustedProxy must be outermost so it strips untrusted
+    # ``x-forwarded-*`` headers before any downstream middleware (rate
+    # limiter, HSTS logic, _client_ip) sees them.
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(SessionMiddleware)
     app.add_middleware(AuthRateLimitMiddleware)
     app.add_middleware(SecureHeadersMiddleware)
+    app.add_middleware(TrustedProxyMiddleware)
 
     # Auth + onboarding routes always register; they're inert in
     # SINGLE_TENANT mode because the SessionMiddleware short-circuits
@@ -61,6 +72,11 @@ def create_app() -> FastAPI:
     app.include_router(personnel.router)
     app.include_router(quals.router)
     app.include_router(absences.router)
+    # Admin (Phase 2): invites, roles, members, workcenters. Each route
+    # gates on its own org.* permission so members without admin perms
+    # see 403 if they navigate here directly. SINGLE_TENANT mode opens
+    # the gates so the AppImage can still administer its own DB.
+    app.include_router(admin_routes.router)
     return app
 
 

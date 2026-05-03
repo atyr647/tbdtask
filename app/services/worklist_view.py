@@ -331,7 +331,7 @@ def build_week_view(session: Session, worklist: M.Worklist, days: int = 7) -> We
                         category_name=cat_name,
                     ))
                 else:
-                    # External POIC with no Person row (e.g., visiting supervisor).
+                    # External lead with no Person row (e.g., visiting supervisor).
                     block.unassigned_tasks.append(TaskRow(
                         instance=inst, assignment=a, other_assignees=others,
                         is_poic=a.is_poic, external_poic=a.external_poic_name,

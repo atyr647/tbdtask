@@ -2,11 +2,17 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from ..auth.authorization import require
+from ..auth.permissions import (
+    P_QUALS_ARCHIVE,
+    P_QUALS_VIEW,
+    P_QUALS_WRITE,
+)
 from ..db import SessionLocal
 from .. import models as M
 from ..services.qual_overview import build_qual_overview
@@ -26,7 +32,7 @@ PERSON_QUAL_STATUSES = (
 # ---------------------------------------------------------------------------
 
 @router.get("/quals")
-def list_quals(request: Request):
+def list_quals(request: Request, _: None = Depends(require(P_QUALS_VIEW))):
     with SessionLocal() as s:
         quals = list(s.scalars(
             select(M.Qualification)
@@ -59,13 +65,14 @@ def list_quals(request: Request):
 
 
 @router.get("/quals/new")
-def new_qual_form(request: Request):
+def new_qual_form(request: Request, _: None = Depends(require(P_QUALS_WRITE))):
     return render(request, "quals/new.html")
 
 
 @router.post("/quals")
 def create_qual(
     name: str = Form(...),
+    _: None = Depends(require(P_QUALS_WRITE)),
 ):
     with SessionLocal() as s:
         last_pos = s.scalar(
@@ -78,7 +85,11 @@ def create_qual(
 
 
 @router.get("/quals/overview")
-def quals_overview(request: Request, threshold: int = 2):
+def quals_overview(
+    request: Request,
+    threshold: int = 2,
+    _: None = Depends(require(P_QUALS_VIEW)),
+):
     threshold = max(1, min(threshold, 10))
     with SessionLocal() as s:
         summaries = build_qual_overview(s, qualified_threshold=threshold)
@@ -86,7 +97,7 @@ def quals_overview(request: Request, threshold: int = 2):
 
 
 @router.get("/quals/matrix")
-def qual_matrix(request: Request):
+def qual_matrix(request: Request, _: None = Depends(require(P_QUALS_VIEW))):
     with SessionLocal() as s:
         quals = s.scalars(
             select(M.Qualification)
@@ -106,15 +117,25 @@ def qual_matrix(request: Request):
         status_map: dict[tuple[int, int], str] = {(p, q): st for p, q, st in rows}
     grid = []
     for p in people:
+        current_title = next((r.rate for r in p.rates if r.valid_to is None), None)
+        display_name = p.last_name
+        if p.first_name:
+            display_name = f"{p.last_name}, {p.first_name}"
         grid.append({
             "person": p,
+            "display_name": display_name,
+            "title": current_title,
             "cells": [status_map.get((p.id, q.id)) for q in quals],
         })
     return render(request, "quals/matrix.html", quals=quals, grid=grid)
 
 
 @router.get("/quals/{qual_id}/edit")
-def edit_qual_form(qual_id: int, request: Request):
+def edit_qual_form(
+    qual_id: int,
+    request: Request,
+    _: None = Depends(require(P_QUALS_WRITE)),
+):
     with SessionLocal() as s:
         q = s.get(M.Qualification, qual_id)
         if not q:
@@ -126,6 +147,7 @@ def edit_qual_form(qual_id: int, request: Request):
 def update_qual(
     qual_id: int,
     name: str = Form(...),
+    _: None = Depends(require(P_QUALS_WRITE)),
 ):
     with SessionLocal() as s:
         q = s.get(M.Qualification, qual_id)
@@ -137,7 +159,11 @@ def update_qual(
 
 
 @router.post("/quals/{qual_id}/archive")
-def archive_qual(qual_id: int, reason: str = Form("")):
+def archive_qual(
+    qual_id: int,
+    reason: str = Form(""),
+    _: None = Depends(require(P_QUALS_ARCHIVE)),
+):
     with SessionLocal() as s:
         q = s.get(M.Qualification, qual_id)
         if not q:
@@ -154,7 +180,11 @@ def archive_qual(qual_id: int, reason: str = Form("")):
 # ---------------------------------------------------------------------------
 
 @router.get("/personnel/{person_id}/quals/new")
-def new_person_qual_form(person_id: int, request: Request):
+def new_person_qual_form(
+    person_id: int,
+    request: Request,
+    _: None = Depends(require(P_QUALS_WRITE)),
+):
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
         if not p:
@@ -191,6 +221,7 @@ def create_person_qual(
     started_at: Optional[str] = Form(None),
     achieved_at: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
+    _: None = Depends(require(P_QUALS_WRITE)),
 ):
     today = date.today()
     with SessionLocal() as s:
@@ -214,7 +245,12 @@ def create_person_qual(
 
 
 @router.get("/personnel/{person_id}/quals/{pq_id}/edit")
-def edit_person_qual_form(person_id: int, pq_id: int, request: Request):
+def edit_person_qual_form(
+    person_id: int,
+    pq_id: int,
+    request: Request,
+    _: None = Depends(require(P_QUALS_WRITE)),
+):
     with SessionLocal() as s:
         pq = s.get(M.PersonQual, pq_id)
         if not pq or pq.person_id != person_id:
@@ -245,6 +281,7 @@ def update_person_qual(
     achieved_at: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
     effective_date: Optional[str] = Form(None),
+    _: None = Depends(require(P_QUALS_WRITE)),
 ):
     eff_date = date.fromisoformat(effective_date) if effective_date else date.today()
     with SessionLocal() as s:

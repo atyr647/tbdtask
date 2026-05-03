@@ -29,6 +29,11 @@ dev = [
 postgres = [
     "psycopg[binary]>=3.2",
 ]
+# Redis-backed rate limiter for multi-worker deployments. Install with
+# ``pip install -e .[redis]`` when running behind a load balancer.
+redis = [
+    "redis>=5.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

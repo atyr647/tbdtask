@@ -2,10 +2,12 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from ..auth.authorization import require
+from ..auth.permissions import P_PERSONNEL_VIEW
 from ..db import SessionLocal
 from .. import models as M
 from ..services.availability import get_day_report
@@ -28,12 +30,12 @@ class DayTask:
 
 
 @router.get("/today")
-def today(request: Request):
+def today(request: Request, _: None = Depends(require(P_PERSONNEL_VIEW))):
     return _day_view(request, date.today())
 
 
 @router.get("/day/{day_iso}")
-def day(day_iso: str, request: Request):
+def day(day_iso: str, request: Request, _: None = Depends(require(P_PERSONNEL_VIEW))):
     try:
         d = date.fromisoformat(day_iso)
     except ValueError:

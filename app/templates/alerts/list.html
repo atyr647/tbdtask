@@ -40,7 +40,7 @@
       <td class="muted">
         {% set p = a.payload or {} %}
         {% if a.alert_type.startswith("prd") %}
-          PRD {{ p.get("prd") }} ({{ p.get("days") }} days)
+          Departure {{ p.get("prd") }} ({{ p.get("days") }} days)
         {% elif a.alert_type == "qual_expiring" %}
           {{ p.get("qual_name") }} expires {{ p.get("expires_on") }} ({{ p.get("days") }} days)
         {% elif a.alert_type == "qual_expired" %}
@@ -64,9 +64,9 @@
           {% if a.alert_type.startswith("prd") and a.person_id %}
           {% set current_prd = (a.payload or {}).get("prd") %}
           <details class="prd-popover">
-            <summary class="ghost-btn">Update PRD</summary>
+            <summary class="ghost-btn">Update departure date</summary>
             <form method="post" action="/alerts/{{ a.id }}/extend-prd" class="prd-popover-body">
-              <label>New PRD date
+              <label>New departure date
                 <input type="date" name="new_date" value="{{ current_prd or '' }}" required autofocus />
               </label>
               <div class="prd-popover-actions">
@@ -77,7 +77,7 @@
           </details>
           {% if a.alert_type == "prd_passed" %}
           <form method="post" action="/alerts/{{ a.id }}/archive-person" class="form-inline-row">
-            <input name="reason" value="PRD passed" />
+            <input name="reason" value="Departure date passed" />
             <button type="submit" class="ghost-btn" onclick="return confirm('Archive this person? They are removed from the active roster but history is preserved.');">Archive person</button>
           </form>
           {% endif %}
@@ -99,7 +99,7 @@
           <summary class="ghost-btn">Resolve</summary>
           <form method="post" action="/alerts/{{ a.id }}/resolve" class="prd-popover-body">
             <label>Resolution note (optional)
-              <textarea name="note" rows="2" placeholder="What did you do? e.g. Spoke with PSD, orders requested" autofocus></textarea>
+              <textarea name="note" rows="2" placeholder="What did you do? e.g. Confirmed extension, updated records" autofocus></textarea>
             </label>
             <div class="prd-popover-actions">
               <button type="submit">Mark resolved</button>

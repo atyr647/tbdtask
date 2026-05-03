@@ -10,10 +10,10 @@ from app.services.task_generator import generate_for_worklist
 from tests.conftest import make_task_categories, make_worklist
 
 
-def _make_template(session, *, name, rule, estimated_hours=None, category_id=None):
+def _make_template(session, *, name, rule, estimated_hours=None, category_id=None, org_id=1):
     t = M.TaskTemplate(name=name, recurrence_rule=rule,
                        estimated_hours=estimated_hours,
-                       category_id=category_id)
+                       category_id=category_id, org_id=org_id)
     session.add(t)
     session.flush()
     return t

@@ -110,7 +110,7 @@ def apply_carry_over(
     Actions:
       * ``carry`` - clone the task into ``target_worklist`` keeping the same
         assignees; original goes to ``carried``.
-      * ``reassign`` - clone with a new assignee list (and optional new POIC).
+      * ``reassign`` - clone with a new assignee list (and optional new lead).
       * ``complete`` - mark the original ``done``; nothing carried.
       * ``discard`` - mark the original ``discarded``; nothing carried.
       * ``leave`` - no-op; original keeps its open/in-progress status.
@@ -143,6 +143,7 @@ def apply_carry_over(
         completed_at=None,
         carried_from_instance_id=inst.id,
         display_order=inst.display_order,
+        org_id=target_worklist.org_id,
     )
     session.add(new_inst)
     session.flush()
@@ -155,6 +156,7 @@ def apply_carry_over(
                 external_poic_name=a.external_poic_name,
                 is_poic=a.is_poic,
                 display_order=a.display_order,
+                org_id=target_worklist.org_id,
             ))
     else:  # reassign
         person_ids = reassign_person_ids or []
@@ -163,6 +165,7 @@ def apply_carry_over(
                 instance_id=new_inst.id,
                 person_id=pid,
                 is_poic=(pid == new_poic_person_id),
+                org_id=target_worklist.org_id,
             ))
 
     inst.status = "carried"

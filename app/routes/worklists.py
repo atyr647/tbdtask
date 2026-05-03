@@ -1,11 +1,19 @@
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from ..auth.authorization import require
+from ..auth.permissions import (
+    P_WORKLISTS_AMEND,
+    P_WORKLISTS_ARCHIVE,
+    P_WORKLISTS_LOCK,
+    P_WORKLISTS_VIEW,
+    P_WORKLISTS_WRITE,
+)
 from ..db import SessionLocal
 from .. import models as M
 from ..services.carry_over import apply_carry_over, find_pending_carry_overs
@@ -34,7 +42,7 @@ def _name_for(week_starting: date) -> str:
 
 
 @router.get("/worklists")
-def list_worklists(request: Request):
+def list_worklists(request: Request, _: None = Depends(require(P_WORKLISTS_VIEW))):
     today = date.today()
     with SessionLocal() as s:
         all_lists = list(s.scalars(
@@ -76,7 +84,8 @@ def list_worklists(request: Request):
 
 
 @router.get("/worklists/new")
-def new_worklist_form(request: Request):
+def new_worklist_form(request: Request, _: None = Depends(require(P_WORKLISTS_WRITE))):
+    """Week picker — creates a worklist and lands on the setup page."""
     return render(
         request,
         "worklists/new.html",
@@ -87,8 +96,7 @@ def new_worklist_form(request: Request):
 @router.post("/worklists")
 def create_worklist(
     week_starting: str = Form(...),
-    name: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
+    _: None = Depends(require(P_WORKLISTS_WRITE)),
 ):
     monday = date.fromisoformat(week_starting)
     if monday.weekday() != 0:
@@ -102,11 +110,10 @@ def create_worklist(
             )
         )
         if existing:
-            return RedirectResponse(f"/worklists/{existing.id}", status_code=303)
+            return RedirectResponse(f"/worklists/{existing.id}/setup", status_code=303)
         wl = M.Worklist(
             week_starting=monday,
-            name=(name or _name_for(monday)).strip(),
-            notes=(notes or None),
+            name=_name_for(monday),
             version=1,
         )
         s.add(wl)
@@ -121,7 +128,10 @@ def create_worklist(
 
 
 @router.post("/worklists/{worklist_id}/generate")
-def generate_worklist(worklist_id: int):
+def generate_worklist(
+    worklist_id: int,
+    _: None = Depends(require(P_WORKLISTS_WRITE)),
+):
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
         if not wl:
@@ -134,7 +144,11 @@ def generate_worklist(worklist_id: int):
 
 
 @router.get("/worklists/{worklist_id}")
-def show_worklist(worklist_id: int, request: Request):
+def show_worklist(
+    worklist_id: int,
+    request: Request,
+    _: None = Depends(require(P_WORKLISTS_VIEW)),
+):
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
         if not wl:
@@ -156,7 +170,11 @@ def show_worklist(worklist_id: int, request: Request):
 
 
 @router.get("/worklists/{worklist_id}/carry-over")
-def carry_over_form(worklist_id: int, request: Request):
+def carry_over_form(
+    worklist_id: int,
+    request: Request,
+    _: None = Depends(require(P_WORKLISTS_WRITE)),
+):
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
         if not wl:
@@ -190,7 +208,11 @@ def carry_over_form(worklist_id: int, request: Request):
 
 
 @router.post("/worklists/{worklist_id}/carry-over")
-async def carry_over_apply(worklist_id: int, request: Request):
+async def carry_over_apply(
+    worklist_id: int,
+    request: Request,
+    _: None = Depends(require(P_WORKLISTS_WRITE)),
+):
     form = await request.form()
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
@@ -219,7 +241,11 @@ async def carry_over_apply(worklist_id: int, request: Request):
 
 
 @router.get("/worklists/{worklist_id}/setup")
-def setup_worklist(worklist_id: int, request: Request):
+def setup_worklist(
+    worklist_id: int,
+    request: Request,
+    _: None = Depends(require(P_WORKLISTS_WRITE)),
+):
     """Wizard view: pick what tasks happen on each day and who's on them."""
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
@@ -242,7 +268,12 @@ def setup_worklist(worklist_id: int, request: Request):
 
 
 @router.get("/worklists/{worklist_id}/print")
-def print_worklist(worklist_id: int, request: Request, days: int = 5):
+def print_worklist(
+    worklist_id: int,
+    request: Request,
+    days: int = 5,
+    _: None = Depends(require(P_WORKLISTS_VIEW)),
+):
     if days not in (5, 7):
         days = 5
     with SessionLocal() as s:
@@ -258,6 +289,7 @@ def update_worklist(
     worklist_id: int,
     name: str = Form(...),
     notes: Optional[str] = Form(None),
+    _: None = Depends(require(P_WORKLISTS_WRITE)),
 ):
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
@@ -275,6 +307,7 @@ def update_worklist(
 def lock_worklist(
     worklist_id: int,
     locked_by_name: Optional[str] = Form(None),
+    _: None = Depends(require(P_WORKLISTS_LOCK)),
 ):
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
@@ -294,6 +327,7 @@ def amend_worklist(
     worklist_id: int,
     amendment_reason: str = Form(...),
     operator_name: Optional[str] = Form(None),
+    _: None = Depends(require(P_WORKLISTS_AMEND)),
 ):
     """Clone a locked worklist into a new version that may be edited. The
     original snapshot remains locked. Tasks and assignments are duplicated
@@ -322,6 +356,7 @@ def amend_worklist(
             amended_at=datetime.now(),
             amendment_reason=amendment_reason.strip(),
             operator_name=(operator_name or None) and operator_name.strip(),
+            org_id=parent.org_id,
         )
         s.add(clone)
         s.flush()
@@ -346,6 +381,7 @@ def amend_worklist(
                 completed_at=inst.completed_at,
                 carried_from_instance_id=inst.id,
                 display_order=inst.display_order,
+                org_id=clone.org_id,
             )
             s.add(new_inst)
             s.flush()
@@ -361,6 +397,7 @@ def amend_worklist(
                     completion_notes=a.completion_notes,
                     hours_worked=a.hours_worked,
                     display_order=a.display_order,
+                    org_id=clone.org_id,
                 ))
         s.commit()
         new_id = clone.id
@@ -368,7 +405,11 @@ def amend_worklist(
 
 
 @router.post("/worklists/{worklist_id}/archive")
-def archive_worklist(worklist_id: int, reason: str = Form("")):
+def archive_worklist(
+    worklist_id: int,
+    reason: str = Form(""),
+    _: None = Depends(require(P_WORKLISTS_ARCHIVE)),
+):
     with SessionLocal() as s:
         wl = s.get(M.Worklist, worklist_id)
         if not wl:

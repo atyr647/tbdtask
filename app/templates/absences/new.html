@@ -34,8 +34,27 @@
     <label>End time <input type="time" name="end_time" /></label>
     <p class="muted">Leave blank for a full-day absence.</p>
   </fieldset>
-  <label>Reason <input name="reason" placeholder="e.g. dental appt" /></label>
-  <label>Notes <textarea name="notes" rows="2"></textarea></label>
+  <label>Reason <input name="reason" placeholder="e.g. dental appt" value="{% if form_data and form_data.reason %}{{ form_data.reason }}{% endif %}" /></label>
+  <label>Notes <textarea name="notes" rows="2" id="notes-field">{% if form_data and form_data.notes %}{{ form_data.notes }}{% endif %}</textarea></label>
+
+  {% if sensitive_warnings %}
+  <div class="sensitive-warning" role="alert">
+    <p><strong>Sensitive information detected</strong></p>
+    <p>The reason/notes fields may contain personally identifiable or controlled unclassified information (PII/CUI):</p>
+    <ul>
+      {% for w in sensitive_warnings %}
+      <li>{{ w }}</li>
+      {% endfor %}
+    </ul>
+    <label>
+      <input type="checkbox" name="sensitive_ack" value="1" required />
+      I confirm this information is necessary for operational records and complies with data-handling policy.
+    </label>
+  </div>
+  {% else %}
+  <input type="hidden" name="sensitive_ack" value="1" />
+  {% endif %}
+
   <div class="form-actions">
     <button type="submit">Record</button>
     <a href="{{ '/personnel/' ~ person.id if person else '/absences' }}" class="btn-link">Cancel</a>

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse, Response
@@ -27,7 +28,8 @@ from sqlalchemy.orm import Session
 from .. import models as M
 from ..auth import invites as invites_mod
 from ..auth import sessions as sess_mod
-from ..auth.dependencies import get_current_session, get_db, require_user
+from ..auth.dependencies import get_current_session, get_current_user, get_db, require_user
+from ..auth.permissions import ROLE_TEMPLATES
 from ..auth.security import CSRF_COOKIE_NAME, issue_csrf_token
 from ..middleware import _client_ip
 from ..templating import templates
@@ -48,6 +50,31 @@ def _slugify(name: str) -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _seed_role_templates(db: Session, org_id: int) -> None:
+    """Seed built-in role templates and permissions for a new org."""
+    for tmpl in ROLE_TEMPLATES:
+        existing = db.execute(
+            select(M.Role).where(
+                M.Role.org_id == org_id,
+                M.Role.template_slug == tmpl.slug,
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            continue
+        role = M.Role(
+            org_id=org_id,
+            template_slug=tmpl.slug,
+            name=tmpl.name,
+            description=tmpl.description,
+            builtin=True,
+            workcenter_scopable=tmpl.workcenter_scopable,
+        )
+        db.add(role)
+        db.flush()
+        for permission_code in tmpl.permissions:
+            db.add(M.RolePermission(role_id=role.id, permission_code=permission_code))
 
 
 @router.get("/no-orgs")
@@ -120,8 +147,8 @@ def org_create(
 ):
     """Any logged-in user can create an org and become its founding member.
 
-    Phase 2 attaches an "Org Owner" role template; for now the membership
-    just exists with status=active.
+    Phase 2: the founding member is granted the ``org_owner`` role so they
+    can administer the org immediately.
     """
     if session is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "no session")
@@ -148,6 +175,8 @@ def org_create(
     org = M.Organization(slug=slug, name=cleaned)
     db.add(org)
     db.flush()
+    _seed_role_templates(db, org.id)
+
     membership = M.OrgMembership(
         org_id=org.id,
         user_id=user.id,
@@ -155,6 +184,23 @@ def org_create(
     )
     db.add(membership)
     db.flush()
+
+    # Phase 2: grant the founding member the Org Owner role so they can
+    # administer the org immediately (manage members, roles, workcenters).
+    owner_role = db.execute(
+        select(M.Role).where(
+            M.Role.org_id == org.id,
+            M.Role.template_slug == "org_owner",
+        )
+    ).scalar_one_or_none()
+    if owner_role is not None:
+        db.add(
+            M.MembershipRole(
+                membership_id=membership.id,
+                role_id=owner_role.id,
+                workcenter_id=None,
+            )
+        )
 
     rotated = sess_mod.rotate(
         db,
@@ -182,7 +228,7 @@ def org_create(
         rotated.id,
         max_age=int(sess_mod.ABSOLUTE_TIMEOUT.total_seconds()),
         httponly=True,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -190,32 +236,59 @@ def org_create(
         CSRF_COOKIE_NAME,
         issue_csrf_token(rotated.id),
         httponly=False,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
     return response
 
 
+@router.get("/invites/accept")
+def invite_accept_magic_link(
+    request: Request,
+    token: str = "",
+    user: Optional[M.UserAccount] = Depends(get_current_user),
+    session: Optional[M.UserSession] = Depends(get_current_session),
+    db: Session = Depends(get_db),
+):
+    """Magic-link invite acceptance.
+
+    The invitee clicks a link like ``/invites/accept?token=...``. If not
+    logged in they are redirected to ``/login?next=/invites/accept?token=...``.
+
+    The raw token is never logged, never stored in audit events, and never
+    appears in the URL after acceptance (redirect to clean ``/``).
+    """
+    if user is None or session is None:
+        # Preserve the full invite URL for post-login redirect.
+        next_path = f"/invites/accept?token={token}" if token else "/invites/accept"
+        return RedirectResponse(f"/login?next={next_path}", status_code=302)
+    return _accept_invite(db, request, user, session, token)
+
+
 @router.post("/invites/accept")
-def invite_accept(
+def invite_accept_post(
     request: Request,
     token: str = Form(...),
     user: M.UserAccount = Depends(require_user),
     session: M.UserSession = Depends(get_current_session),
     db: Session = Depends(get_db),
 ):
-    """Redeem an invite token.
+    """Legacy form-based invite acceptance. Kept for backwards compat."""
+    return _accept_invite(db, request, user, session, token)
 
-    Security profile (see docs/security/threat-model.md):
 
-    * Tokens are stored hashed; the raw token reaches us only via the
-      form field and is hashed before any DB lookup.
-    * One-shot: ``accepted_at`` set on success; subsequent submits 404.
-    * Email-bound invites refuse to redeem if the authenticated user's
-      canonical email differs.
-    * All outcomes audited; failure responses are intentionally generic
-      to avoid leaking whether a token *exists* but is unredeemable.
+def _accept_invite(
+    db: Session,
+    request: Request,
+    user: M.UserAccount,
+    session: M.UserSession,
+    token: str,
+) -> Response:
+    """Shared invite acceptance logic.
+
+    On success: creates membership, auto-creates Person record from invite
+    data, rotates session, redirects to clean ``/``.
     """
     if session is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "no session")
@@ -243,9 +316,6 @@ def invite_accept(
         return _invite_failure(
             db, request, user, session, reason="expired", invite_id=invite.id
         )
-    # intended_email is mandatory on every invite, so this is always a hard
-    # check. A user whose canonical email differs cannot redeem, even if
-    # the raw token has somehow reached them.
     if invite.intended_email.lower() != user.email.lower():
         return _invite_failure(
             db,
@@ -256,8 +326,6 @@ def invite_accept(
             invite_id=invite.id,
         )
 
-    # Make sure we don't double-add a membership; if one already exists
-    # under any status, surface that and don't quietly upgrade.
     existing = db.execute(
         select(M.OrgMembership).where(
             M.OrgMembership.org_id == invite.org_id,
@@ -280,6 +348,39 @@ def invite_accept(
         status="active",
     )
     db.add(membership)
+
+    # Auto-create Person record from invite data so the invitee only
+    # needs to fill in planned departure, arrival, etc.
+    if invite.first_name or invite.last_name:
+        fn = (invite.first_name or "").strip()
+        ln = (invite.last_name or "").strip()
+        full = f"{fn} {ln}".strip()
+        person = M.Person(
+            first_name=fn or None,
+            last_name=ln,
+            full_display=full,
+            org_id=invite.org_id,
+        )
+        db.add(person)
+        db.flush()
+
+        # If a title was provided, create the initial PersonRate row.
+        if invite.rate:
+            db.add(M.PersonRate(
+                person_id=person.id,
+                rate=invite.rate,
+                paygrade=invite.paygrade,
+                valid_from=datetime.now().date(),
+                org_id=invite.org_id,
+            ))
+        # Initial roster status.
+        db.add(M.PersonRosterStatus(
+            person_id=person.id,
+            status="active",
+            valid_from=datetime.now().date(),
+            org_id=invite.org_id,
+        ))
+
     invite.accepted_at = _now()
     invite.accepted_by_user_id = user.id
     db.flush()
@@ -314,7 +415,7 @@ def invite_accept(
         rotated.id,
         max_age=int(sess_mod.ABSOLUTE_TIMEOUT.total_seconds()),
         httponly=True,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -322,7 +423,7 @@ def invite_accept(
         CSRF_COOKIE_NAME,
         issue_csrf_token(rotated.id),
         httponly=False,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -412,7 +513,7 @@ def org_select(
         rotated.id,
         max_age=int(sess_mod.ABSOLUTE_TIMEOUT.total_seconds()),
         httponly=True,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -420,7 +521,258 @@ def org_select(
         CSRF_COOKIE_NAME,
         issue_csrf_token(rotated.id),
         httponly=False,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    return response
+
+
+@router.post("/orgs/leave")
+def org_leave(
+    request: Request,
+    user: M.UserAccount = Depends(require_user),
+    session: M.UserSession = Depends(get_current_session),
+    db: Session = Depends(get_db),
+):
+    """Leave the currently bound organization.
+
+    Server-side checks:
+    * Cannot leave if this is the last org_owner for the org (org would be
+      orphaned).
+    * Session is rotated; if the user has other memberships the session
+      binds to the next one, otherwise it becomes unbound.
+    """
+    if session is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "no session")
+
+    membership = db.get(M.OrgMembership, session.current_membership_id)
+    if membership is None or membership.user_id != user.id:
+        raise HTTPException(404, "no active membership to leave")
+
+    org_id = membership.org_id
+
+    # Check: cannot leave if this is the last org_owner.
+    from ..auth.authorization import membership_has_role_template
+    is_owner = membership_has_role_template(db, membership.id, "org_owner")
+    if is_owner:
+        other_owners = db.execute(
+            select(M.OrgMembership)
+            .where(
+                M.OrgMembership.org_id == org_id,
+                M.OrgMembership.id != membership.id,
+                M.OrgMembership.status == "active",
+            )
+        ).scalars().all()
+        has_other_owner = any(
+            membership_has_role_template(db, m.id, "org_owner")
+            for m in other_owners
+        )
+        if not has_other_owner:
+            raise HTTPException(
+                400,
+                "Cannot leave: you are the last org owner. "
+                "Transfer ownership to another member first.",
+            )
+
+    # Soft-delete the membership (set status to suspended).
+    membership.status = "suspended"
+    db.flush()
+
+    # Determine redirect: if user has other active memberships, bind to
+    # the first one; otherwise leave session unbound.
+    other_memberships = db.execute(
+        select(M.OrgMembership).where(
+            M.OrgMembership.user_id == user.id,
+            M.OrgMembership.status == "active",
+        )
+    ).scalars().all()
+
+    next_membership_id = other_memberships[0].id if other_memberships else None
+
+    rotated = sess_mod.rotate(
+        db,
+        session,
+        membership_id=next_membership_id,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        reason="org_left",
+    )
+    db.add(
+        M.AuthEvent(
+            kind="org_left",
+            user_id=user.id,
+            session_id=rotated.id,
+            provider=None,
+            detail={"org_id": org_id, "membership_id": membership.id},
+            ip=_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+        )
+    )
+
+    redirect_to = "/orgs/select" if other_memberships else "/no-orgs"
+    response = RedirectResponse(redirect_to, status_code=302)
+    response.set_cookie(
+        sess_mod.SESSION_COOKIE_NAME,
+        rotated.id,
+        max_age=int(sess_mod.ABSOLUTE_TIMEOUT.total_seconds()),
+        httponly=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        issue_csrf_token(rotated.id),
+        httponly=False,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    return response
+
+
+@router.post("/orgs/delete")
+def org_delete(
+    request: Request,
+    user: M.UserAccount = Depends(require_user),
+    session: M.UserSession = Depends(get_current_session),
+    db: Session = Depends(get_db),
+):
+    """Delete the entire organization.
+
+    Only available when the user is the sole active member and an org_owner.
+    Hard-deletes all tenant-scoped data for the org, then the org itself.
+    """
+    if session is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "no session")
+
+    membership = db.get(M.OrgMembership, session.current_membership_id)
+    if membership is None or membership.user_id != user.id:
+        raise HTTPException(404, "no active membership")
+
+    org_id = membership.org_id
+
+    from ..auth.authorization import membership_has_role_template
+    if not membership_has_role_template(db, membership.id, "org_owner"):
+        raise HTTPException(403, "Only org owners can delete the organization.")
+
+    # Check: must be the only active member.
+    active_members = db.execute(
+        select(M.OrgMembership).where(
+            M.OrgMembership.org_id == org_id,
+            M.OrgMembership.status == "active",
+        )
+    ).scalars().all()
+    if len(active_members) > 1:
+        raise HTTPException(
+            400,
+            "Cannot delete: there are other active members. "
+            "Remove them first.",
+        )
+
+    org = db.get(M.Organization, org_id)
+    org_slug = org.slug if org else None
+
+    # Rotate the current session before deleting the active membership it
+    # points at. The old session will be removed below with the rest of the
+    # org-bound sessions; the replacement session is unbound.
+    rotated = sess_mod.rotate(
+        db,
+        session,
+        membership_id=None,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        reason="org_deleted",
+    )
+
+    db.add(
+        M.AuthEvent(
+            kind="org_deleted",
+            user_id=user.id,
+            session_id=rotated.id,
+            provider=None,
+            detail={"org_id": org_id, "org_slug": org_slug},
+            ip=_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+        )
+    )
+
+    # Hard-delete all tenant-scoped rows for this org. Order matters due to
+    # FK constraints; tables without org_id are handled with subqueries.
+    from sqlalchemy import text as sa_text
+
+    db.execute(
+        sa_text(
+            "DELETE FROM user_sessions WHERE current_membership_id IN "
+            "(SELECT id FROM org_memberships WHERE org_id = :oid)"
+        ),
+        {"oid": org_id},
+    )
+    db.execute(
+        sa_text(
+            "DELETE FROM membership_roles WHERE membership_id IN "
+            "(SELECT id FROM org_memberships WHERE org_id = :oid)"
+        ),
+        {"oid": org_id},
+    )
+    db.execute(
+        sa_text(
+            "DELETE FROM role_permissions WHERE role_id IN "
+            "(SELECT id FROM roles WHERE org_id = :oid)"
+        ),
+        {"oid": org_id},
+    )
+
+    for table in (
+        "task_assignments",
+        "task_instances",
+        "task_templates",
+        "task_categories",
+        "crew_memberships",
+        "crews",
+        "person_quals",
+        "person_drivers_licenses",
+        "person_prds",
+        "person_roster_status",
+        "person_duty_sections",
+        "person_rates",
+        "absences",
+        "persons",
+        "qualifications",
+        "absence_codes",
+        "alerts",
+        "worklists",
+        "import_batches",
+        "data_audit_events",
+        "workcenters",
+        "roles",
+        "org_invites",
+        "org_memberships",
+    ):
+        db.execute(sa_text(f"DELETE FROM {table} WHERE org_id = :oid"), {"oid": org_id})
+
+    db.flush()
+
+    # Delete the org itself.
+    if org:
+        db.delete(org)
+
+    response = RedirectResponse("/no-orgs", status_code=302)
+    response.set_cookie(
+        sess_mod.SESSION_COOKIE_NAME,
+        rotated.id,
+        max_age=int(sess_mod.ABSOLUTE_TIMEOUT.total_seconds()),
+        httponly=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        issue_csrf_token(rotated.id),
+        httponly=False,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )

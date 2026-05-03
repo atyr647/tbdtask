@@ -1,15 +1,19 @@
 """Request-pipeline middleware.
 
-Three layered concerns, kept in separate functions so each can be tested
+Four layered concerns, kept in separate functions so each can be tested
 in isolation:
 
-1. **SecureHeadersMiddleware** — applies CSP, HSTS, X-Frame-Options, etc.
+1. **TrustedProxyMiddleware** — validates ``x-forwarded-*`` headers against
+   a configured list of trusted proxy CIDRs. Strips untrusted forwarded
+   headers to prevent client-side header injection.
+2. **SecureHeadersMiddleware** — applies CSP, HSTS, X-Frame-Options, etc.
    to every response. Always runs.
-2. **SessionMiddleware** — looks up the cookie-borne session id, validates
+3. **AuthRateLimitMiddleware** — per-IP fixed-window on /auth/* paths.
+4. **SessionMiddleware** — looks up the cookie-borne session id, validates
    it, attaches ``request.state.session/user/membership``, and enters
    ``tenant_context`` for the active org. Skipped on a small allowlist of
    public routes (login, callback, static, healthz).
-3. **CSRFMiddleware** — for unsafe methods, validates the form/header
+5. **CSRFMiddleware** — for unsafe methods, validates the form/header
    token against the session-bound cookie. OIDC callbacks are exempt
    because they have their own ``state`` parameter validation.
 
@@ -19,6 +23,7 @@ AppImage offline path identical to its current behaviour.
 """
 from __future__ import annotations
 
+import ipaddress
 import os
 from contextvars import ContextVar
 from typing import Optional
@@ -30,8 +35,8 @@ from starlette.responses import Response
 
 from . import models as M
 from .auth import sessions as sess_mod
+from .auth.rate_limit import get_limiter
 from .auth.security import (
-    AUTH_RATE_LIMITER,
     CSRF_COOKIE_NAME,
     CSRF_FORM_FIELD,
     CSRF_HEADER_NAME,
@@ -44,6 +49,52 @@ from .tenancy import tenant_context
 
 SINGLE_TENANT_MODE = os.environ.get("TBDTASK_SINGLE_TENANT", "0") == "1"
 
+# Global rate limiter instances — created once at import time. In hosted
+# mode with REDIS_URL set these are RedisLimiters; otherwise in-process.
+# Three separate buckets so invite acceptance can be rate-limited
+# independently from login and org creation.
+_AUTH_RATE_LIMITER = get_limiter(limit=10, window_seconds=300)
+_ONBOARDING_RATE_LIMITER = get_limiter(limit=10, window_seconds=300)
+_INVITE_ACCEPT_RATE_LIMITER = get_limiter(limit=5, window_seconds=300)
+
+# ---------------------------------------------------------------------------
+# Trusted proxy configuration
+# ---------------------------------------------------------------------------
+
+# Default trusted range: loopback only. Hosted deployments behind a reverse
+# proxy should explicitly set TBDTASK_TRUSTED_PROXIES to that proxy's CIDR.
+_DEFAULT_TRUSTED = (
+    "127.0.0.0/8",
+    "::1/128",
+)
+
+
+def _parse_trusted_proxies() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    raw = os.environ.get("TBDTASK_TRUSTED_PROXIES")
+    if raw is not None:
+        raw = raw.strip()
+        if not raw:
+            return []
+        networks = []
+        for token in raw.split(","):
+            token = token.strip()
+            if token:
+                networks.append(ipaddress.ip_network(token, strict=False))
+        return networks
+    return [ipaddress.ip_network(n, strict=False) for n in _DEFAULT_TRUSTED]
+
+
+TRUSTED_PROXY_NETWORKS = _parse_trusted_proxies()
+
+
+def _is_trusted_proxy(ip_str: str) -> bool:
+    """Return True if *ip_str* falls within a trusted proxy CIDR."""
+    try:
+        addr = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+    return any(addr in net for net in TRUSTED_PROXY_NETWORKS)
+
 # Routes that bypass session enforcement. Keep this list short: every
 # entry is a place where the auth invariant doesn't hold by design.
 _PUBLIC_PATH_PREFIXES = (
@@ -51,7 +102,6 @@ _PUBLIC_PATH_PREFIXES = (
     "/auth/",
     "/healthz",
     "/login",
-    "/no-orgs",
     "/favicon",
 )
 
@@ -73,18 +123,99 @@ _AUTH_RATE_LIMITED_PATHS = (
     "/auth/apple/login",
     "/auth/apple/callback",
 )
+_ONBOARDING_RATE_LIMITED_PATHS = (
+    "/orgs/create",
+    "/orgs/select",
+    "/orgs/delete",
+)
+_INVITE_ACCEPT_RATE_LIMITED_PATHS = (
+    "/invites/accept",
+)
 
 
 def _is_public(path: str) -> bool:
     return any(path == p or path.startswith(p) for p in _PUBLIC_PATH_PREFIXES)
 
 
+# ---------------------------------------------------------------------------
+# Trusted proxy validation (runs first in the pipeline)
+# ---------------------------------------------------------------------------
+
+_FORWARDED_HEADERS = (
+    "x-forwarded-for",
+    "x-forwarded-proto",
+    "x-forwarded-host",
+    "x-forwarded-port",
+    "x-real-ip",
+)
+
+
+class TrustedProxyMiddleware(BaseHTTPMiddleware):
+    """Strip ``x-forwarded-*`` headers when the direct connection is not
+    from a trusted proxy.
+
+    Without this guard, any client can forge ``x-forwarded-for`` to bypass
+    rate limits or spoof their IP, and can forge ``x-forwarded-proto`` to
+    trick the app into emitting HSTS on plain HTTP.
+
+    Configuration: ``TBDTASK_TRUSTED_PROXIES`` — comma-separated CIDRs.
+    Defaults to loopback only. Set to empty string to trust nothing.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if not TRUSTED_PROXY_NETWORKS:
+            # Trust-nothing mode: strip all forwarded headers so downstream
+            # code (rate limiter, HSTS, _client_ip) falls back to the
+            # direct connection IP.
+            self._strip_forwarded(request)
+            return await call_next(request)
+
+        direct = request.client.host if request.client else None
+        if direct and _is_trusted_proxy(direct):
+            return await call_next(request)
+
+        # Untrusted direct connection — strip forwarded headers.
+        self._strip_forwarded(request)
+        return await call_next(request)
+
+    @staticmethod
+    def _strip_forwarded(request: Request):
+        """Remove forwarded headers from the ASGI scope so downstream
+        code (Starlette's Request.headers) doesn't see them."""
+        scope = request.scope
+        if "headers" not in scope:
+            return
+        # scope["headers"] is a list of (name_bytes, value_bytes) tuples.
+        # Rebuild it without the forwarded headers.
+        scope["headers"] = [
+            (name, value)
+            for name, value in scope["headers"]
+            if name.decode("latin-1").lower() not in _FORWARDED_HEADERS
+        ]
+        # Invalidate Starlette's cached Headers object so it rebuilds
+        # from the modified scope on next access.
+        if hasattr(request, "_headers"):
+            delattr(request, "_headers")
+
+
 def _client_ip(request: Request) -> str:
-    """Best-effort client IP. Phase 7 hardens this with a trusted-proxy list."""
+    """Return the real client IP.
+
+    When the direct connection comes from a trusted proxy, the first entry
+    in ``x-forwarded-for`` is used. Otherwise the forwarded header is
+    ignored and the direct connection IP is returned. This prevents a
+    malicious client from spoofing their IP by injecting their own
+    ``x-forwarded-for`` header.
+    """
+    direct = request.client.host if request.client else "unknown"
+    if not TRUSTED_PROXY_NETWORKS:
+        return direct
+    if not _is_trusted_proxy(direct):
+        return direct
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    return direct
 
 
 # ---------------------------------------------------------------------------
@@ -109,14 +240,31 @@ class SecureHeadersMiddleware(BaseHTTPMiddleware):
 
 class AuthRateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if any(request.url.path.startswith(p) for p in _AUTH_RATE_LIMITED_PATHS):
-            ip = _client_ip(request)
-            if not AUTH_RATE_LIMITER.check("auth", ip):
+        path = request.url.path
+        ip = _client_ip(request)
+
+        if any(path.startswith(p) for p in _AUTH_RATE_LIMITED_PATHS):
+            if not _AUTH_RATE_LIMITER.check("auth", ip):
                 return Response(
                     "too many auth attempts; try again later",
                     status_code=429,
                     headers={"Retry-After": "60"},
                 )
+        elif any(path.startswith(p) for p in _ONBOARDING_RATE_LIMITED_PATHS):
+            if not _ONBOARDING_RATE_LIMITER.check("onboarding", ip):
+                return Response(
+                    "too many requests; try again later",
+                    status_code=429,
+                    headers={"Retry-After": "60"},
+                )
+        elif any(path.startswith(p) for p in _INVITE_ACCEPT_RATE_LIMITED_PATHS):
+            if not _INVITE_ACCEPT_RATE_LIMITER.check("invite_accept", ip):
+                return Response(
+                    "too many invite attempts; try again later",
+                    status_code=429,
+                    headers={"Retry-After": "60"},
+                )
+
         return await call_next(request)
 
 
@@ -138,35 +286,33 @@ class SessionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if SINGLE_TENANT_MODE:
-            # Offline AppImage path. There's literally one tenant, so no
-            # auth boundary, no scoping to enforce — just pass through.
-            # The tenancy listener stays a no-op because no
-            # ``tenant_context`` is entered; queries run unfiltered across
-            # the single org's data, which is what the AppImage UX expects.
             return await call_next(request)
 
-        # Hosted mode — full session lookup.
+        # Single session per request: create here, attach to request state,
+        # and let route handlers reuse it via ``get_db``. The middleware
+        # owns the lifecycle (commit/rollback/close).
         cookie_id = request.cookies.get(sess_mod.SESSION_COOKIE_NAME)
         db = SessionLocal()
+        request.state.db = db
+
         try:
             session = sess_mod.lookup_session(db, cookie_id)
             if session is None:
                 if cookie_id:
-                    # Stale or revoked cookie. Clear it and redirect to /login
-                    # so the user doesn't bounce on a 401.
                     response = _redirect_to_login(request)
                     response.delete_cookie(
                         sess_mod.SESSION_COOKIE_NAME,
                         path="/",
-                        secure=True,
+                        secure=sess_mod.SESSION_COOKIE_SECURE,
                         httponly=True,
                         samesite="lax",
                     )
                     return response
                 return _redirect_to_login(request)
 
+            # Touch is committed together with route-handler changes
+            # (single transaction per request).
             sess_mod.touch(db, session)
-            db.commit()
 
             user = db.get(M.UserAccount, session.user_id)
             membership = (
@@ -182,11 +328,20 @@ class SessionMiddleware(BaseHTTPMiddleware):
                 # Logged in but no org bound — only ``/no-orgs`` and the org
                 # picker are reachable. Anything else redirects there.
                 if request.url.path not in ("/no-orgs", "/orgs/select"):
-                    return Response(status_code=302, headers={"Location": "/no-orgs"})
-                return await call_next(request)
+                    response = Response(
+                        status_code=302, headers={"Location": "/no-orgs"}
+                    )
+                else:
+                    response = await call_next(request)
+            else:
+                with tenant_context(membership.org_id):
+                    response = await call_next(request)
 
-            with tenant_context(membership.org_id):
-                return await call_next(request)
+            db.commit()
+            return response
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 

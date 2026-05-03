@@ -16,6 +16,7 @@ link/unlink, org switch, role/membership status change.
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -28,7 +29,20 @@ from .security import random_token
 
 # Cookie + session lifetime knobs. Phase 1 hard-codes them; Phase 7 makes
 # them configurable per-org if anyone asks.
-SESSION_COOKIE_NAME = "__Host-tbdtask_session"
+#
+# For local-only tooling (screenshots/tests against http://127.0.0.1), use a
+# non-__Host- cookie so browsers do not require the Secure flag. Keep this
+# opt-in intentionally loud: production must never set it.
+_INSECURE_LOCAL_COOKIES = os.environ.get("TBDTASK_INSECURE_LOCAL_COOKIES", "0") == "1"
+if _INSECURE_LOCAL_COOKIES:
+    if os.environ.get("DATABASE_URL", "").startswith("postgres"):
+        raise RuntimeError("TBDTASK_INSECURE_LOCAL_COOKIES is not allowed with Postgres")
+    SESSION_COOKIE_NAME = "tbdtask_session_local"
+    SESSION_COOKIE_SECURE = False
+else:
+    SESSION_COOKIE_NAME = "__Host-tbdtask_session"
+    SESSION_COOKIE_SECURE = True
+
 IDLE_TIMEOUT = timedelta(hours=12)
 ABSOLUTE_TIMEOUT = timedelta(days=30)
 # How often we touch ``last_seen_at`` to avoid hammering the DB on every

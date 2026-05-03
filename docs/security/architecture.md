@@ -1,6 +1,6 @@
 # Architecture & trust boundaries
 
-Last updated: end of Phase 1. Revisions land alongside the phases that
+Last updated: end of Phase 2. Revisions land alongside the phases that
 change the diagrams.
 
 ## Deployment topologies
@@ -31,9 +31,11 @@ There's literally one tenant; the listener never enters a tenant context.
 ```
 Request
   ↓
+TrustedProxyMiddleware ── strips x-forwarded-* from untrusted IPs
+  ↓
 SecureHeadersMiddleware ── attaches CSP, HSTS, X-Frame-Options, etc.
   ↓
-AuthRateLimitMiddleware ── per-IP token bucket on /auth/* paths
+AuthRateLimitMiddleware ── per-IP fixed-window on /auth/* paths
   ↓
 SessionMiddleware ───────── cookie → session row → user → membership;
   │                          enters tenant_context(membership.org_id)
@@ -42,9 +44,14 @@ SessionMiddleware ───────── cookie → session row → user �
 CSRFMiddleware ──────────── validates form/header against signed cookie
   │                          (skipped on /auth/*/callback — state validates)
   ↓
+@require / @require_any ── opens ad-hoc DB session; checks
+  │                          membership_roles + role_permissions for the
+  │                          active membership; workcenter scoping via
+  │                          ancestor walk; raises 403 on mismatch
+  ↓
 Route handler ───────────── runs inside tenant_context; queries to
-                             tenant-scoped models auto-filter by org_id
-                             via the do_orm_execute listener
+                              tenant-scoped models auto-filter by org_id
+                              via the do_orm_execute listener
 ```
 
 ## Trust boundaries
@@ -88,14 +95,19 @@ Route handler ───────────── runs inside tenant_context
 ### Boundary 1: edge
 
 Reverse proxy terminates TLS, adds `x-forwarded-proto` /
-`x-forwarded-for`. The app trusts these headers — Phase 7 hardens this
-by pinning the trusted-proxy IP range.
+`x-forwarded-for`. The app only trusts these headers when the direct
+connection originates from a configured CIDR range (default: loopback +
+RFC-1918). Untrusted connections have forwarded headers stripped,
+preventing IP spoofing and HSTS downgrade attacks. Configured via
+`TBDTASK_TRUSTED_PROXIES`; set to empty string when the app is directly
+exposed to the internet.
 
 ### Boundary 2: app
 
-All authorization and tenancy enforcement happens here. Compromise here
-is "game over" until Phase 3's RLS provides defence-in-depth at the DB
-boundary.
+All authorization and tenancy enforcement happens here. Phase 2 adds the
+`@require` decorator (permission catalog, role templates, workcenter
+scoping, last-owner guard). Compromise here is "game over" until Phase 3's
+RLS provides defence-in-depth at the DB boundary.
 
 ### Boundary 3: data
 
@@ -121,6 +133,7 @@ linking when verified, with Apple-relay addresses pre-flagged unsafe).
 | Invite tokens (raw) | 256-bit URL-safe tokens | Out-of-band only | Never persisted in plaintext; SHA-256 in `org_invites.token_hash` |
 | App secrets | `TBDTASK_SECRET_KEY`, OIDC client secrets | Environment variables | Never in code, never in DB, never in logs |
 | Tenant data | Persons, tasks, worklists, etc. | All tenant tables | Org-scoped; sensitive-info posture (Phase 6) discourages PII/CUI |
+| Authorization | Role grants, workcenter assignments | `membership_roles`, `roles`, `role_permissions` | Seeded from closed template catalog; custom roles limited to declared permissions |
 | Audit | `auth_events` | DB | INSERT-only (Phase 4 enforces at the DB layer) |
 
 ## Data flow: sign-in
@@ -143,10 +156,18 @@ linking when verified, with Apple-relay addresses pre-flagged unsafe).
 
 ## Future evolution
 
-* Phase 2 introduces the permission catalog + `@require` decorator. The
-  pipeline gains an authorization layer between the route handler and
-  the tenancy listener.
+* Phase 2 (complete): Permission catalog, role templates, workcenter
+  scoping, `@require` decorator, admin UI for invites/members/roles/
+  workcenters, migration backfill with founder promotion.
 * Phase 3 enforces tenancy at the DB layer (RLS) so boundary 3 closes.
-* Phase 4 adds the full audit log + notification fan-out.
-* Phase 7 hardens the deployment boundary (trusted-proxy list, container
-  base image, dependency scanning, restore drills).
+* Phase 4 (complete): Immutable audit log for all tenant data writes
+  (`data_audit_events` table) with before/after snapshots. Significant
+  events (archive, delete, lock, amend) fan out in-app notifications to
+  org admins.
+* Phase 6 (complete): Sensitive-info awareness — PII/CUI regex scanner
+  on free-text fields (personnel notes, absence reason/notes) with
+  mandatory operator acknowledgment when patterns are detected.
+* Phase 7 (complete): Deployment hardening — trusted proxy validation,
+  container base-image pinning, non-root user, healthcheck, dependency
+  scanning (`pip-audit`), backup/restore scripts, Redis rate limiter
+  for multi-worker deployments.

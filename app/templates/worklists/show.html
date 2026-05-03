@@ -49,11 +49,11 @@
   {% if day.person_blocks %}
     {% for pb in day.person_blocks %}
       <div class="person-block">
-        <h3>{{ pb.person.full_display }}{% if pb.duty_section %} <span class="muted small">DS{{ pb.duty_section }}</span>{% endif %}</h3>
+        <h3>{{ pb.person.full_display }}{% if pb.duty_section %} <span class="muted small">Team {{ pb.duty_section }}</span>{% endif %}</h3>
         <ul class="task-list">
           {% for tr in pb.tasks %}
             <li>
-              {% if tr.is_poic %}<span class="poic">POIC</span>{% endif %}
+              {% if tr.is_poic %}<span class="poic">Lead</span>{% endif %}
               <a href="/tasks/{{ tr.instance.id }}/edit">{{ tr.instance.name }}</a>
               {% if tr.category_name %}<span class="cat">{{ tr.category_name }}</span>{% endif %}
               <span class="status status-{{ tr.instance.status }}">{{ tr.instance.status }}</span>
@@ -73,7 +73,7 @@
       {% for tr in day.unassigned_tasks %}
         <li>
           <a href="/tasks/{{ tr.instance.id }}/edit">{{ tr.instance.name }}</a>
-          {% if tr.external_poic %}<span class="poic">POIC: {{ tr.external_poic }}</span>{% endif %}
+          {% if tr.external_poic %}<span class="poic">Lead: {{ tr.external_poic }}</span>{% endif %}
           {% if tr.category_name %}<span class="cat">{{ tr.category_name }}</span>{% endif %}
           <span class="status status-{{ tr.instance.status }}">{{ tr.instance.status }}</span>
         </li>

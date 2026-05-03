@@ -1,8 +1,10 @@
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 
+from ..auth.authorization import require
+from ..auth.permissions import P_ORG_VIEW
 from ..db import SessionLocal
 from .. import models as M
 from ..services import alerts as alerts_service
@@ -14,7 +16,7 @@ router = APIRouter()
 
 
 @router.get("/")
-def home(request: Request):
+def home(request: Request, _: None = Depends(require(P_ORG_VIEW))):
     today = date.today()
     with SessionLocal() as s:
         alerts_service.recompute(s)

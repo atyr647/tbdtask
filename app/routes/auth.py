@@ -34,6 +34,7 @@ from ..auth import accounts as acct_mod
 from ..auth import sessions as sess_mod
 from ..auth.dependencies import get_current_user, get_db, require_user
 from ..auth.providers import (
+    PrivateRelayBlocked,
     configured_providers,
     get_client,
     is_configured,
@@ -79,7 +80,7 @@ def login_page(request: Request, next: Optional[str] = None) -> Response:
             CSRF_COOKIE_NAME,
             token,
             httponly=False,  # form/JS read it, double-submit pattern
-            secure=True,
+            secure=sess_mod.SESSION_COOKIE_SECURE,
             samesite="lax",
             path="/",
         )
@@ -181,6 +182,8 @@ async def oidc_callback(
 
     try:
         ident = normalize_userinfo(provider, claims)
+    except PrivateRelayBlocked as exc:
+        return _error(str(exc), 400)
     except ValueError as exc:
         return _error(f"invalid IdP claims: {exc}", 400)
 
@@ -345,9 +348,9 @@ def logout(
 
     response = RedirectResponse("/login", status_code=302)
     response.delete_cookie(
-        sess_mod.SESSION_COOKIE_NAME, path="/", secure=True, httponly=True, samesite="lax"
+        sess_mod.SESSION_COOKIE_NAME, path="/", secure=sess_mod.SESSION_COOKIE_SECURE, httponly=True, samesite="lax"
     )
-    response.delete_cookie(CSRF_COOKIE_NAME, path="/", secure=True, samesite="lax")
+    response.delete_cookie(CSRF_COOKIE_NAME, path="/", secure=sess_mod.SESSION_COOKIE_SECURE, samesite="lax")
     return response
 
 
@@ -361,7 +364,7 @@ def _set_session_cookie(response: Response, session_id: str) -> None:
         session_id,
         max_age=int(sess_mod.ABSOLUTE_TIMEOUT.total_seconds()),
         httponly=True,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -373,7 +376,7 @@ def _rotate_csrf_cookie(response: Response, session_id: str) -> None:
         CSRF_COOKIE_NAME,
         token,
         httponly=False,
-        secure=True,
+        secure=sess_mod.SESSION_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )

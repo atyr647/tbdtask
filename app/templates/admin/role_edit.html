@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Edit role — Admin{% endblock %}
+{% block content %}
+<section class="admin-section">
+  <h1>Edit {{ role.name }}</h1>
+  <p><a href="/admin/roles">&larr; Back to roles</a></p>
+
+  {% if role.template_slug == 'org_owner' %}
+    <p class="admin-note"><strong>Note:</strong> the org_owner role's permissions cannot be changed. Create a custom role for variants.</p>
+  {% endif %}
+
+  <form method="post" action="/admin/roles/{{ role.id }}">
+    <input type="hidden" name="csrf_token" value="{{ request.cookies.get('__Host-tbdtask_csrf', '') }}" />
+    <label>
+      Name
+      <input type="text" name="name" required maxlength="128" value="{{ role.name }}" />
+    </label>
+    <label>
+      Description
+      <textarea name="description" rows="3" maxlength="1000">{{ role.description or '' }}</textarea>
+    </label>
+    {% if not role.builtin %}
+      <label>
+        <input type="checkbox" name="workcenter_scopable" value="1" {% if role.workcenter_scopable %}checked{% endif %} />
+        Allow grants of this role to be scoped to a specific workcenter
+      </label>
+    {% endif %}
+
+    <fieldset class="permission-set">
+      <legend>Permissions</legend>
+      {% for perm in permissions %}
+        <label class="perm-checkbox">
+          <input type="checkbox" name="permissions" value="{{ perm.code }}"
+            {% if perm.code in granted %}checked{% endif %}
+            {% if role.template_slug == 'org_owner' %}disabled{% endif %} />
+          <strong>{{ perm.label }}</strong> — <small>{{ perm.code }}</small>
+          <br /><small>{{ perm.description }}</small>
+        </label>
+      {% endfor %}
+    </fieldset>
+
+    {# org_owner: re-emit the full set as hidden inputs so the form
+       submission still validates (perms are read-only but must arrive). #}
+    {% if role.template_slug == 'org_owner' %}
+      {% for code in granted %}
+        <input type="hidden" name="permissions" value="{{ code }}" />
+      {% endfor %}
+    {% endif %}
+
+    <button type="submit">Save</button>
+  </form>
+</section>
+{% endblock %}

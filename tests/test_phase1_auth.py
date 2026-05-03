@@ -24,10 +24,9 @@ from app.auth import accounts as acct_mod
 from app.auth import invites as invites_mod
 from app.auth import sessions as sess_mod
 from app.auth.providers import NormalizedIdentity, normalize_userinfo
+from app.auth.rate_limit import InProcessLimiter
 from app.auth.security import (
-    AUTH_RATE_LIMITER,
     CSRF_TOKEN_TTL_SECONDS,
-    RateLimiter,
     issue_csrf_token,
     issue_oidc_state,
     random_token,
@@ -105,18 +104,23 @@ class TestNormalizeUserinfo:
         )
         assert ident.email_verified is False
 
-    def test_apple_private_relay_marked_unverified(self):
-        """Make-or-break: Apple private-relay never enables email-based linking."""
-        ident = normalize_userinfo(
-            "apple",
-            {
-                "sub": "a-1",
-                "email": "abc123@privaterelay.appleid.com",
-                "email_verified": True,  # Apple says verified...
-            },
-        )
-        # ...but we override to False because relay control != mailbox control.
-        assert ident.email_verified is False
+    def test_apple_private_relay_blocks_account(self):
+        """Make-or-break: Apple private-relay raises PrivateRelayBlocked.
+
+        We refuse to create accounts with relay addresses because they block
+        invite acceptance (email matching) and identity linking.
+        """
+        from app.auth.providers import PrivateRelayBlocked
+
+        with pytest.raises(PrivateRelayBlocked):
+            normalize_userinfo(
+                "apple",
+                {
+                    "sub": "a-1",
+                    "email": "abc123@privaterelay.appleid.com",
+                    "email_verified": True,  # Apple says verified...
+                },
+            )
 
     def test_apple_real_email_passthrough(self):
         ident = normalize_userinfo(
@@ -197,16 +201,16 @@ class TestAccountResolution:
         assert isinstance(out_b, acct_mod.CreatedAccount)
         assert out_b.user_id != out_a.user_id
 
-    def test_apple_relay_email_does_not_link(self, session):
-        """Apple private-relay never enables email-based linking even when
-        Apple's raw claim says verified — normalize_userinfo enforces it."""
+    def test_unverified_email_does_not_link(self, session):
+        """An identity with email_verified=False never triggers email-based
+        linking — resolve_identity creates a fresh account instead."""
         ident = self._ident(
             provider="apple",
             subject="a-1",
-            email="xyz@privaterelay.appleid.com",
-            email_verified=False,  # post-normalization
+            email="user@example.com",
+            email_verified=False,
         )
-        # First Apple sign-in: new account, no link prompt.
+        # First sign-in: new account, no link prompt.
         out = acct_mod.resolve_identity(session, ident)
         assert isinstance(out, acct_mod.CreatedAccount)
 
@@ -426,25 +430,25 @@ class TestOIDCState:
 
 class TestRateLimiter:
     def test_under_limit_allows(self):
-        rl = RateLimiter(limit=3, window_seconds=60)
+        rl = InProcessLimiter(limit=3, window_seconds=60)
         for _ in range(3):
             assert rl.check("auth", "1.2.3.4") is True
 
     def test_over_limit_blocks(self):
-        rl = RateLimiter(limit=3, window_seconds=60)
+        rl = InProcessLimiter(limit=3, window_seconds=60)
         for _ in range(3):
             rl.check("auth", "1.2.3.4")
         assert rl.check("auth", "1.2.3.4") is False
 
     def test_separate_keys_isolated(self):
-        rl = RateLimiter(limit=2, window_seconds=60)
+        rl = InProcessLimiter(limit=2, window_seconds=60)
         rl.check("auth", "1.1.1.1")
         rl.check("auth", "1.1.1.1")
         # Different IP — fresh budget.
         assert rl.check("auth", "2.2.2.2") is True
 
     def test_separate_scopes_isolated(self):
-        rl = RateLimiter(limit=2, window_seconds=60)
+        rl = InProcessLimiter(limit=2, window_seconds=60)
         rl.check("auth", "1.1.1.1")
         rl.check("auth", "1.1.1.1")
         assert rl.check("invite_accept", "1.1.1.1") is True
@@ -534,6 +538,38 @@ class TestInvites:
         delta = issued.expires_at - datetime.now(timezone.utc).replace(tzinfo=None)
         assert delta <= timedelta(days=invites_mod.MAX_INVITE_TTL_DAYS)
         assert delta > timedelta(days=invites_mod.DEFAULT_INVITE_TTL_DAYS - 1)
+
+    def test_create_stores_personnel_fields(self, session):
+        org = _make_org(session)
+        issued = invites_mod.create_invite(
+            session,
+            org_id=org.id,
+            intended_email="bob@example.com",
+            created_by_user_id=None,
+            first_name="Bob",
+            last_name="Smith",
+            rate="BM3",
+            paygrade="E-4",
+        )
+        invite = session.get(M.OrgInvite, issued.invite_id)
+        assert invite.first_name == "Bob"
+        assert invite.last_name == "Smith"
+        assert invite.rate == "BM3"
+        assert invite.paygrade == "E-4"
+
+    def test_create_personnel_fields_optional(self, session):
+        org = _make_org(session)
+        issued = invites_mod.create_invite(
+            session,
+            org_id=org.id,
+            intended_email="bob@example.com",
+            created_by_user_id=None,
+        )
+        invite = session.get(M.OrgInvite, issued.invite_id)
+        assert invite.first_name is None
+        assert invite.last_name is None
+        assert invite.rate is None
+        assert invite.paygrade is None
 
 
 # ---------------------------------------------------------------------------
