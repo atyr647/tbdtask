@@ -331,12 +331,24 @@ alerts permission.
 - Signed build manifest published at ``/security/manifest.json``;
   service worker pins the expected manifest hash.
 - Service-worker build pinning with explicit user-prompted updates
-  (no silent code swap).
+  (no silent code swap). Updates defer if the user is in an active
+  Tier B session.
 - Public ``/security/build`` page showing the running bundle hash,
   build timestamp, and links to the manifest. Anyone can verify the
   client-side code they're executing.
 - Server verifies the manifest signature before serving any bundle
   it claims to know.
+- Trusted Types policy on the main app document (and on the viewer
+  origin once v6 lands). Eliminates string-to-DOM XSS sinks.
+- Strong HTTP headers everywhere: HSTS preload, restrictive CORS
+  (allowlist app origin only), restrictive Permissions Policy
+  (``publickey-credentials-get`` delegated only to the viewer
+  origin once it exists), ``Cross-Origin-Opener-Policy: same-origin``,
+  ``Cross-Origin-Resource-Policy: same-origin``, secure + HttpOnly
+  + SameSite=Lax cookies, no mixed content.
+- Every Tier B audit event records the running bundle hash and
+  manifest version. Provenance per action; mismatch with the signed
+  manifest tail is a security event.
 
 ### Runtime memory hygiene
 - No persistent plaintext cache on the client. ``localStorage`` /
@@ -351,6 +363,13 @@ alerts permission.
   needs it; explicitly cleared on navigation.
 - ``/account/devices`` always offers a "Sign out everywhere now"
   button that revokes every credential and sessions.
+- **Kill plaintext observability.** Tier B field types are tagged so
+  the type-checker rejects passing them to logger calls, error
+  reporters, metrics, traces, audit-event detail, analytics, or any
+  serialization sink not on an explicit allowlist. The single
+  exception is the encrypted-column wrapper, which only ever sees
+  ciphertext at rest. CI lint test scans audit-event detail JSON and
+  log statements for known-Tier-B field names.
 
 ### Crypto discipline
 - Web Crypto only client-side. No JS crypto libraries.
@@ -412,6 +431,95 @@ At minimum:
 - Separate manual approval gate for production deploys.
 - Server verifies signed build manifests before serving; mismatch
   fails closed.
+
+## v6 architecture: split-host + cross-origin iframe viewer
+
+v6 is a future architecture phase that materially raises the bar
+against malicious-server-JS. It is *not* required for v5 to ship; v5
+is correct and useful on its own. v6 is a follow-up that swaps the
+client-side topology for Tier B rendering.
+
+**The model:**
+
+- ``app.tbdtask.com`` — the normal PWA shell + API. Hosts everything
+  except Tier B plaintext rendering.
+- ``secure-viewer.tbdtask-static.com`` — separate origin that serves
+  only the immutable, independently-signed crypto/viewer bundle.
+  Static, cacheable, content-addressed, no API.
+
+**Tier B plaintext lives only inside the cross-origin iframe** served
+from the secure-viewer origin. The PWA shell embeds the iframe and
+talks to it through a tightly-locked-down ``postMessage`` protocol;
+because the iframe is genuinely cross-origin, the same-origin policy
+prevents the shell from reaching into the iframe's DOM or JS heap.
+
+```
+app.tbdtask.com
+  └── normal PWA shell (forms, navigation, lists of identifiers)
+      └── <iframe
+            src="https://secure-viewer.tbdtask-static.com/viewer"
+            sandbox="allow-scripts"
+            allow="publickey-credentials-get"
+          ></iframe>
+            ↑ this iframe handles:
+              - WebAuthn PRF unlock
+              - ciphertext fetch
+              - decrypt
+              - render of sensitive fields
+              - encryption of edits
+```
+
+**The viewer fetches its own ciphertext.** The shell tells it "show
+person 123"; the viewer authenticates to the API directly and pulls
+ciphertext. The shell never holds plaintext or decryption-relevant
+state.
+
+**postMessage protocol discipline (mandatory):**
+- Exact ``targetOrigin`` on every send. Never ``*``.
+- Every message carries: schema version, message id, nonce,
+  request-expiration timestamp.
+- Schema-validated on receipt; unknown fields rejected.
+- No ``GET_PLAINTEXT``-style message exists. Allowed shell→viewer
+  verbs: ``LOAD_RECORD``, ``CLEAR``, ``LOCK``. Allowed viewer→shell
+  verbs: ``READY``, ``HEIGHT_CHANGED``, ``DIRTY``, ``SAVE_COMPLETE``.
+- Responses to ``LOAD_RECORD`` carry no field data, only a status.
+
+**Independently signed crypto/WASM module.** The viewer bundle and
+its WASM crypto are signed by a separate signing key with its own
+release cadence. The signed manifest pins the exact SHA-256 hashes.
+Tier B decrypt refuses to run if the loaded bundle hash does not
+match the signed manifest.
+
+**Updates require explicit user acceptance** for users with Tier B
+permissions. The shell can refresh silently. The viewer never
+silently swaps.
+
+**Audit-log provenance:** every Tier B action records bundle hash +
+manifest version on both sides (shell and viewer). Mismatches raise
+a security event.
+
+**What v6 protects against** (vs v5):
+- Compromise of ``app.tbdtask.com`` no longer directly leaks Tier B
+  plaintext. A malicious shell JS can ask the viewer to load records
+  but cannot exfiltrate the rendered text — same-origin policy blocks
+  DOM read; postMessage has no plaintext-export verb.
+- Compromise of the app deploy pipeline doesn't automatically
+  compromise the viewer (different signing key, different host).
+
+**What v6 does not protect against:**
+- Compromise of the viewer signing key or pipeline. That remains
+  game-over for Tier B confidentiality.
+- UI tricks from the shell — overlays, fake controls, social-engineer
+  the user into approving things. Mitigated by the viewer rendering
+  approval-critical UI itself, not the shell.
+- Native-level threats (compromised browser, OS, hardware).
+
+**Effort estimate:** ~3-5 focused days for the first end-to-end Tier
+B view through the iframe (DNS, TLS cert, build pipeline split,
+manifest signing, postMessage handshake, viewer scaffolding,
+WebAuthn-in-iframe smoke test). Another few days to migrate every
+Tier B template (personnel notes, absence reasons, generated docs,
+audit detail, etc.).
 
 ## Implementation surface (what changes from current code)
 
@@ -478,6 +586,27 @@ At minimum:
     reservation.
 36. Operator key Tier A audit per-use tests.
 
+### Phase I — v6 architecture (deferred, future phase)
+37. Provision ``secure-viewer.tbdtask-static.com`` origin and TLS.
+38. Split the build pipeline: separate signing key for the viewer
+    bundle; separate publish workflow.
+39. Scaffold the viewer bundle: WebAuthn PRF, ciphertext fetch,
+    decrypt, render, edit primitives. Strict CSP on the viewer
+    origin (no third-party scripts, no analytics, no dynamic
+    imports).
+40. Cross-origin iframe wiring in the PWA shell:
+    ``allow="publickey-credentials-get"``, ``sandbox="allow-scripts"``
+    (test exact flags for WebAuthn PRF compatibility), responsive
+    height via postMessage.
+41. postMessage protocol: schema-versioned, nonce-bearing, exact
+    ``targetOrigin``, no plaintext-returning verbs.
+42. Migrate Tier B templates: personnel notes, absence reasons,
+    generated docs, audit-event detail viewer.
+43. Audit-log provenance: every Tier B action records bundle hash +
+    manifest version on both sides.
+44. Update the threat model and ``/security/build`` page to surface
+    both bundles independently.
+
 ## What's already in place (Phase 8a + 8b.1, kept)
 - WebAuthn primitives, PRF probe, server-side challenge handling.
 - StepUpRequired exception + HTML/JSON content negotiation (will
@@ -511,3 +640,16 @@ At minimum:
 16. Out-of-band code confirmation on every recovery approval.
 17. ``/security/build`` is a public endpoint; clients verify the
     manifest matches.
+18. **v6 is queued, not part of v5.** The split-host + cross-origin
+    iframe viewer + independently-signed crypto module is the
+    next architectural phase after Phases A–H land. v5 ships
+    valuable improvements without it; v6 raises the bar against
+    malicious-server-JS specifically.
+19. **No plaintext observability.** Tier B fields cannot flow into
+    logs, traces, metrics, error reporters, audit detail, or
+    analytics. Enforced at the type level + CI lint test.
+20. **Audit provenance includes bundle hash + manifest version.**
+    Per-action, both sides (shell and viewer once v6 lands).
+21. **postMessage between shell and viewer (v6) is a strict
+    protocol** — schema-versioned, nonced, expiring, no
+    plaintext-export verbs.
