@@ -19,3 +19,4 @@ data/secret_key
 # downloads + AppDir staging tree.
 dist/*
 !dist/*.AppImage
+data/operator_key*

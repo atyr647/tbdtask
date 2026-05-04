@@ -19,6 +19,7 @@ from .routes import (
     admin as admin_routes,
     alerts as alerts_routes,
     auth as auth_routes,
+    dev_login as dev_login_routes,
     home,
     onboarding as onboarding_routes,
     passkey as passkey_routes,
@@ -83,6 +84,10 @@ def create_app() -> FastAPI:
     app.include_router(auth_routes.router)
     app.include_router(passkey_routes.router)
     app.include_router(onboarding_routes.router)
+    # Dev-only login shortcut. The router declares its own gate (env
+    # var) and returns 404 otherwise — registering it here is harmless
+    # in production builds.
+    app.include_router(dev_login_routes.router)
 
     app.include_router(home.router)
     app.include_router(today.router)

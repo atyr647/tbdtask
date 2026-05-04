@@ -105,6 +105,11 @@ _PUBLIC_PATH_PREFIXES = (
     "/healthz",
     "/login",
     "/favicon",
+    # Dev-only login shortcut. Registered with its own env-var gate
+    # in app/routes/dev_login.py; entry here lets the route create
+    # a session before the SessionMiddleware would otherwise demand
+    # one.
+    "/dev-login",
 )
 
 # Routes exempt from CSRF validation. OIDC callback uses ``state`` instead;
