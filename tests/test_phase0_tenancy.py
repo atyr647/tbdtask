@@ -69,8 +69,16 @@ def test_tenant_scoped_tables_list_matches_models():
     runtime listener both consume).
     """
     # Auth-layer tables have org_id but are NOT tenant-scoped — they're
-    # accessed via the auth layer, not the tenant context.
-    AUTH_LAYER_TABLES = {"org_memberships", "org_invites"}
+    # accessed via the auth layer, not the tenant context. Phase 8b adds
+    # the key-hierarchy tables (org_master_keys, credential_keys) to
+    # this set: their rows are looked up via the key_hierarchy module's
+    # explicit org_id filters, never via a tenant-context implicit one.
+    AUTH_LAYER_TABLES = {
+        "org_memberships",
+        "org_invites",
+        "org_master_keys",
+        "credential_keys",
+    }
 
     # Models using the mixin.
     via_mixin = {

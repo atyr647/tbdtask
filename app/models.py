@@ -403,6 +403,85 @@ class StepUpGrant(Base):
 
 
 # ---------------------------------------------------------------------------
+# Key hierarchy (Phase 8b): operator-wrapped org master, per-credential wrap
+# ---------------------------------------------------------------------------
+#
+# See ``docs/security-architecture.md`` §3 + §7 for the full hierarchy.
+# ``OrgMasterKey`` holds ``KEK_org_master`` wrapped under the operator
+# key (KMS in production, ``LocalKeyVault`` in dev). ``CredentialKey``
+# holds the same ``KEK_org_master`` wrapped under each device's
+# PRF-derived ``KEK_credential`` — populated by the client during the
+# enrollment / migration flow added in Phase 8b.2.
+
+
+class OrgMasterKey(Base):
+    """Per-org master KEK, wrapped under the operator key.
+
+    Generated at org creation when WebAuthn is enabled. Rotated on
+    member removal and on operator-key rotation. Only one row per
+    (org_id, retired_at IS NULL) — older versions stay around with
+    ``retired_at`` populated until the corresponding ciphertext is
+    re-encrypted under the new version.
+    """
+
+    __tablename__ = "org_master_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    key_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # KEK_org_master wrapped under the operator key. Includes the §6
+    # wire-format header (version, algo, key_id, iv, tag).
+    wrapped_org_kek: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # The operator-key id at wrap time. For LocalKeyVault this is
+    # ``local:<sha>``; for KMS it is the key ARN. Recorded so a future
+    # rotation knows which vault unwrapped successfully.
+    operator_key_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    retired_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class CredentialKey(Base):
+    """Per-credential×org wrap of ``KEK_org_master``.
+
+    Created during the enrollment / wrap-on-rewrap flow (8b.2). One
+    row per (credential_id, org_id, retired_at IS NULL). The
+    ``wrapped_by_credential_id`` records which device performed the
+    wrap — ``NULL`` only for the very first credential to access an
+    org's KEK_org_master, where the bootstrap path uses an ECDH
+    transport channel served by the operator key.
+    """
+
+    __tablename__ = "credential_keys"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    credential_id: Mapped[str] = mapped_column(
+        ForeignKey("user_webauthn_credentials.id"), nullable=False, index=True
+    )
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    # KEK_org_master wrapped under KEK_credential (PRF→HKDF, in-tab).
+    wrapped_org_kek: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # 32-byte salt the client passes to the WebAuthn PRF extension.
+    # Stable per (credential, org), so re-deriving KEK_credential on
+    # the same device produces the same key.
+    prf_salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # Audit: which device performed this wrap. NULL for first-credential
+    # bootstrap (operator-key-mediated transport).
+    wrapped_by_credential_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("user_webauthn_credentials.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), nullable=False
+    )
+    retired_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+# ---------------------------------------------------------------------------
 # Authorization (Phase 2): workcenters, roles, permission grants
 # ---------------------------------------------------------------------------
 

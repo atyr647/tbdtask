@@ -203,6 +203,12 @@ def org_create(
             )
         )
 
+    # Phase 8b: bootstrap KEK_org_master, wrapped under the operator key.
+    # Gated by TBDTASK_WEBAUTHN_ENABLED — when off, no key vault is
+    # touched and the org continues to behave like every other org
+    # created before encryption shipped.
+    _bootstrap_org_keys_if_enabled(db, org_id=org.id, actor_user_id=user.id)
+
     rotated = sess_mod.rotate(
         db,
         session,
@@ -790,3 +796,42 @@ def org_delete(
         path="/",
     )
     return response
+
+
+# ---------------------------------------------------------------------------
+# Phase 8b: key-hierarchy bootstrap helper
+# ---------------------------------------------------------------------------
+
+
+def _bootstrap_org_keys_if_enabled(
+    db: Session, *, org_id: int, actor_user_id: int
+) -> None:
+    """Generate ``KEK_org_master`` for a new org if WebAuthn is on.
+
+    No-op when the feature flag is off, so existing single-tenant /
+    pre-encryption deployments keep working unchanged. Idempotent:
+    safe to call on retries or migrations.
+    """
+    from ..auth import key_hierarchy as kh
+    from ..auth import key_vault as kv
+    from ..auth import webauthn as wa
+
+    if not wa.is_enabled():
+        return
+    try:
+        vault = kv.get_vault()
+    except Exception:
+        # If the vault can't be initialised (missing key file, KMS
+        # unreachable), prefer to log the failure and continue rather
+        # than block org creation. Phase 8b.2 will retry the bootstrap
+        # the next time a credential is enrolled for this org.
+        db.add(
+            M.AuthEvent(
+                kind="org_kek_bootstrap_skipped",
+                user_id=actor_user_id,
+                detail={"org_id": org_id, "reason": "vault_unavailable"},
+            )
+        )
+        db.flush()
+        return
+    kh.bootstrap_org_keys(db, org_id=org_id, vault=vault, actor_user_id=actor_user_id)
