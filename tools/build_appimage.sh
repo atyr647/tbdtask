@@ -148,12 +148,19 @@ if [ -x "\$HERE/usr/bin/tbdtask-desktop" ]; then
   # otherwise fall back to whatever's installed on the host system.
   if [ -f "\$HERE/usr/lib/libwebkit2gtk-4.1.so.0" ]; then
     export LD_LIBRARY_PATH="\$HERE/usr/lib:\${LD_LIBRARY_PATH:-}"
-    export WEBKIT_EXEC_PATH="\$HERE/usr/libexec/webkit2gtk-4.1"
     export GSETTINGS_SCHEMA_DIR="\$HERE/usr/share/glib-2.0/schemas"
     # Disable WebKit's Bubblewrap sandbox: it can't enter the AppImage
     # FUSE mount as a child namespace. The app is a local trusted tool
     # binding to 127.0.0.1, so this is acceptable here.
     export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+    # WebKit 2.52 removed WEBKIT_EXEC_PATH; the helper dir is baked into
+    # libwebkit2gtk as the Ubuntu install path. tools/patch_webkit_paths.py
+    # rewrites that string at build time to /tmp/.tbdtask/webkit2gtk-4.1,
+    # which we now point at the bundled helpers via symlink. Recreate the
+    # symlink every launch so it tracks the current AppImage FUSE mount.
+    mkdir -p /tmp/.tbdtask
+    rm -f /tmp/.tbdtask/webkit2gtk-4.1
+    ln -s "\$HERE/usr/libexec/webkit2gtk-4.1" /tmp/.tbdtask/webkit2gtk-4.1
     # If a per-pixbuf-loader cache was generated at build time, point at
     # it; otherwise let gdk-pixbuf use its built-in fallbacks (fine for
     # our content since WebKit decodes <img> data itself).
