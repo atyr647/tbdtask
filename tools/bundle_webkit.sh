@@ -50,6 +50,13 @@ esac
 # tightly to kernel/drivers/glibc. Keep this in sync with the AppImage
 # project's excludelist when upgrading; the goal is "leaf application
 # libs in the bundle, system platform libs from the host".
+#
+# Notes for non-systemd distros (Void/runit, Devuan/sysvinit, Alpine):
+# libsystemd.so.0 is intentionally NOT excluded. WebKit and libdbus link
+# it for sd_journal/sd_bus calls. We bundle it (and its libcap dep) so
+# the AppImage works on systems without systemd installed; the bundled
+# copy still talks to nothing at runtime (no journal socket, no system
+# bus dependency — webkit only uses it for soft-fail logging).
 EXCLUDE_RE='^(ld-linux|libc|libdl|libpthread|librt|libresolv|libm|libcrypt|libnss_|libBrokenLocale|libanl|libutil)\.so'
 EXCLUDE_RE+='|^libG[L]'        # libGL, libGLX, libGLU, libGLdispatch
 EXCLUDE_RE+='|^libEGL\.'
@@ -57,8 +64,8 @@ EXCLUDE_RE+='|^libgbm\.|^libdrm\.|^libxshmfence'
 EXCLUDE_RE+='|^libX'           # X11 family (libX11, libXext, libXi, ...)
 EXCLUDE_RE+='|^libxcb|^libxkbcommon|^libxkbfile|^libwayland'
 EXCLUDE_RE+='|^libgcc_s\.|^libstdc\+\+\.'
-EXCLUDE_RE+='|^libcap\.|^libapparmor\.'
-EXCLUDE_RE+='|^libudev\.|^libsystemd\.'
+EXCLUDE_RE+='|^libapparmor\.'
+EXCLUDE_RE+='|^libudev\.'      # eudev on Void provides this
 EXCLUDE_RE+='|^libsoup-2\.'    # libsoup2 — we ship libsoup3
 
 declare -A queued
