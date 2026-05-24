@@ -281,13 +281,45 @@ _request_org_id: ContextVar[Optional[int]] = ContextVar(
 )
 
 
+_SINGLE_TENANT_ORG_ID: Optional[int] = None
+
+
+def _resolve_single_tenant_org_id() -> int:
+    """Look up (and cache) the default org id used for single-tenant mode.
+
+    The Phase 0 migration always seeds an org with slug='default', and the
+    AppImage never creates more. Cached after the first resolution so we
+    don't query on every request.
+    """
+    global _SINGLE_TENANT_ORG_ID
+    if _SINGLE_TENANT_ORG_ID is not None:
+        return _SINGLE_TENANT_ORG_ID
+    from sqlalchemy import select
+
+    with SessionLocal() as s:
+        oid = s.scalar(
+            select(M.Organization.id).order_by(M.Organization.id).limit(1)
+        )
+    if oid is None:
+        raise RuntimeError(
+            "single-tenant mode requires a seeded organization; "
+            "run init_db() first"
+        )
+    _SINGLE_TENANT_ORG_ID = oid
+    return oid
+
+
 class SessionMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if _is_public(request.url.path):
             return await call_next(request)
 
         if SINGLE_TENANT_MODE:
-            return await call_next(request)
+            # Bind every request to the single seeded org so the loader
+            # criteria filter and the auto-fill listener both have a value.
+            oid = _resolve_single_tenant_org_id()
+            with tenant_context(oid):
+                return await call_next(request)
 
         # Single session per request: create here, attach to request state,
         # and let route handlers reuse it via ``get_db``. The middleware

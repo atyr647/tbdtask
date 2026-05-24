@@ -169,8 +169,27 @@ def _inject_tenant_filter(execute_state) -> None:
     )
 
 
+def _autofill_org_id(session, flush_context, instances) -> None:
+    """Fill ``org_id`` from the active ``tenant_context`` on new rows that
+    didn't set it explicitly.
+
+    The route-handler code paths in single-tenant (AppImage) mode construct
+    tenant-scoped models without passing ``org_id``; the middleware enters
+    a ``tenant_context`` around the request, and this listener pulls the
+    bound org id onto the new instance just before the validator runs at
+    flush time. Multi-tenant code that already sets ``org_id`` explicitly
+    is unaffected.
+    """
+    oid = _current_org_id.get()
+    if oid is None:
+        return
+    for obj in session.new:
+        if isinstance(obj, TenantScopedMixin) and getattr(obj, "org_id", None) is None:
+            obj.org_id = oid
+
+
 def register_tenancy_listeners() -> None:
-    """Install the ``do_orm_execute`` listener on the global Session class.
+    """Install the tenancy listeners on the global Session class.
 
     Idempotent: re-calling is a no-op. Called once from ``app.db`` at import
     time so any session created anywhere in the app participates without
@@ -178,3 +197,5 @@ def register_tenancy_listeners() -> None:
     """
     if not event.contains(Session, "do_orm_execute", _inject_tenant_filter):
         event.listen(Session, "do_orm_execute", _inject_tenant_filter)
+    if not event.contains(Session, "before_flush", _autofill_org_id):
+        event.listen(Session, "before_flush", _autofill_org_id)

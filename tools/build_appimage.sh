@@ -100,6 +100,11 @@ HERE="$(dirname "$(readlink -f "$0")")"
 APP_BASE="$HERE/usr/share/tbdtask"
 export PYTHONPATH="$APP_BASE:$APP_BASE/site-packages:$PYTHONPATH"
 export TBDTASK_DATA_DIR="${TBDTASK_DATA_DIR:-${HOME}/.local/share/tbdtask}"
+# Single-user offline mode: no login providers, no remote access. The
+# launcher also flips this on, but setting it here means anything that
+# imports app modules during startup (init_db, middleware) sees it too.
+export TBDTASK_SINGLE_TENANT=1
+export TBDTASK_LAUNCHER=1
 mkdir -p "$TBDTASK_DATA_DIR"
 exec "$HERE/usr/python/bin/python3" -m app.main "$@"
 EOF
@@ -108,10 +113,13 @@ chmod +x "$APPDIR/AppRun"
 cat > "$APPDIR/${APP_NAME}.desktop" <<EOF
 [Desktop Entry]
 Name=Worklist Tracker
+Comment=Offline weekly worklist and personnel tracker
 Exec=AppRun
 Icon=tbdtask
 Type=Application
-Categories=Office;Utility;
+Categories=Office;
+StartupNotify=true
+Terminal=false
 EOF
 
 # Use a real icon if one is provided; otherwise emit a 1x1 placeholder.
