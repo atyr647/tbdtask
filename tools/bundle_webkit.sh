@@ -148,3 +148,15 @@ fi
 #     custom icons, revisit this.
 
 echo "  Bundle staged at ${BUNDLE_LIB} and ${BUNDLE_WEBKIT_PRIV}."
+
+# Patch the hardcoded helper paths in libwebkit2gtk so it spawns the
+# bundled WebKit*Process binaries instead of looking at the Ubuntu
+# install path. WEBKIT_EXEC_PATH was removed in webkit2gtk-4.1, so this
+# is the only knob left. AppRun is expected to create the symlink
+# /tmp/.tbdtask/webkit2gtk-4.1 -> $HERE/usr/libexec/webkit2gtk-4.1 at
+# launch time so the patched path resolves.
+if [[ -f "${BUNDLE_LIB}/libwebkit2gtk-4.1.so.0" ]]; then
+  echo "  Patching baked WebKit helper paths..."
+  python3 "$(dirname "$0")/patch_webkit_paths.py" \
+    "${BUNDLE_LIB}/libwebkit2gtk-4.1.so.0"
+fi
