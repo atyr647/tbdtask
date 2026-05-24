@@ -11,13 +11,20 @@ Native window for the local FastAPI app. The Rust binary in
 
 The Python app is unchanged — Tauri is purely the window chrome.
 
-## Runtime dependency
+## Runtime dependencies
 
-The Tauri binary dynamically links against the host's WebKitGTK 4.1
-and GTK3. On Void Linux: `sudo xbps-install -S webkit2gtk`. On
-Debian/Ubuntu: `apt install libwebkit2gtk-4.1-0`. AppRun checks for
-the library and falls back to opening the system browser if missing,
-so the AppImage still works without it — just less native.
+The AppImage bundles WebKitGTK 4.1 + libjavascriptcoregtk + libsoup3
++ GTK3 and ~90 other non-system shared libs (see
+`tools/bundle_webkit.sh`), so end users don't need to install anything
+beyond a working desktop (glibc, X11, OpenGL drivers — present on any
+Linux with a GUI). The bundle adds ~70MB compressed and lets the
+AppImage run on Void/Debian/Arch/etc. without per-distro setup.
+
+To opt out of bundling and ship a smaller AppImage that depends on
+the host's webkit2gtk package, build with
+`BUNDLE_WEBKIT=0 tools/build_appimage.sh`. AppRun will detect the
+missing bundle, look up the host's webkit, and fall back to browser
+mode with an install hint if neither is available.
 
 ## Build (cross-compile from x86_64 to aarch64)
 
@@ -52,11 +59,26 @@ The resulting binary at
 development; it auto-discovers the FastAPI source by walking up from
 the binary location looking for an `app/main.py`.
 
-## Why not bundle WebKitGTK?
+## Why bundle WebKitGTK?
 
-It's 100+ shared libraries (~150MB) with helper processes that need
-specific filesystem layout, and bundling exposes the AppImage to
-glibc-version mismatches with the host. The system webkit2gtk
-package is a one-line install and Just Works. We optimize for "small
-AppImage, one-time install command" rather than "bigger AppImage,
-zero install steps".
+Earlier iterations of this app required `xbps-install -S webkit2gtk`
+on the Pi as a one-time setup step. We now bundle webkit + its 90-ish
+non-system shared libs (libsoup3, gstreamer, glib, gtk3, etc.) and
+the WebKit helper processes into the AppImage so a fresh Pi can run
+the AppImage with zero install steps. The host still provides glibc,
+X11, and GPU drivers — none of which can be safely bundled because
+they're coupled to the kernel and hardware.
+
+Bundled (~70MB compressed):
+* libwebkit2gtk-4.1, libjavascriptcoregtk-4.1
+* libsoup-3.0, glib/gobject/gio, gtk3/gdk
+* gstreamer-1.0 + standard plugins (webkit uses these for `<video>`)
+* WebKit helper binaries: `WebKitWebProcess`, `WebKitNetworkProcess`,
+  `WebKitGPUProcess`, plus the injected-bundle plugin
+
+System-provided (the AppImage excludelist):
+* glibc family (`libc`, `libpthread`, `libdl`, `libm`, `ld-linux`, …)
+* X11 + xcb + xkbcommon + wayland
+* OpenGL / EGL / drm / gbm (graphics drivers)
+* libgcc_s, libstdc++ (ABI-coupled to the host compiler)
+* systemd + udev + capability libraries

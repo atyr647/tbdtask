@@ -117,6 +117,14 @@ if [[ "$BUILD_TAURI" == "1" ]]; then
     cargo build --release --target "$TAURI_TARGET"
   )
   install -Dm755 "$TAURI_BIN" "$APPDIR/usr/bin/tbdtask-desktop"
+
+  # 2c. Bundle WebKitGTK + non-system deps so end users don't need a
+  # webkit2gtk package on their machine. Set BUNDLE_WEBKIT=0 to opt
+  # out and ship a slimmer AppImage that depends on the host's webkit.
+  if [[ "${BUNDLE_WEBKIT:-1}" == "1" ]]; then
+    echo "[2c/4] Bundling WebKitGTK runtime..."
+    bash "$ROOT/tools/bundle_webkit.sh" "$APPDIR" "${ARCH}-linux-gnu"
+  fi
 fi
 
 # 3. AppRun launcher and metadata -----------------------------------------
@@ -136,9 +144,24 @@ export TBDTASK_LAUNCHER=1
 mkdir -p "\$TBDTASK_DATA_DIR"
 
 if [ -x "\$HERE/usr/bin/tbdtask-desktop" ]; then
-  # Native Tauri path: verify the host has WebKitGTK 4.1 available; if
-  # not, fall back to the browser launcher rather than crashing with an
-  # unhelpful ld error.
+  # Native Tauri path. Prefer bundled WebKitGTK + helpers when present;
+  # otherwise fall back to whatever's installed on the host system.
+  if [ -f "\$HERE/usr/lib/libwebkit2gtk-4.1.so.0" ]; then
+    export LD_LIBRARY_PATH="\$HERE/usr/lib:\${LD_LIBRARY_PATH:-}"
+    export WEBKIT_EXEC_PATH="\$HERE/usr/libexec/webkit2gtk-4.1"
+    export GSETTINGS_SCHEMA_DIR="\$HERE/usr/share/glib-2.0/schemas"
+    # Disable WebKit's Bubblewrap sandbox: it can't enter the AppImage
+    # FUSE mount as a child namespace. The app is a local trusted tool
+    # binding to 127.0.0.1, so this is acceptable here.
+    export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+    # If a per-pixbuf-loader cache was generated at build time, point at
+    # it; otherwise let gdk-pixbuf use its built-in fallbacks (fine for
+    # our content since WebKit decodes <img> data itself).
+    if [ -s "\$HERE/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache" ]; then
+      export GDK_PIXBUF_MODULE_FILE="\$HERE/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+    fi
+    exec "\$HERE/usr/bin/tbdtask-desktop" "\$@"
+  fi
   if ldconfig -p 2>/dev/null | grep -q 'libwebkit2gtk-4.1\.so\.0'; then
     exec "\$HERE/usr/bin/tbdtask-desktop" "\$@"
   fi
