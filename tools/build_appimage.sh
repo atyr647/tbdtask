@@ -84,7 +84,8 @@ python3 -m pip install \
   --implementation cp --abi "$PY_ABI" \
   --only-binary=:all: \
   --upgrade \
-  fastapi 'uvicorn>=0.27' sqlalchemy alembic jinja2 python-multipart pydantic pydantic-core mako
+  fastapi 'uvicorn>=0.27' sqlalchemy alembic jinja2 python-multipart pydantic pydantic-core mako \
+  'authlib>=1.3' 'httpx>=0.27' 'itsdangerous>=2.2'
 
 # Bundle the app source + alembic migrations.
 cp -R "$ROOT/app" "$APPDIR/usr/share/${APP_NAME}/app"
