@@ -109,7 +109,11 @@ for f in "${!queued[@]}"; do
   case "$f" in
     "${APPDIR}/usr/bin/tbdtask-desktop") continue ;;
     "${HOST_WEBKIT_PRIV}"/*)
-      install -Dm755 "$f" "${BUNDLE_WEBKIT_PRIV}/$(basename "$f")"
+      # Preserve subdirs under webkit2gtk-4.1/ (notably injected-bundle/,
+      # which WebKit dlopens via the patched static path and won't find
+      # if we flatten it into the parent dir).
+      rel="${f#${HOST_WEBKIT_PRIV}/}"
+      install -Dm755 "$f" "${BUNDLE_WEBKIT_PRIV}/${rel}"
       continue ;;
   esac
   base="$(basename "$f")"
