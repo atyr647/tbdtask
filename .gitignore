@@ -15,10 +15,9 @@ data/*.db-shm
 data/secret_key
 .env
 
-# Build artifacts: keep the final AppImages, throw away the intermediate
-# downloads + AppDir staging tree.
-dist/*
-!dist/*.AppImage
+# Build artifacts. AppImages used to be committed; now they're built and
+# attached to GitHub Releases by .github/workflows/release.yml.
+dist/
 
 # Tauri / Rust build artifacts. Cargo.lock is committed for reproducible
 # release builds (this is a binary, not a library).

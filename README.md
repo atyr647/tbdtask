@@ -121,26 +121,47 @@ make audit                               # pip-audit scans for known CVEs
 make freeze                              # generate pinned requirements.txt
 ```
 
-## Build the AppImage
+## Get the AppImage
 
-The Pi 400 is **aarch64**, so that's the default target:
-
-```sh
-tools/build_appimage.sh                 # defaults to ARCH=aarch64 (Pi 400)
-ARCH=x86_64 tools/build_appimage.sh     # desktop testing
-```
-
-Output lands in `dist/tbdtask-<version>-<arch>.AppImage`.
-
-To install on the Pi:
+Prebuilt aarch64 AppImages are attached to [GitHub Releases](../../releases).
+Download the latest `tbdtask-<version>-aarch64.AppImage` (and optionally
+`SHA256SUMS` to verify), then on the Pi:
 
 ```sh
 chmod +x tbdtask-0.1.0-aarch64.AppImage
 ./tbdtask-0.1.0-aarch64.AppImage
 ```
 
-The AppImage opens the default browser to `http://127.0.0.1:8765/` and
-keeps its data in `~/.local/share/tbdtask/`.
+The AppImage opens a native WebKitGTK window on `http://127.0.0.1:<free-port>/`
+and keeps its data in `~/.local/share/tbdtask/`. First-time setup on
+Void Linux: `sudo xbps-install -S webkit2gtk`.
+
+## Build the AppImage locally
+
+The Pi 400 is **aarch64**, so that's the default target:
+
+```sh
+tools/build_appimage.sh                 # defaults to ARCH=aarch64 (Pi 400)
+ARCH=x86_64 tools/build_appimage.sh     # desktop testing
+BUILD_TAURI=0 tools/build_appimage.sh   # skip the native shell (browser fallback)
+```
+
+Output lands in `dist/tbdtask-<version>-<arch>.AppImage`. The Tauri
+cross-build needs `gcc-aarch64-linux-gnu` and arm64 WebKitGTK dev libs;
+see `desktop/README.md` for the full toolchain setup.
+
+## Cut a release
+
+Tag a commit on `main` and push; the
+[`Release` workflow](.github/workflows/release.yml) cross-builds the
+aarch64 AppImage and attaches it to the matching GitHub Release:
+
+```sh
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+Manual runs from the Actions tab also work — useful for ad-hoc dev builds.
 
 ## Future considerations
 
