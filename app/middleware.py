@@ -297,13 +297,10 @@ def _resolve_single_tenant_org_id() -> int:
     from sqlalchemy import select
 
     with SessionLocal() as s:
-        oid = s.scalar(
-            select(M.Organization.id).order_by(M.Organization.id).limit(1)
-        )
+        oid = s.scalar(select(M.Organization.id).order_by(M.Organization.id).limit(1))
     if oid is None:
         raise RuntimeError(
-            "single-tenant mode requires a seeded organization; "
-            "run init_db() first"
+            "single-tenant mode requires a seeded organization; run init_db() first"
         )
     _SINGLE_TENANT_ORG_ID = oid
     return oid
