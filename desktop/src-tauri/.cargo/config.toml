@@ -1,0 +1,12 @@
+# Cross-compile config for aarch64 Linux (Raspberry Pi 400).
+#
+# Triggered when ``cargo build --target aarch64-unknown-linux-gnu`` is run.
+# Uses the Debian/Ubuntu cross-gcc as the C linker and points
+# pkg-config at the multiarch sysroot so webkit2gtk/gtk/glib headers
+# resolve to the arm64 packages.
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
+[env]
+PKG_CONFIG_ALLOW_CROSS_aarch64-unknown-linux-gnu = "1"

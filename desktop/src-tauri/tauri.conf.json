@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Worklist Tracker",
+  "version": "0.1.0",
+  "identifier": "com.tbdtask.desktop",
+  "build": {
+    "frontendDist": "../dist-empty"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Worklist Tracker",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "decorations": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
+}

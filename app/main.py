@@ -1,12 +1,25 @@
 from __future__ import annotations
 
+import os
+import shutil
+import socket
+import subprocess
+import sys
 import webbrowser
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .db import init_db
+# The AppImage / local desktop launcher is a single-user offline tool:
+# no login, no remote access, no multi-tenant. Set the flag before any
+# auth-aware module reads it. ``serve()`` is the only entry that goes
+# through here; ``uvicorn app.main:app`` for hosted deployments leaves
+# the env untouched and runs the full auth pipeline.
+if __name__ == "__main__" or os.environ.get("TBDTASK_LAUNCHER") == "1":
+    os.environ.setdefault("TBDTASK_SINGLE_TENANT", "1")
+
+from .db import init_db  # noqa: E402
 from .middleware import (
     AuthRateLimitMiddleware,
     CSRFMiddleware,
@@ -82,15 +95,99 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
-    """Entry point for the AppImage launcher."""
+def _pick_free_port(host: str) -> int:
+    """Ask the OS for an unused TCP port on *host*."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind((host, 0))
+        return s.getsockname()[1]
+
+
+# Browser binaries we'll try, in order, for an "app window" experience.
+# All chromium-family browsers accept ``--app=URL`` to launch a single
+# window without tabs/address bar — feels like a native app. Firefox
+# doesn't have an exact equivalent; we fall through to the default
+# browser in that case.
+_CHROMIUM_BINARIES = (
+    "chromium",
+    "chromium-browser",
+    "google-chrome",
+    "google-chrome-stable",
+    "chrome",
+    "brave-browser",
+    "microsoft-edge",
+)
+
+
+def _launch_app_window(url: str) -> None:
+    """Open *url* in an app-style standalone window when possible.
+
+    Tries chromium-family browsers with ``--app=URL`` first (gives a
+    clean window with no tabs/address bar). Falls back to whatever
+    ``webbrowser`` resolves to. The browser profile lives next to the
+    app data dir so cookies/cache don't leak into the user's daily
+    browser profile.
+    """
+    data_dir = Path(
+        os.environ.get(
+            "TBDTASK_DATA_DIR",
+            Path.home() / ".local" / "share" / "tbdtask",
+        )
+    )
+    profile_dir = data_dir / "browser-profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+
+    for binary in _CHROMIUM_BINARIES:
+        path = shutil.which(binary)
+        if path is None:
+            continue
+        try:
+            subprocess.Popen(
+                [
+                    path,
+                    f"--app={url}",
+                    f"--user-data-dir={profile_dir}",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return
+        except OSError:
+            continue
+
+    try:
+        webbrowser.open(url, new=2)
+    except Exception:
+        pass
+
+
+def serve(
+    host: str = "127.0.0.1",
+    port: int | None = None,
+    open_browser: bool = True,
+) -> None:
+    """Entry point for the AppImage launcher.
+
+    *port* defaults to a free OS-assigned port to avoid collisions when
+    another instance — or anything else — already holds the previous
+    default. The chosen port is printed to stdout so the user can
+    re-open the app in another browser if needed.
+    """
     import uvicorn
 
+    if port is None:
+        env_port = os.environ.get("TBDTASK_PORT")
+        port = int(env_port) if env_port else _pick_free_port(host)
+
+    url = f"http://{host}:{port}/"
+    print(f"tbdtask listening on {url}", file=sys.stderr, flush=True)
+
     if open_browser:
-        try:
-            webbrowser.open(f"http://{host}:{port}/", new=2)
-        except Exception:
-            pass
+        _launch_app_window(url)
+
     uvicorn.run(app, host=host, port=port, log_level="info")
 
 
