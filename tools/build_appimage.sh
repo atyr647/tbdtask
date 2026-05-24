@@ -92,21 +92,60 @@ cp -R "$ROOT/app" "$APPDIR/usr/share/${APP_NAME}/app"
 cp -R "$ROOT/alembic" "$APPDIR/usr/share/${APP_NAME}/alembic"
 cp "$ROOT/alembic.ini" "$APPDIR/usr/share/${APP_NAME}/alembic.ini"
 
+# 2b. Native Tauri shell (optional but recommended) -----------------------
+# When ``BUILD_TAURI=1`` (the default), cross-compile the Rust binary that
+# hosts a native WebKitGTK window and spawns the Python sidecar. When set
+# to 0 the AppImage falls back to launching the Python process directly,
+# which opens the app in the system browser. The Tauri shell needs a
+# host with the matching arm64 toolchain + webkit/gtk dev libs; see
+# desktop/README.md for details.
+BUILD_TAURI="${BUILD_TAURI:-1}"
+TAURI_DIR="$ROOT/desktop/src-tauri"
+TAURI_TARGET="${ARCH}-unknown-linux-gnu"
+TAURI_BIN="$TAURI_DIR/target/$TAURI_TARGET/release/tbdtask-desktop"
+
+if [[ "$BUILD_TAURI" == "1" ]]; then
+  echo "[2b/4] Cross-compiling Tauri shell for $ARCH..."
+  (
+    cd "$TAURI_DIR"
+    if [[ "$ARCH" == "aarch64" ]]; then
+      export PKG_CONFIG_ALLOW_CROSS=1
+      export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+      export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+      export PKG_CONFIG_SYSROOT_DIR=/
+    fi
+    cargo build --release --target "$TAURI_TARGET"
+  )
+  install -Dm755 "$TAURI_BIN" "$APPDIR/usr/bin/tbdtask-desktop"
+fi
+
 # 3. AppRun launcher and metadata -----------------------------------------
 echo "[3/4] Writing AppRun launcher..."
-cat > "$APPDIR/AppRun" <<'EOF'
+cat > "$APPDIR/AppRun" <<EOF
 #!/bin/sh
-HERE="$(dirname "$(readlink -f "$0")")"
-APP_BASE="$HERE/usr/share/tbdtask"
-export PYTHONPATH="$APP_BASE:$APP_BASE/site-packages:$PYTHONPATH"
-export TBDTASK_DATA_DIR="${TBDTASK_DATA_DIR:-${HOME}/.local/share/tbdtask}"
-# Single-user offline mode: no login providers, no remote access. The
-# launcher also flips this on, but setting it here means anything that
-# imports app modules during startup (init_db, middleware) sees it too.
+HERE="\$(dirname "\$(readlink -f "\$0")")"
+APP_BASE="\$HERE/usr/share/tbdtask"
+export TBDTASK_PYTHON="\$HERE/usr/python/bin/python3"
+export TBDTASK_APP_DIR="\$APP_BASE"
+export TBDTASK_SITE_PACKAGES="\$APP_BASE/site-packages"
+export PYTHONPATH="\$APP_BASE:\$APP_BASE/site-packages:\$PYTHONPATH"
+export TBDTASK_DATA_DIR="\${TBDTASK_DATA_DIR:-\${HOME}/.local/share/tbdtask}"
+# Single-user offline mode: no login providers, no remote access.
 export TBDTASK_SINGLE_TENANT=1
 export TBDTASK_LAUNCHER=1
-mkdir -p "$TBDTASK_DATA_DIR"
-exec "$HERE/usr/python/bin/python3" -m app.main "$@"
+mkdir -p "\$TBDTASK_DATA_DIR"
+
+if [ -x "\$HERE/usr/bin/tbdtask-desktop" ]; then
+  # Native Tauri path: verify the host has WebKitGTK 4.1 available; if
+  # not, fall back to the browser launcher rather than crashing with an
+  # unhelpful ld error.
+  if ldconfig -p 2>/dev/null | grep -q 'libwebkit2gtk-4.1\.so\.0'; then
+    exec "\$HERE/usr/bin/tbdtask-desktop" "\$@"
+  fi
+  echo "tbdtask: libwebkit2gtk-4.1 not found; falling back to browser mode." >&2
+  echo "  Install it on Void Linux with: sudo xbps-install -S webkit2gtk" >&2
+fi
+exec "\$TBDTASK_PYTHON" -m app.main "\$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
