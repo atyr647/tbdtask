@@ -20,20 +20,26 @@
     <a class="btn-ghost" href="/personnel/incoming">View incoming</a>
   </div>
 {% endcall %}
+{% else %}
+<div class="roster-search">
+  <input type="search" id="roster-search-input" placeholder="Search by name, rank/rate, or position…"
+         autocomplete="off" aria-label="Filter personnel" />
+  <span class="muted small" id="roster-search-count" aria-live="polite"></span>
+</div>
 {% endif %}
 
 {% for group, rows in grouped.items() if rows %}
-  <section class="block">
-    <h2>{{ group }} <span class="count">({{ rows|length }})</span></h2>
+  <section class="block" data-roster-section>
+    <h2>{{ group }} <span class="count" data-roster-section-count>({{ rows|length }})</span></h2>
     <ul class="row-list">
       {% for r in rows %}
-      <li>
+      <li data-roster-row data-search="{{ ((r.last_name or '') ~ ' ' ~ (r.first_name or '') ~ ' ' ~ (r.rate or '') ~ ' ' ~ (r.position or ''))|lower }}">
         <a class="row-list-item" href="/personnel/{{ r.id }}">
           {{ avatar(r.last_name ~ " " ~ (r.first_name or "")) }}
           <span class="row-main">
             <span class="row-title">{{ r.last_name }}{% if r.first_name %}, {{ r.first_name }}{% endif %}</span>
             <span class="row-sub">
-              {{ r.rate or "—" }}{% if r.duty_section %} · Team {{ r.duty_section }}{% endif %}{% if r.position %} · {{ r.position }}{% endif %}
+              {{ r.rate or "—" }}{% if r.position %} · {{ r.position }}{% endif %}
             </span>
           </span>
           <span class="row-chevron" aria-hidden="true">
@@ -47,4 +53,31 @@
 {% endfor %}
 
 <a class="fab" href="/personnel/new" aria-label="Add person">{{ icon_plus() }}</a>
+
+<script>
+(function () {
+  const input = document.getElementById('roster-search-input');
+  if (!input) return;
+  const counter = document.getElementById('roster-search-count');
+  const rows = document.querySelectorAll('[data-roster-row]');
+  const sections = document.querySelectorAll('[data-roster-section]');
+  function apply() {
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    rows.forEach(r => {
+      const hit = !q || r.dataset.search.indexOf(q) >= 0;
+      r.style.display = hit ? '' : 'none';
+      if (hit) shown += 1;
+    });
+    sections.forEach(sec => {
+      const visible = sec.querySelectorAll('[data-roster-row]:not([style*="display: none"])').length;
+      sec.style.display = visible === 0 ? 'none' : '';
+      const c = sec.querySelector('[data-roster-section-count]');
+      if (c) c.textContent = '(' + visible + ')';
+    });
+    counter.textContent = q ? shown + ' match' + (shown === 1 ? '' : 'es') : '';
+  }
+  input.addEventListener('input', apply);
+})();
+</script>
 {% endblock %}

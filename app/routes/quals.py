@@ -238,38 +238,56 @@ def new_person_qual_form(
 
 
 @router.post("/personnel/{person_id}/quals")
-def create_person_qual(
+async def create_person_qual(
     person_id: int,
-    qual_id: int = Form(...),
-    status: str = Form("assigned"),
-    started_at: Optional[str] = Form(None),
-    achieved_at: Optional[str] = Form(None),
-    notes: Optional[str] = Form(None),
+    request: Request,
     _: None = Depends(require(P_QUALS_WRITE)),
 ):
+    """Bulk-assign one or more qualifications to a person.
+
+    The form posts ``qual_ids`` as a repeated field (one entry per
+    checkbox the operator ticked); ``status``, ``started_at``,
+    ``achieved_at``, and ``notes`` apply to every selected qual.
+    """
+    form = await request.form()
+    qual_ids = [int(v) for v in form.getlist("qual_ids") if v]
+    if not qual_ids:
+        # Legacy single-field fallback for any caller still posting qual_id.
+        single = form.get("qual_id")
+        if single:
+            qual_ids = [int(single)]
+    if not qual_ids:
+        raise HTTPException(400, "select at least one qualification")
+    status = form.get("status") or "assigned"
+    started_at = form.get("started_at") or None
+    achieved_at = form.get("achieved_at") or None
+    notes = (form.get("notes") or "").strip() or None
+    started_dt = datetime.fromisoformat(started_at) if started_at else None
+    achieved_dt = datetime.fromisoformat(achieved_at) if achieved_at else None
     today = date.today()
     with SessionLocal() as s:
         p = s.get(M.Person, person_id)
-        q = s.get(M.Qualification, qual_id)
-        if not p or not q:
+        if not p:
             raise HTTPException(404)
-        started_dt = datetime.fromisoformat(started_at) if started_at else None
-        achieved_dt = datetime.fromisoformat(achieved_at) if achieved_at else None
-        expires_dt = None
-        if achieved_dt and q.validity_period_days:
-            expires_dt = achieved_dt + timedelta(days=q.validity_period_days)
-        s.add(
-            M.PersonQual(
-                person_id=p.id,
-                qual_id=q.id,
-                status=status,
-                started_at=started_dt,
-                achieved_at=achieved_dt,
-                expires_at=expires_dt,
-                notes=notes or None,
-                valid_from=today,
+        for qid in qual_ids:
+            q = s.get(M.Qualification, qid)
+            if not q:
+                continue
+            expires_dt = None
+            if achieved_dt and q.validity_period_days:
+                expires_dt = achieved_dt + timedelta(days=q.validity_period_days)
+            s.add(
+                M.PersonQual(
+                    person_id=p.id,
+                    qual_id=q.id,
+                    status=status,
+                    started_at=started_dt,
+                    achieved_at=achieved_dt,
+                    expires_at=expires_dt,
+                    notes=notes,
+                    valid_from=today,
+                )
             )
-        )
         s.commit()
     return RedirectResponse(f"/personnel/{person_id}", status_code=303)
 

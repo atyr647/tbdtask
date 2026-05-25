@@ -5,7 +5,6 @@
 {% block content %}
 {{ back_link("/personnel", "Back to roster") }}
 <h1>Add personnel</h1>
-{% include "personnel/_rate_picker.html" %}
 <form method="post" action="/personnel" class="form">
   <fieldset>
     <legend>Identity</legend>
@@ -14,26 +13,13 @@
     <label>Role / position <input name="position" placeholder="e.g. Team Lead, Coordinator" value="{% if form_data and form_data.position %}{{ form_data.position }}{% endif %}" /></label>
   </fieldset>
   <fieldset>
-    <legend>Title</legend>
-    <label>Category
-      <select id="rate-category">
-        <option value="">— any —</option>
-        <option value="Leadership">Leadership</option>
-        <option value="Operations">Operations</option>
-        <option value="Technical">Technical</option>
-        <option value="Support">Support</option>
-      </select>
+    <legend>Rank/Rate</legend>
+    <label>Rank/Rate
+      <input name="rate" autocomplete="off" />
     </label>
-    <label>Title
-      <input name="rate" list="rate-suggestions" placeholder="type or pick (e.g. Coordinator, Analyst, Manager)" autocomplete="off" />
-    </label>
-    <p class="muted small">Level and roster group are derived automatically for catalog titles. You can still type any custom title.</p>
   </fieldset>
   <fieldset>
     <legend>Assignment</legend>
-    <label>Team / group
-      <input type="number" name="duty_section" min="1" max="20" placeholder="e.g. 1, 2, 3 …" />
-    </label>
     <label>Planned departure date <input type="date" name="prd_date" /></label>
     <label>Drivers license
       <input type="checkbox" name="has_drivers_license" value="1" />
@@ -66,5 +52,4 @@
   </div>
 </form>
 
-{% include "personnel/_rate_picker_js.html" %}
 {% endblock %}
