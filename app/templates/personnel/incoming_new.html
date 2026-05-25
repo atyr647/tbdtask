@@ -7,7 +7,6 @@
 {{ back_link("/personnel/incoming", "Back to incoming") }}
 <h1>Add incoming personnel</h1>
 
-{% include "personnel/_rate_picker.html" %}
 <datalist id="people-suggestions"></datalist>
 <script type="application/json" id="sponsors-data">
 {% set entries = [] %}{% for p in sponsors %}{% set _ = entries.append({"id": p.id, "label": p.full_display}) %}{% endfor %}{{ entries|tojson }}
@@ -21,18 +20,9 @@
   </fieldset>
 
   <fieldset>
-    <legend>Title</legend>
-    <label>Category
-      <select id="rate-category">
-        <option value="">— any —</option>
-        <option value="Leadership">Leadership</option>
-        <option value="Operations">Operations</option>
-        <option value="Technical">Technical</option>
-        <option value="Support">Support</option>
-      </select>
-    </label>
-    <label>Title
-      <input name="rate" list="rate-suggestions" placeholder="type or pick" autocomplete="off" />
+    <legend>Rank/Rate</legend>
+    <label>Rank/Rate
+      <input name="rate" autocomplete="off" />
     </label>
   </fieldset>
 
@@ -65,5 +55,4 @@
   </div>
 </form>
 
-{% include "personnel/_rate_picker_js.html" %}
 {% endblock %}

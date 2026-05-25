@@ -1,34 +1,63 @@
 {% extends "base.html" %}
 {% from "_macros.html" import back_link %}
-{% block title %}Assign qual to {{ person.full_display }}{% endblock %}
-{% block page_title %}Assign qual{% endblock %}
+{% block title %}Assign quals to {{ person.full_display }}{% endblock %}
+{% block page_title %}Assign quals{% endblock %}
 {% block content %}
 {{ back_link("/personnel/" ~ person.id, "Back to " ~ person.full_display) }}
-<h1>Assign qualification</h1>
+<h1>Assign qualifications</h1>
 
 {% if not available %}
   <p class="muted">{{ person.full_display }} already has every qualification in the catalog assigned.</p>
 {% else %}
-<form method="post" action="/personnel/{{ person.id }}/quals" class="form">
-  <label>Qualification
-    <select name="qual_id" required>
+<form method="post" action="/personnel/{{ person.id }}/quals" class="form" data-multiqual>
+  <fieldset>
+    <legend>Pick qualifications <span class="muted small" data-multiqual-count>(0 selected)</span></legend>
+    <ul class="qual-checklist">
       {% for q in available %}
-        <option value="{{ q.id }}">{{ q.name }}{% if q.category %} ({{ q.category }}){% endif %}</option>
+      <li>
+        <label>
+          <input type="checkbox" name="qual_ids" value="{{ q.id }}" data-multiqual-check />
+          <span>{{ q.name }}{% if q.category %} <span class="muted">({{ q.category }})</span>{% endif %}</span>
+        </label>
+      </li>
       {% endfor %}
-    </select>
-  </label>
-  <label>Status
-    <select name="status">
-      {% for st in statuses %}<option value="{{ st }}" {% if st == "assigned" %}selected{% endif %}>{{ st }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>Started <input type="datetime-local" name="started_at" /></label>
-  <label>Achieved <input type="datetime-local" name="achieved_at" /></label>
-  <label>Notes <textarea name="notes" rows="2"></textarea></label>
+    </ul>
+  </fieldset>
+
+  <fieldset>
+    <legend>Apply to all selected</legend>
+    <label>Status
+      <select name="status">
+        {% for st in statuses %}<option value="{{ st }}" {% if st == "assigned" %}selected{% endif %}>{{ st }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Started <input type="datetime-local" name="started_at" /></label>
+    <label>Achieved <input type="datetime-local" name="achieved_at" /></label>
+    <label>Notes <textarea name="notes" rows="2"></textarea></label>
+  </fieldset>
+
   <div class="form-actions">
-    <button type="submit">Assign</button>
+    <button type="submit" data-multiqual-submit disabled>Assign selected</button>
     <a href="/personnel/{{ person.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
+
+<script>
+(function () {
+  const form = document.querySelector('form[data-multiqual]');
+  if (!form) return;
+  const boxes = form.querySelectorAll('[data-multiqual-check]');
+  const count = form.querySelector('[data-multiqual-count]');
+  const submit = form.querySelector('[data-multiqual-submit]');
+  function refresh() {
+    const n = Array.from(boxes).filter(b => b.checked).length;
+    count.textContent = n === 1 ? '(1 selected)' : '(' + n + ' selected)';
+    submit.disabled = n === 0;
+    submit.textContent = n > 1 ? 'Assign ' + n + ' qualifications' : 'Assign selected';
+  }
+  boxes.forEach(b => b.addEventListener('change', refresh));
+  refresh();
+})();
+</script>
 {% endif %}
 {% endblock %}

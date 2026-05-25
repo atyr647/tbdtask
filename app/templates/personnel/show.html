@@ -114,12 +114,10 @@
       <h2>At a glance</h2>
       <dl class="kv">
         {% set cur_rate = rates|selectattr("valid_to","none")|first %}
-        <dt>Title</dt>
+        <dt>Rank/Rate</dt>
         <dd>{{ cur_rate.rate if cur_rate else "—" }}{% if cur_rate and cur_rate.paygrade %} <span class="muted">({{ cur_rate.paygrade }})</span>{% endif %}</dd>
         {% if person.first_name %}<dt>First name</dt><dd>{{ person.first_name }}</dd>{% endif %}
         {% if person.position %}<dt>Position</dt><dd>{{ person.position }}</dd>{% endif %}
-        {% set cur_ds = duty_sections|selectattr("valid_to","none")|first %}
-        <dt>Team / group</dt><dd>{{ cur_ds.duty_section if cur_ds else "—" }}</dd>
         {% set cur_prd = prds|selectattr("valid_to","none")|first %}
         <dt>Planned departure</dt><dd>{{ cur_prd.prd_date if cur_prd else "—" }}</dd>
         {% set cur_dl = drivers_licenses|selectattr("valid_to","none")|first %}
