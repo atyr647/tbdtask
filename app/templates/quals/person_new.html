@@ -10,14 +10,18 @@
   <p class="muted">{{ person.full_display }} already has every qualification in the catalog assigned.</p>
 {% else %}
 <form method="post" action="/personnel/{{ person.id }}/quals" class="form" data-multiqual>
-  <fieldset>
+  <fieldset class="multiqual-pick">
     <legend>Pick qualifications <span class="muted small" data-multiqual-count>(0 selected)</span></legend>
+    <input type="search" class="multiqual-search" data-multiqual-search
+           placeholder="Filter by name or category…" autocomplete="off"
+           aria-label="Filter qualifications" />
     <ul class="qual-checklist">
       {% for q in available %}
-      <li>
+      <li data-multiqual-row data-search="{{ ((q.name or '') ~ ' ' ~ (q.category or ''))|lower }}">
         <label>
           <input type="checkbox" name="qual_ids" value="{{ q.id }}" data-multiqual-check />
-          <span>{{ q.name }}{% if q.category %} <span class="muted">({{ q.category }})</span>{% endif %}</span>
+          <span class="qual-name">{{ q.name }}</span>
+          {% if q.category %}<span class="qual-cat">{{ q.category }}</span>{% endif %}
         </label>
       </li>
       {% endfor %}
@@ -41,23 +45,5 @@
     <a href="/personnel/{{ person.id }}" class="btn-ghost">Cancel</a>
   </div>
 </form>
-
-<script>
-(function () {
-  const form = document.querySelector('form[data-multiqual]');
-  if (!form) return;
-  const boxes = form.querySelectorAll('[data-multiqual-check]');
-  const count = form.querySelector('[data-multiqual-count]');
-  const submit = form.querySelector('[data-multiqual-submit]');
-  function refresh() {
-    const n = Array.from(boxes).filter(b => b.checked).length;
-    count.textContent = n === 1 ? '(1 selected)' : '(' + n + ' selected)';
-    submit.disabled = n === 0;
-    submit.textContent = n > 1 ? 'Assign ' + n + ' qualifications' : 'Assign selected';
-  }
-  boxes.forEach(b => b.addEventListener('change', refresh));
-  refresh();
-})();
-</script>
 {% endif %}
 {% endblock %}
