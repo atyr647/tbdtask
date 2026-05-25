@@ -607,14 +607,40 @@ button {
 .roster-search input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Multi-pick qualification checklist --------------------------- */
-.qual-checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column;
-                  gap: 2px; max-height: 360px; overflow-y: auto; border: 1px solid var(--border);
-                  border-radius: var(--radius); background: var(--panel); }
-.qual-checklist li { margin: 0; }
-.qual-checklist label { display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin: 0;
-                        cursor: pointer; border-radius: 0; }
-.qual-checklist label:hover { background: var(--panel-2); }
-.qual-checklist input[type="checkbox"] { margin: 0; flex-shrink: 0; }
+.multiqual-pick { display: flex; flex-direction: column; gap: var(--sp-2); }
+.multiqual-search {
+  width: 100%; padding: 8px 12px; font: inherit; color: var(--text);
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.multiqual-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.qual-checklist {
+  list-style: none; padding: 0; margin: 0;
+  max-height: 380px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--panel);
+}
+.qual-checklist li { margin: 0; border-bottom: 1px solid var(--border); }
+.qual-checklist li:last-child { border-bottom: none; }
+.qual-checklist li[hidden] { display: none; }
+/* Override .form label's default grid layout: in the checklist we want
+   the checkbox + name + category on a single line. */
+.form .qual-checklist label {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; margin: 0;
+  cursor: pointer; font-size: 14px; color: var(--text);
+}
+.form .qual-checklist label:hover { background: var(--panel-2); }
+.form .qual-checklist input[type="checkbox"] {
+  margin: 0; flex-shrink: 0;
+}
+.qual-checklist .qual-name { flex: 1 1 auto; min-width: 0;
+                              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qual-checklist .qual-cat {
+  flex: 0 0 auto; font-size: 11px; color: var(--muted);
+  padding: 2px 8px; background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+.qual-checklist li:has(input:checked) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 
 /* Empty-state card --------------------------------------------- */
 .empty-state {

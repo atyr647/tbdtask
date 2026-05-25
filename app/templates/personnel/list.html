@@ -53,31 +53,4 @@
 {% endfor %}
 
 <a class="fab" href="/personnel/new" aria-label="Add person">{{ icon_plus() }}</a>
-
-<script>
-(function () {
-  const input = document.getElementById('roster-search-input');
-  if (!input) return;
-  const counter = document.getElementById('roster-search-count');
-  const rows = document.querySelectorAll('[data-roster-row]');
-  const sections = document.querySelectorAll('[data-roster-section]');
-  function apply() {
-    const q = input.value.trim().toLowerCase();
-    let shown = 0;
-    rows.forEach(r => {
-      const hit = !q || r.dataset.search.indexOf(q) >= 0;
-      r.style.display = hit ? '' : 'none';
-      if (hit) shown += 1;
-    });
-    sections.forEach(sec => {
-      const visible = sec.querySelectorAll('[data-roster-row]:not([style*="display: none"])').length;
-      sec.style.display = visible === 0 ? 'none' : '';
-      const c = sec.querySelector('[data-roster-section-count]');
-      if (c) c.textContent = '(' + visible + ')';
-    });
-    counter.textContent = q ? shown + ' match' + (shown === 1 ? '' : 'es') : '';
-  }
-  input.addEventListener('input', apply);
-})();
-</script>
 {% endblock %}

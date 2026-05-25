@@ -368,6 +368,90 @@
   }
 
   // ---------------------------------------------------------------
+  // Roster search: client-side filter for the personnel list. Walks
+  // [data-roster-row] elements and matches the query against the
+  // pre-computed data-search attribute. Hides per-group sections
+  // whose rows are all filtered out and live-updates the count chip.
+  // ---------------------------------------------------------------
+  function initRosterSearch() {
+    var input = document.getElementById("roster-search-input");
+    if (!input) return;
+    var counter = document.getElementById("roster-search-count");
+    var rows = document.querySelectorAll("[data-roster-row]");
+    var sections = document.querySelectorAll("[data-roster-section]");
+
+    function apply() {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0;
+      rows.forEach(function (r) {
+        var hit = !q || r.dataset.search.indexOf(q) >= 0;
+        r.hidden = !hit;
+        if (hit) shown += 1;
+      });
+      sections.forEach(function (sec) {
+        var visible = 0;
+        sec.querySelectorAll("[data-roster-row]").forEach(function (r) {
+          if (!r.hidden) visible += 1;
+        });
+        sec.hidden = visible === 0;
+        var c = sec.querySelector("[data-roster-section-count]");
+        if (c) c.textContent = "(" + visible + ")";
+      });
+      if (counter) {
+        counter.textContent = q
+          ? shown + " match" + (shown === 1 ? "" : "es")
+          : "";
+      }
+    }
+    input.addEventListener("input", apply);
+  }
+
+  // ---------------------------------------------------------------
+  // Multi-pick qual assignment: filter the checklist by typing,
+  // enable/disable the submit button based on selection count, and
+  // re-label the button with the current count.
+  // ---------------------------------------------------------------
+  function initMultiQual() {
+    var form = document.querySelector("form[data-multiqual]");
+    if (!form) return;
+    var search = form.querySelector("[data-multiqual-search]");
+    var rows = form.querySelectorAll("[data-multiqual-row]");
+    var boxes = form.querySelectorAll("[data-multiqual-check]");
+    var countEl = form.querySelector("[data-multiqual-count]");
+    var submit = form.querySelector("[data-multiqual-submit]");
+
+    function refresh() {
+      var n = 0;
+      boxes.forEach(function (b) {
+        if (b.checked) n += 1;
+      });
+      if (countEl) {
+        countEl.textContent =
+          n === 1 ? "(1 selected)" : "(" + n + " selected)";
+      }
+      if (submit) {
+        submit.disabled = n === 0;
+        submit.textContent =
+          n > 1 ? "Assign " + n + " qualifications" : "Assign selected";
+      }
+    }
+
+    function applyFilter() {
+      var q = search ? search.value.trim().toLowerCase() : "";
+      rows.forEach(function (r) {
+        var hit = !q || r.dataset.search.indexOf(q) >= 0;
+        r.hidden = !hit;
+      });
+    }
+
+    boxes.forEach(function (b) {
+      b.addEventListener("change", refresh);
+    });
+    if (search) search.addEventListener("input", applyFilter);
+    refresh();
+  }
+
+  // ---------------------------------------------------------------
   // Boot
   // ---------------------------------------------------------------
   function boot() {
@@ -383,6 +467,8 @@
     initComboboxes();
     initCalendarSearch();
     initAutoPrint();
+    initRosterSearch();
+    initMultiQual();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
