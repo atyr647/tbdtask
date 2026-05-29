@@ -79,11 +79,14 @@ absence; alert triage (dismiss / snooze / resolve) and PRD actions
 (update PRD, archive person from alert); create worklist (auto-seeds
 recurring tasks), regenerate recurring, add task (with multi-assignee
 picker + POIC defaulting), edit task (fields / status / hours /
-completion), lock a worklist. These go through `commands.py` (which
-mirrors the route handlers' validation, effective-dating, soft-delete,
-POIC defaulting, and alert recompute), `forms.py` (the modal dialog
-framework, including the multi-select assignee field), and `actions.py`
-(the PII/CUI acknowledge gate + validation-error handling + refresh).
+completion), lock a worklist; assign qualifications to a person (bulk,
+with achieved-date -> expiry derived from the qual's validity window) and
+change a person-qual's status (the close-current / append-new effective-
+dated pattern). These go through `commands.py` (which mirrors the route
+handlers' validation, effective-dating, soft-delete, POIC defaulting, and
+alert recompute), `forms.py` (the modal dialog framework, including the
+multi-select field), and `actions.py` (the PII/CUI acknowledge gate +
+validation-error handling + refresh).
 
 **Print (done):** "Print PDF" on the week view renders the landscape
 worklist grid straight to PDF via `pdf.py` (ReportLab) — the native
@@ -92,13 +95,12 @@ replacement for the browser print path. Same layout as the old
 across pages, per-day present%, "Lead" markers, shared-assignee notes,
 shaded absence cells, an "Out" footer summary, and an "All hands"
 section. ReportLab is the optional `print` extra; without it the button
-explains how to install it.
+explains how to install it. The PDF uses a real TrueType family
+(Liberation Sans, falling back to DejaVu Sans, then ReportLab's built-in
+Helvetica) registered once per process in `pdf._register_fonts`.
 
 **Not yet ported (still web-only):** per-task assignee add/remove after
 creation (edit-task currently covers task fields + status/hours, not
-re-assigning), qual assignment / status changes, recurring-task template
-authoring, and worklist amend + carry-over apply. All hang off the same
-`context.write()` boundary, so they're additive.
-
-Every write hangs off `context.write()` behind the same DTO boundary, so
-the remaining flows are additive.
+re-assigning), recurring-task template authoring, and worklist amend +
+carry-over apply. All hang off the same `context.write()` boundary, so
+they're additive.

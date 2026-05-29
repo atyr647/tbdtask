@@ -7,7 +7,7 @@ route handlers produce (effective-dated rows, soft-delete, alert state).
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -18,6 +18,7 @@ from app.tk import commands as C
 from tests.conftest import (
     make_absence_codes,
     make_person,
+    make_qual,
     make_worklist,
     set_prd,
 )
@@ -250,3 +251,74 @@ def test_archive_task_soft_deletes(session):
     session.commit()
     inst = session.get(M.TaskInstance, tid)
     assert inst.active is False and inst.archived_reason == "duplicate"
+
+
+# -- Qualifications ---------------------------------------------------------
+
+
+def test_assign_quals_derives_expiry_from_validity(session):
+    p = make_person(session, last_name="Foster")
+    q1 = make_qual(session, "Forklift", validity_period_days=365)
+    q2 = make_qual(session, "Crane")  # no validity window
+    session.commit()
+    n = run(session, C.assign_quals(
+        p.id, qual_ids=[q1.id, q2.id], status="qualified",
+        achieved_at="2026-01-01"))
+    session.commit()
+    assert n == 2
+    rows = {pq.qual_id: pq for pq in session.get(M.Person, p.id).quals}
+    assert rows[q1.id].expires_at == datetime(2027, 1, 1)  # +365d
+    assert rows[q2.id].expires_at is None                  # no window -> none
+
+
+def test_assign_quals_requires_a_selection(session):
+    p = make_person(session, last_name="Mason")
+    session.commit()
+    with pytest.raises(C.ValidationError):
+        run(session, C.assign_quals(p.id, qual_ids=[]))
+
+
+def test_qual_choices_excludes_already_held(session):
+    p = make_person(session, last_name="Vega")
+    q1 = make_qual(session, "Forklift")
+    make_qual(session, "Crane")  # stays in catalog; should still be offered
+    session.commit()
+    run(session, C.assign_quals(p.id, qual_ids=[q1.id], status="assigned"))
+    session.commit()
+    offered = run(session, C.qual_choices(exclude_person_id=p.id))
+    names = [n for _, n in offered]
+    assert "Crane" in names and "Forklift" not in names
+
+
+def test_update_person_qual_closes_and_appends(session):
+    p = make_person(session, last_name="Tanner")
+    q = make_qual(session, "Boat Crew", validity_period_days=730)
+    session.commit()
+    run(session, C.assign_quals(p.id, qual_ids=[q.id], status="in_progress"))
+    session.commit()
+    pq = next(r for r in session.get(M.Person, p.id).quals if r.valid_to is None)
+    run(session, C.update_person_qual(
+        p.id, pq.id, status="qualified", achieved_at="2026-03-01",
+        effective_date="2026-03-01"))
+    session.commit()
+    rows = session.get(M.Person, p.id).quals
+    current = [r for r in rows if r.valid_to is None]
+    closed = [r for r in rows if r.valid_to is not None]
+    assert len(current) == 1 and current[0].status == "qualified"
+    assert current[0].expires_at == datetime(2028, 2, 29)  # +730d
+    assert closed and closed[0].status == "in_progress"
+
+
+def test_update_person_qual_rejects_historical_row(session):
+    p = make_person(session, last_name="Banks")
+    q = make_qual(session, "Diver")
+    session.commit()
+    run(session, C.assign_quals(p.id, qual_ids=[q.id], status="assigned"))
+    session.commit()
+    pq = next(r for r in session.get(M.Person, p.id).quals if r.valid_to is None)
+    # Close it by updating once...
+    run(session, C.update_person_qual(p.id, pq.id, status="qualified"))
+    session.commit()
+    # ...then editing the now-historical row must fail.
+    with pytest.raises(C.ValidationError):
+        run(session, C.update_person_qual(p.id, pq.id, status="dinq"))

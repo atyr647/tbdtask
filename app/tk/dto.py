@@ -121,6 +121,9 @@ class QualLineDTO:
     status: str
     achieved_at: datetime | None
     expires_at: datetime | None
+    pq_id: int | None = None
+    started_at: datetime | None = None
+    notes: str | None = None
 
 
 @dataclass

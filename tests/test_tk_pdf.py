@@ -77,3 +77,12 @@ def test_render_worklist_pdf(session, week, tmp_path):
     assert data[:5] == b"%PDF-"
     assert b"%%EOF" in data[-2048:]
     assert out.stat().st_size > 1000
+
+
+@pytest.mark.skipif(not pdf.available(), reason="ReportLab not installed")
+def test_font_registration_returns_a_family():
+    # Resolves to a real TTF family where one is installed (CI images carry
+    # Liberation/DejaVu); always returns a usable font name and is cached.
+    name = pdf._register_fonts()
+    assert isinstance(name, str) and name
+    assert pdf._register_fonts() == name  # idempotent

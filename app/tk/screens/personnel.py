@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from .. import commands, forms, theme
 from ..actions import run_write
@@ -222,15 +222,29 @@ class PersonnelScreen(Screen):
         # Right: quals + work breakdown
         right = ttk.Frame(cols)
         right.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
-        qcard = Card(right, title="Qualifications")
+        qcard = Card(right)
         qcard.pack(fill="x", pady=(0, 8))
+        qhead = ttk.Frame(qcard.body, style="Card.TFrame")
+        qhead.pack(fill="x", pady=(0, 6))
+        ttk.Label(qhead, text="Qualifications", style="CardH2.TLabel").pack(side="left")
+        if prof.active:
+            ttk.Button(qhead, text="+ Assign",
+                       command=lambda: self._assign_quals(person_id)).pack(side="right")
         if not prof.quals:
             empty_state(qcard.body, "None assigned.").pack(anchor="w")
         for q in prof.quals:
             row = ttk.Frame(qcard.body, style="Card.TFrame")
             row.pack(fill="x", pady=1)
             badge(row, q.status.replace("_", " "), status=q.status).pack(side="left")
-            ttk.Label(row, text=f"  {q.name}", style="Card.TLabel").pack(side="left")
+            lbl = ttk.Label(row, text=f"  {q.name}", style="Card.TLabel")
+            lbl.pack(side="left")
+            if q.expires_at:
+                ttk.Label(row, text=f"exp {q.expires_at.strftime('%Y-%m-%d')}",
+                          style="CardMuted.TLabel").pack(side="right")
+            if prof.active and q.pq_id is not None:
+                lbl.configure(cursor="hand2")
+                lbl.bind("<Button-1>",
+                         lambda e, q=q: self._edit_qual(person_id, q))
 
         wcard = Card(right, title="Work by category (180 days)")
         wcard.pack(fill="x")
@@ -367,3 +381,63 @@ class PersonnelScreen(Screen):
             confirm=("Mark arrived", f"Move {name} to the active roster?"),
             on_done=lambda: self.app.show("personnel", tab="incoming"),
         )
+
+    def _assign_quals(self, person_id: int):
+        choices = read(commands.qual_choices(exclude_person_id=person_id))
+        if not choices:
+            messagebox.showinfo(
+                "No quals to assign",
+                "This person already has a current record for every "
+                "qualification in the catalog.", parent=self)
+            return
+        vals = forms.prompt(self, "Assign qualifications", [
+            forms.multichoice("qual_ids", "Qualifications", choices),
+            forms.choice("status", "Status",
+                         [(s, s.replace("_", " ")) for s in
+                          commands.PERSON_QUAL_STATUSES]),
+            forms.date("started_at", "Started"),
+            forms.date("achieved_at", "Achieved"),
+            forms.multiline("notes", "Notes"),
+        ], initial={"status": "assigned"}, submit_label="Assign")
+        if not vals:
+            return
+        if not vals.get("qual_ids"):
+            return
+        run_write(
+            self, commands.assign_quals(
+                person_id, qual_ids=vals["qual_ids"],
+                status=vals.get("status") or "assigned",
+                started_at=vals.get("started_at"),
+                achieved_at=vals.get("achieved_at"),
+                notes=vals.get("notes")),
+            pii_texts=(vals.get("notes"),),
+            on_done=lambda: self.app.show("personnel", person_id=person_id))
+
+    def _edit_qual(self, person_id: int, q):
+        initial = {
+            "status": q.status,
+            "started_at": q.started_at.strftime("%Y-%m-%d") if q.started_at else None,
+            "achieved_at": q.achieved_at.strftime("%Y-%m-%d") if q.achieved_at else None,
+            "notes": q.notes,
+        }
+        vals = forms.prompt(self, f"Update — {q.name}", [
+            forms.choice("status", "Status",
+                         [(s, s.replace("_", " ")) for s in
+                          commands.PERSON_QUAL_STATUSES], required=True),
+            forms.date("started_at", "Started"),
+            forms.date("achieved_at", "Achieved"),
+            forms.multiline("notes", "Notes"),
+            forms.date("effective_date", "Effective date"),
+        ], initial=initial, submit_label="Save")
+        if not vals:
+            return
+        run_write(
+            self, commands.update_person_qual(
+                person_id, q.pq_id,
+                status=vals.get("status") or q.status,
+                started_at=vals.get("started_at"),
+                achieved_at=vals.get("achieved_at"),
+                notes=vals.get("notes"),
+                effective_date=vals.get("effective_date")),
+            pii_texts=(vals.get("notes"),),
+            on_done=lambda: self.app.show("personnel", person_id=person_id))

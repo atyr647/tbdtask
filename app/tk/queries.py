@@ -397,6 +397,9 @@ def person_profile(person_id: int):
                 status=pq.status,
                 achieved_at=pq.achieved_at,
                 expires_at=pq.expires_at,
+                pq_id=pq.id,
+                started_at=pq.started_at,
+                notes=pq.notes,
             )
             for pq, q in qual_rows
         ]

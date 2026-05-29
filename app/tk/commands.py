@@ -29,6 +29,10 @@ DUTY_SECTIONS = (1, 2, 3, 4, 5, 6)
 ROSTER_STATUSES = ("active", "incoming", "departed")
 PRD_REASONS = ("initial", "extension", "correction")
 TASK_STATUSES = ("open", "in_progress", "done", "discarded", "carried")
+PERSON_QUAL_STATUSES = (
+    "not_assigned", "assigned", "in_progress", "qualified", "dinq",
+    "expired", "waived",
+)
 
 
 # --------------------------------------------------------------------------
@@ -606,5 +610,117 @@ def task_categories_choices():
             .order_by(M.TaskCategory.display_order)
         ).all()
         return [(c.id, c.name) for c in rows]
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Qualifications (per-person assignment / status changes)
+# --------------------------------------------------------------------------
+
+
+def _parse_dt(value: str | None):
+    """Parse an ISO date or datetime into a datetime (the PersonQual
+    timestamp columns are DateTime). Accepts bare YYYY-MM-DD."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        d = _parse_date(value)
+        return datetime(d.year, d.month, d.day) if d else None
+
+
+def qual_choices(exclude_person_id: int | None = None):
+    """Return [(id, name)] for active qualifications.
+
+    If ``exclude_person_id`` is given, quals the person already holds a
+    current row for are dropped, so the assign form only offers new ones.
+    """
+    def _q(s: Session):
+        held: set[int] = set()
+        if exclude_person_id is not None:
+            held = set(s.scalars(
+                select(M.PersonQual.qual_id).where(
+                    M.PersonQual.person_id == exclude_person_id,
+                    M.PersonQual.valid_to.is_(None),
+                )
+            ).all())
+        rows = s.scalars(
+            select(M.Qualification)
+            .where(M.Qualification.active == True)  # noqa: E712
+            .order_by(M.Qualification.display_order, M.Qualification.name)
+        ).all()
+        return [(q.id, q.name) for q in rows if q.id not in held]
+
+    return _q
+
+
+def assign_quals(person_id, *, qual_ids, status="assigned", started_at=None,
+                 achieved_at=None, notes=None):
+    """Bulk-assign one or more qualifications to a person.
+
+    ``status`` / ``started_at`` / ``achieved_at`` / ``notes`` apply to every
+    selected qual. ``expires_at`` is derived from the qual's
+    ``validity_period_days`` when an achieved date is given, matching the
+    route. Returns the count created.
+    """
+    def _q(s: Session) -> int:
+        p = s.get(M.Person, person_id)
+        if not p:
+            raise ValidationError("person not found")
+        ids = [int(x) for x in (qual_ids or []) if str(x).strip()]
+        if not ids:
+            raise ValidationError("select at least one qualification")
+        started_dt = _parse_dt(started_at)
+        achieved_dt = _parse_dt(achieved_at)
+        today = date.today()
+        created = 0
+        for qid in ids:
+            q = s.get(M.Qualification, qid)
+            if not q:
+                continue
+            expires_dt = None
+            if achieved_dt and q.validity_period_days:
+                expires_dt = achieved_dt + timedelta(days=q.validity_period_days)
+            s.add(M.PersonQual(
+                person_id=p.id, qual_id=q.id, status=status,
+                started_at=started_dt, achieved_at=achieved_dt,
+                expires_at=expires_dt, notes=notes or None, valid_from=today))
+            created += 1
+        # Flush inside the tenant context so the org_id autofill listener
+        # populates org_id before the (possibly out-of-context) commit.
+        s.flush()
+        return created
+
+    return _q
+
+
+def update_person_qual(person_id, pq_id, *, status, started_at=None,
+                       achieved_at=None, notes=None, effective_date=None):
+    """Change a current person-qual: close the active row and append a new
+    one capturing the change (the effective-dated audit pattern the route
+    uses). Refuses to edit a historical row."""
+    def _q(s: Session) -> int | None:
+        pq = s.get(M.PersonQual, pq_id)
+        if not pq or pq.person_id != person_id:
+            raise ValidationError("qualification record not found")
+        if pq.valid_to is not None:
+            raise ValidationError("cannot edit a historical row directly")
+        q = s.get(M.Qualification, pq.qual_id)
+        eff_date = _parse_date(effective_date) or date.today()
+        started_dt = _parse_dt(started_at)
+        achieved_dt = _parse_dt(achieved_at)
+        expires_dt = None
+        if achieved_dt and q and q.validity_period_days:
+            expires_dt = achieved_dt + timedelta(days=q.validity_period_days)
+        pq.valid_to = eff_date
+        s.add(M.PersonQual(
+            person_id=person_id, qual_id=pq.qual_id, status=status,
+            started_at=started_dt, achieved_at=achieved_dt,
+            expires_at=expires_dt, notes=notes or None, valid_from=eff_date))
+        s.flush()
+        return person_id
 
     return _q

@@ -23,6 +23,9 @@ The layout mirrors the legacy print template:
 
 from __future__ import annotations
 
+import glob
+import os
+
 from . import dto, theme
 
 
@@ -33,6 +36,87 @@ def available() -> bool:
     except ImportError:
         return False
     return True
+
+
+# Candidate TrueType families, best first. Each entry maps the four faces
+# we use (regular/bold/italic/bold-italic) to filenames; the first family
+# whose regular + bold files both exist wins. Liberation Sans is metric-
+# compatible with Arial and ships on Raspberry Pi OS (fonts-liberation);
+# DejaVu Sans is the near-universal fallback. If none are found we fall
+# back to ReportLab's built-in Helvetica (the old, "hideous" look).
+_FONT_CANDIDATES = [
+    # (family_key, dir_glob, regular, bold, italic, bold_italic)
+    (
+        "LiberationSans",
+        "/usr/share/fonts/**/LiberationSans-Regular.ttf",
+        "LiberationSans-Regular.ttf",
+        "LiberationSans-Bold.ttf",
+        "LiberationSans-Italic.ttf",
+        "LiberationSans-BoldItalic.ttf",
+    ),
+    (
+        "DejaVuSans",
+        "/usr/share/fonts/**/DejaVuSans.ttf",
+        "DejaVuSans.ttf",
+        "DejaVuSans-Bold.ttf",
+        # DejaVu has no true italic; reuse the upright faces so <i> still
+        # renders (just non-slanted) rather than breaking the family map.
+        "DejaVuSans.ttf",
+        "DejaVuSans-Bold.ttf",
+    ),
+]
+
+# Resolved once per process: ("FamilyName", registered: bool).
+_resolved_family: tuple[str, bool] | None = None
+
+
+def _register_fonts() -> str:
+    """Register the best available TTF family and return its name.
+
+    Returns ``"Helvetica"`` (ReportLab built-in) if no TrueType family is
+    found. Idempotent and cached.
+    """
+    global _resolved_family
+    if _resolved_family is not None:
+        return _resolved_family[0]
+
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    for family, probe, reg, bold, ital, bold_ital in _FONT_CANDIDATES:
+        matches = glob.glob(probe, recursive=True)
+        if not matches:
+            continue
+        font_dir = os.path.dirname(matches[0])
+        faces = {
+            "": os.path.join(font_dir, reg),
+            "-Bold": os.path.join(font_dir, bold),
+            "-Italic": os.path.join(font_dir, ital),
+            "-BoldItalic": os.path.join(font_dir, bold_ital),
+        }
+        if not (os.path.exists(faces[""]) and os.path.exists(faces["-Bold"])):
+            continue
+        try:
+            for suffix, path in faces.items():
+                if os.path.exists(path):
+                    pdfmetrics.registerFont(TTFont(family + suffix, path))
+            # Map the family so <b>/<i>/<b><i> pick the right registered face.
+            pdfmetrics.registerFontFamily(
+                family,
+                normal=family,
+                bold=family + "-Bold",
+                italic=family + "-Italic"
+                if os.path.exists(faces["-Italic"]) else family,
+                boldItalic=family + "-BoldItalic"
+                if os.path.exists(faces["-BoldItalic"]) else family + "-Bold",
+            )
+        except Exception:
+            continue
+        _resolved_family = (family, True)
+        return family
+
+    _resolved_family = ("Helvetica", False)
+    return "Helvetica"
 
 
 def render_worklist_pdf(grid: dto.WeekGridDTO, out_path: str) -> str:
@@ -60,21 +144,25 @@ def render_worklist_pdf(grid: dto.WeekGridDTO, out_path: str) -> str:
             "    pip install 'tbdtask[print]'   (or: pip install reportlab)"
         ) from e
 
+    font = _register_fonts()
+    font_bold = font + "-Bold" if font != "Helvetica" else "Helvetica-Bold"
+
+
     def hx(c: str):
         return colors.HexColor(c)
 
     styles = getSampleStyleSheet()
     base = ParagraphStyle(
-        "cell", parent=styles["Normal"], fontSize=6.5, leading=8,
+        "cell", parent=styles["Normal"], fontName=font, fontSize=7, leading=8.5,
         alignment=TA_LEFT, textColor=hx(theme.TEXT))
-    task_style = ParagraphStyle("task", parent=base, spaceAfter=1.5)
+    task_style = ParagraphStyle("task", parent=base, spaceAfter=2)
     head_style = ParagraphStyle(
-        "colhead", parent=styles["Normal"], fontSize=7.5, leading=9,
-        textColor=hx(theme.TEXT), fontName="Helvetica-Bold")
+        "colhead", parent=styles["Normal"], fontName=font_bold, fontSize=8,
+        leading=10, textColor=hx(theme.TEXT))
     name_style = ParagraphStyle(
-        "name", parent=base, fontSize=7, fontName="Helvetica-Bold")
-    out_style = ParagraphStyle("out", parent=base, fontSize=6, leading=7.5,
-                               textColor=hx(theme.BAD))
+        "name", parent=base, fontName=font_bold, fontSize=7.5)
+    out_style = ParagraphStyle("out", parent=base, fontName=font, fontSize=6.5,
+                               leading=8, textColor=hx(theme.BAD))
 
     def esc(s: str) -> str:
         return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -165,12 +253,14 @@ def render_worklist_pdf(grid: dto.WeekGridDTO, out_path: str) -> str:
     table.setStyle(TableStyle(style))
 
     # --- document --------------------------------------------------------
-    title_style = ParagraphStyle("title", parent=styles["Title"], fontSize=15,
+    title_style = ParagraphStyle("title", parent=styles["Title"],
+                                 fontName=font_bold, fontSize=16,
                                  textColor=hx(theme.TEXT), spaceAfter=2)
-    meta_style = ParagraphStyle("meta", parent=styles["Normal"], fontSize=8,
-                                textColor=hx(theme.MUTED))
+    meta_style = ParagraphStyle("meta", parent=styles["Normal"], fontName=font,
+                                fontSize=8.5, textColor=hx(theme.MUTED))
     section_style = ParagraphStyle("section", parent=styles["Heading2"],
-                                   fontSize=10, textColor=hx(theme.TEXT))
+                                   fontName=font_bold, fontSize=11,
+                                   textColor=hx(theme.TEXT))
 
     meta_bits = [f"Week of {grid.week_starting.isoformat()}"]
     if grid.locked_label:
