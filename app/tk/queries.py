@@ -23,7 +23,7 @@ from ..services.availability import get_day_report
 from ..services.carry_over import find_pending_carry_overs
 from ..services.qual_overview import build_qual_overview
 from ..services.recurrence import dates_in_window
-from ..services.worklist_view import build_week_view
+from ..services.worklist_view import build_week_view, build_week_grid
 from . import dto
 
 
@@ -689,6 +689,97 @@ def worklist_show(worklist_id: int):
             week_total_tasks=view.week_total_tasks,
             pending_count=pending,
             days=days,
+        )
+
+    return _q
+
+
+def _grid_task(t) -> dto.GridTaskDTO:
+    return dto.GridTaskDTO(
+        name=t.instance.name,
+        category=t.category_name,
+        is_poic=t.is_poic,
+        external_poic=t.external_poic,
+        other_assignees=list(t.other_assignees),
+    )
+
+
+def week_grid(worklist_id: int, days: int = 5):
+    """Print-ready person-row x day-column grid DTO for the landscape PDF."""
+    def _q(s: Session) -> dto.WeekGridDTO | None:
+        wl = s.get(M.Worklist, worklist_id)
+        if wl is None:
+            return None
+        grid = build_week_grid(s, wl, days=days)
+
+        headers = [
+            dto.GridHeaderDTO(
+                weekday=h.weekday,
+                date_label=h.on_date.strftime("%b ") + str(h.on_date.day),
+                percent_present=h.percent_present,
+                present_count=h.present_count,
+                out_count=h.out_count,
+                out_summary=list(h.out_summary),
+            )
+            for h in grid.headers
+        ]
+
+        rows = []
+        for r in grid.rows:
+            cells = []
+            for c in r.cells:
+                # Pre-render the absence span the same way the print template does.
+                span = None
+                if c.absence_start_time and c.absence_end_time:
+                    span = f"{c.absence_start_time}–{c.absence_end_time}"
+                elif (c.absence_start_date and c.absence_end_date
+                      and c.absence_start_date != c.absence_end_date):
+                    span = (f"{c.absence_start_date.strftime('%m/%d').lstrip('0')}"
+                            f"–{c.absence_end_date.strftime('%m/%d').lstrip('0')}")
+                cells.append(dto.GridCellDTO(
+                    absence_code=c.absence_code,
+                    absence_partial=c.absence_partial,
+                    absence_span=span,
+                    absence_reason=c.absence_reason,
+                    tasks=[_grid_task(t) for t in c.tasks],
+                ))
+            rows.append(dto.GridRowDTO(
+                name=r.person.full_display,
+                duty_section=r.duty_section,
+                cells=cells,
+            ))
+
+        unassigned = []
+        for d, task_rows in grid.unassigned_by_day.items():
+            if not task_rows:
+                continue
+            unassigned.append(dto.GridUnassignedDayDTO(
+                day_label=d.strftime("%a ") + d.strftime("%b ") + str(d.day),
+                tasks=[_grid_task(t) for t in task_rows],
+            ))
+
+        locked_label = None
+        if wl.locked:
+            locked_label = "Locked"
+            if wl.locked_at:
+                locked_label += " " + wl.locked_at.strftime("%Y-%m-%d")
+            if wl.locked_by_name:
+                locked_label += f" by {wl.locked_by_name}"
+        amendment_label = None
+        if wl.parent_id:
+            amendment_label = f"Amendment v{wl.version}"
+            if wl.amendment_reason:
+                amendment_label += f" ({wl.amendment_reason})"
+
+        return dto.WeekGridDTO(
+            worklist_name=wl.name,
+            week_starting=wl.week_starting,
+            locked=wl.locked,
+            locked_label=locked_label,
+            amendment_label=amendment_label,
+            headers=headers,
+            rows=rows,
+            unassigned=unassigned,
         )
 
     return _q

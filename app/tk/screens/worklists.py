@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from tkinter import ttk
+import os
+import subprocess
+import sys
+from tkinter import filedialog, messagebox, ttk
 
-from .. import commands, forms, theme
+from .. import commands, forms, pdf, theme
 from ..actions import run_write
 from ..context import read
 from ..widgets import Card, VScroll, badge, empty_state
@@ -71,6 +74,9 @@ class WorklistsScreen(Screen):
                           f"week of {view.week_starting.strftime('%d %b %Y')}")
         ttk.Button(bar, text="← Back",
                    command=lambda: self.app.show("worklists")).pack(side="right")
+        ttk.Button(bar, text="Print PDF",
+                   command=lambda: self._print_pdf(worklist_id, view.name)).pack(
+            side="right", padx=4)
         if view.locked:
             badge(bar, f"locked by {view.locked_by or '—'}", status="qualified"
                   ).pack(side="right", padx=8)
@@ -262,3 +268,44 @@ class WorklistsScreen(Screen):
             pii_texts=(vals.get("description"), vals.get("completion_notes")),
             on_done=lambda: self.app.show(
                 "worklists", worklist_id=initial["worklist_id"]))
+
+    def _print_pdf(self, worklist_id, name):
+        if not pdf.available():
+            messagebox.showinfo(
+                "Printing needs ReportLab",
+                "PDF export requires the ReportLab library, which isn't "
+                "installed.\n\nInstall it with:\n"
+                "    pip install 'tbdtask[print]'\n"
+                "(or: pip install reportlab)",
+                parent=self)
+            return
+        default = "".join(c if c.isalnum() else "_" for c in name) + ".pdf"
+        path = filedialog.asksaveasfilename(
+            parent=self, title="Save worklist PDF", defaultextension=".pdf",
+            initialfile=default, filetypes=[("PDF", "*.pdf")])
+        if not path:
+            return
+        grid = read(Q.week_grid(worklist_id))
+        if grid is None:
+            messagebox.showerror("Print failed", "Worklist not found.", parent=self)
+            return
+        try:
+            pdf.render_worklist_pdf(grid, path)
+        except Exception as e:  # surface render errors instead of the boundary
+            messagebox.showerror("Print failed", str(e), parent=self)
+            return
+        if messagebox.askyesno(
+            "PDF saved", f"Saved to:\n{path}\n\nOpen it now?", parent=self):
+            self._open_file(path)
+
+    @staticmethod
+    def _open_file(path):
+        try:
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            elif os.name == "nt":
+                os.startfile(path)  # type: ignore[attr-defined]
+            else:
+                subprocess.Popen(["xdg-open", path])
+        except Exception:
+            pass

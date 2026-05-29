@@ -23,6 +23,7 @@ no webview. Startup is near-instant and repaints are cheap.
 # If it does:  apt-get install python3-tk   (or use a python build with Tk)
 
 pip install -e .            # core deps (sqlalchemy, alembic)
+pip install -e '.[print]'   # optional: enables worklist PDF export (ReportLab)
 python -m tools.seed_demo   # optional: populate demo data
 python -m app.tk            # opens the window
 ```
@@ -43,6 +44,11 @@ context.py   bootstrap + read()/write() — run a callback inside
 dto.py       detached value objects handed to widgets. ORM instances never
              leave a session (lazy loads would raise DetachedInstanceError).
 queries.py   reuse app.services, return DTOs. The bridge between ORM and UI.
+commands.py  write closures (create/edit/archive), mirroring the routes.
+forms.py     modal dialog framework (text/date/choice/multichoice/...).
+actions.py   PII gate + validation-error handling + refresh-on-success.
+pdf.py       landscape worklist PDF via ReportLab (optional dep). Replaces
+             the browser print path; degrades gracefully if not installed.
 theme.py     palette lifted from app.css + the status colour map.
 widgets.py   VScroll, Card, StatTile, badge(), SearchableTree.
 screens/     one ttk.Frame per section, each exposing refresh(**params).
@@ -79,12 +85,20 @@ POIC defaulting, and alert recompute), `forms.py` (the modal dialog
 framework, including the multi-select assignee field), and `actions.py`
 (the PII/CUI acknowledge gate + validation-error handling + refresh).
 
+**Print (done):** "Print PDF" on the week view renders the landscape
+worklist grid straight to PDF via `pdf.py` (ReportLab) — the native
+replacement for the browser print path. Same layout as the old
+`print.html`: Person/Team/day-column table with a header that repeats
+across pages, per-day present%, "Lead" markers, shared-assignee notes,
+shaded absence cells, an "Out" footer summary, and an "All hands"
+section. ReportLab is the optional `print` extra; without it the button
+explains how to install it.
+
 **Not yet ported (still web-only):** per-task assignee add/remove after
 creation (edit-task currently covers task fields + status/hours, not
 re-assigning), qual assignment / status changes, recurring-task template
-authoring, worklist amend + carry-over apply, and **print/PDF** (the
-landscape worklist grid). Printing has no Tk equivalent and will need a
-PDF renderer (e.g. ReportLab) rather than the browser's print path.
+authoring, and worklist amend + carry-over apply. All hang off the same
+`context.write()` boundary, so they're additive.
 
 Every write hangs off `context.write()` behind the same DTO boundary, so
 the remaining flows are additive.

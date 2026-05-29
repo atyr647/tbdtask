@@ -288,6 +288,62 @@ class WeekViewDTO:
     days: list[WeekDayDTO]
 
 
+# --- print grid (person rows x day columns, for the landscape PDF) ---------
+
+
+@dataclass
+class GridTaskDTO:
+    name: str
+    category: str | None
+    is_poic: bool
+    external_poic: str | None
+    other_assignees: list[str]
+
+
+@dataclass
+class GridCellDTO:
+    absence_code: str | None
+    absence_partial: bool
+    absence_span: str | None     # pre-rendered "0800-1200" or "6/1-6/3"
+    absence_reason: str | None
+    tasks: list[GridTaskDTO]
+
+
+@dataclass
+class GridHeaderDTO:
+    weekday: str
+    date_label: str              # "Jun 1"
+    percent_present: float
+    present_count: int
+    out_count: int
+    out_summary: list[str]
+
+
+@dataclass
+class GridRowDTO:
+    name: str
+    duty_section: int | None
+    cells: list[GridCellDTO]
+
+
+@dataclass
+class GridUnassignedDayDTO:
+    day_label: str               # "Mon Jun 1"
+    tasks: list[GridTaskDTO]
+
+
+@dataclass
+class WeekGridDTO:
+    worklist_name: str
+    week_starting: date
+    locked: bool
+    locked_label: str | None     # "Locked 2026-06-01 by Chief"
+    amendment_label: str | None  # "Amendment v2 (reason)"
+    headers: list[GridHeaderDTO]
+    rows: list[GridRowDTO]
+    unassigned: list[GridUnassignedDayDTO]
+
+
 # --------------------------------------------------------------------------
 # Alerts
 # --------------------------------------------------------------------------
