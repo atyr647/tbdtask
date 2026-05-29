@@ -224,7 +224,7 @@ def main() -> None:
         ))
         s.add(M.Absence(
             person_id=by_last["Spencer"].id,
-            code_id=abs_codes["TAD"].id,
+            code_id=abs_codes["Travel"].id,
             start_date=monday, end_date=monday + timedelta(days=4),
             reason="LARC operator school",
         ))
