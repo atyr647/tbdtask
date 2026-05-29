@@ -616,6 +616,7 @@ def worklist_show(worklist_id: int):
             for pb in d.person_blocks:
                 tasks = [
                     dto.WeekTaskDTO(
+                        id=t.instance.id,
                         name=t.instance.name,
                         status=t.instance.status,
                         category=t.category_name,
@@ -642,6 +643,7 @@ def worklist_show(worklist_id: int):
                 )
             unassigned = [
                 dto.WeekTaskDTO(
+                    id=t.instance.id,
                     name=t.instance.name,
                     status=t.instance.status,
                     category=t.category_name,
@@ -772,6 +774,44 @@ def absence_get(absence_id: int):
             "end_time": a.end_time.strftime("%H:%M") if a.end_time else None,
             "reason": a.reason,
             "notes": a.notes,
+        }
+
+    return _q
+
+
+def task_get(task_id: int):
+    """Current values for a single task instance, for the edit form, plus a
+    rendered list of its active assignees."""
+    def _q(s: Session) -> dict | None:
+        inst = s.get(M.TaskInstance, task_id)
+        if inst is None:
+            return None
+        assignments = s.scalars(
+            select(M.TaskAssignment)
+            .where(
+                M.TaskAssignment.instance_id == inst.id,
+                M.TaskAssignment.active == True,  # noqa: E712
+            )
+            .options(selectinload(M.TaskAssignment.person))
+        ).all()
+        assignee_labels = []
+        for a in assignments:
+            label = a.person.full_display if a.person else (a.external_poic_name or "?")
+            if a.is_poic:
+                label += " (POIC)"
+            assignee_labels.append(label)
+        return {
+            "id": inst.id,
+            "worklist_id": inst.worklist_id,
+            "name": inst.name,
+            "scheduled_date": inst.scheduled_date.isoformat()
+            if inst.scheduled_date else None,
+            "category_id": inst.category_id,
+            "status": inst.status,
+            "hours": inst.hours,
+            "description": inst.description,
+            "completion_notes": inst.completion_notes,
+            "assignees": assignee_labels,
         }
 
     return _q

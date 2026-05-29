@@ -20,7 +20,8 @@ from . import theme
 class Field:
     name: str
     label: str
-    kind: str = "text"            # text | multiline | date | time | int | choice | bool
+    # text | multiline | date | time | int | float | choice | multichoice | bool
+    kind: str = "text"
     required: bool = False
     choices: list[tuple[Any, str]] = dc_field(default_factory=list)  # (value, label)
     help: str | None = None
@@ -33,8 +34,11 @@ def multiline(name, label, **kw): return Field(name, label, "multiline", **kw)
 def date(name, label, **kw): return Field(name, label, "date", help="YYYY-MM-DD", **kw)
 def time_(name, label, **kw): return Field(name, label, "time", help="HH:MM", **kw)
 def integer(name, label, **kw): return Field(name, label, "int", **kw)
+def number(name, label, **kw): return Field(name, label, "float", **kw)
 def choice(name, label, choices, **kw): return Field(name, label, "choice",
                                                      choices=choices, **kw)
+def multichoice(name, label, choices, **kw): return Field(name, label, "multichoice",
+                                                          choices=choices, **kw)
 def boolean(name, label, **kw): return Field(name, label, "bool", **kw)
 
 
@@ -109,6 +113,32 @@ class _FormDialog(tk.Toplevel):
             w.grid(row=row, column=1, sticky="ew", pady=4)
             self._vars[f.name] = var
             self._widgets[f.name] = w
+        elif f.kind == "multichoice":
+            # A scrollable checkbox list — picks any subset of choices.
+            box = tk.Frame(self, bg=theme.PANEL, bd=1, relief="solid",
+                           highlightthickness=0)
+            box.grid(row=row, column=1, sticky="ew", pady=4)
+            canvas = tk.Canvas(box, bg=theme.PANEL, highlightthickness=0,
+                               height=min(160, 24 * max(1, len(f.choices))))
+            sb = ttk.Scrollbar(box, orient="vertical", command=canvas.yview)
+            inner = tk.Frame(canvas, bg=theme.PANEL)
+            canvas.configure(yscrollcommand=sb.set)
+            canvas.pack(side="left", fill="both", expand=True)
+            sb.pack(side="right", fill="y")
+            canvas.create_window((0, 0), window=inner, anchor="nw")
+            inner.bind("<Configure>",
+                       lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            preset = set(value or ())
+            vars_for_choice: list[tuple[Any, tk.BooleanVar]] = []
+            for val, lbl in f.choices:
+                bv = tk.BooleanVar(value=val in preset)
+                tk.Checkbutton(inner, text=lbl, variable=bv, bg=theme.PANEL,
+                               fg=theme.TEXT, anchor="w", highlightthickness=0,
+                               activebackground=theme.PANEL,
+                               selectcolor=theme.PANEL).pack(fill="x", anchor="w")
+                vars_for_choice.append((val, bv))
+            self._vars[f.name] = vars_for_choice
+            self._widgets[f.name] = box
         else:
             var = tk.StringVar(value="" if value is None else str(value))
             w = ttk.Entry(self, textvariable=var, width=f.width)
@@ -130,9 +160,13 @@ class _FormDialog(tk.Toplevel):
                 if lbl == chosen:
                     return val
             return None
+        if f.kind == "multichoice":
+            return [val for val, bv in self._vars[f.name] if bv.get()]
         raw = self._vars[f.name].get().strip()
         if f.kind == "int":
             return int(raw) if raw else None
+        if f.kind == "float":
+            return float(raw) if raw else None
         return raw or None
 
     def _submit(self):

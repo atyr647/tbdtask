@@ -175,3 +175,78 @@ def test_lock_worklist(session):
     assert wl.locked is True
     assert wl.locked_by_name == "Chief"
     assert wl.locked_at is not None
+
+
+def test_create_worklist_snaps_to_monday_and_is_idempotent(session):
+    # A Wednesday snaps back to its Monday.
+    wid = run(session, C.create_worklist("2026-06-03"))
+    session.commit()
+    wl = session.get(M.Worklist, wid)
+    assert wl.week_starting == date(2026, 6, 1)
+    assert wl.name.startswith("Week ")
+    # Creating again for the same week returns the same row.
+    again = run(session, C.create_worklist("2026-06-01"))
+    assert again == wid
+
+
+def test_create_task_defaults_first_assignee_to_poic(session):
+    p1 = make_person(session, last_name="Mason", display_order=0)
+    p2 = make_person(session, last_name="Vega", display_order=1)
+    monday = date.today() - timedelta(days=date.today().weekday())
+    wl = make_worklist(session, monday)
+    session.commit()
+    tid = run(session, C.create_task(
+        wl.id, name="Sweep the deck",
+        scheduled_date=monday.isoformat(),
+        person_ids=[p1.id, p2.id]))
+    session.commit()
+    inst = session.get(M.TaskInstance, tid)
+    assert inst.name == "Sweep the deck"
+    poics = [a for a in inst.assignments if a.is_poic and a.active]
+    assert len(poics) == 1 and poics[0].person_id == p1.id
+
+
+def test_create_task_requires_name(session):
+    monday = date.today() - timedelta(days=date.today().weekday())
+    wl = make_worklist(session, monday)
+    session.commit()
+    with pytest.raises(C.ValidationError):
+        run(session, C.create_task(wl.id, name="   "))
+
+
+def test_create_task_rejected_when_locked(session):
+    monday = date.today() - timedelta(days=date.today().weekday())
+    wl = make_worklist(session, monday, locked=True)
+    session.commit()
+    with pytest.raises(C.ValidationError):
+        run(session, C.create_task(wl.id, name="late task"))
+
+
+def test_update_task_status_done_sets_completed_at(session):
+    monday = date.today() - timedelta(days=date.today().weekday())
+    wl = make_worklist(session, monday)
+    session.commit()
+    tid = run(session, C.create_task(wl.id, name="Inspect 402"))
+    session.commit()
+    run(session, C.update_task(tid, name="Inspect 402", status="done", hours=2.5))
+    session.commit()
+    inst = session.get(M.TaskInstance, tid)
+    assert inst.status == "done"
+    assert inst.completed_at is not None
+    assert inst.hours == 2.5
+    # Flipping back to open clears the completion timestamp.
+    run(session, C.update_task(tid, name="Inspect 402", status="open"))
+    session.commit()
+    assert session.get(M.TaskInstance, tid).completed_at is None
+
+
+def test_archive_task_soft_deletes(session):
+    monday = date.today() - timedelta(days=date.today().weekday())
+    wl = make_worklist(session, monday)
+    session.commit()
+    tid = run(session, C.create_task(wl.id, name="Scrap me"))
+    session.commit()
+    run(session, C.archive_task(tid, "duplicate"))
+    session.commit()
+    inst = session.get(M.TaskInstance, tid)
+    assert inst.active is False and inst.archived_reason == "duplicate"

@@ -70,15 +70,19 @@ Absences (list + calendar grid), Worklists (list + week view), Alerts.
 (effective-dated rate / duty / PRD / license + status), in-processing
 checklist, mark-arrived, move-to-departed; create / edit / archive
 absence; alert triage (dismiss / snooze / resolve) and PRD actions
-(update PRD, archive person from alert); lock a worklist. These go
-through `commands.py` (which mirrors the route handlers' validation,
-effective-dating, soft-delete, and alert recompute), `forms.py` (the
-modal dialog framework), and `actions.py` (the PII/CUI acknowledge gate +
-validation-error handling + refresh).
+(update PRD, archive person from alert); create worklist (auto-seeds
+recurring tasks), regenerate recurring, add task (with multi-assignee
+picker + POIC defaulting), edit task (fields / status / hours /
+completion), lock a worklist. These go through `commands.py` (which
+mirrors the route handlers' validation, effective-dating, soft-delete,
+POIC defaulting, and alert recompute), `forms.py` (the modal dialog
+framework, including the multi-select assignee field), and `actions.py`
+(the PII/CUI acknowledge gate + validation-error handling + refresh).
 
-**Not yet ported (still web-only):** the worklist creation wizard +
-per-day task setup, qual assignment / status changes, recurring-task
-templates, worklist amend + carry-over apply, and **print/PDF** (the
+**Not yet ported (still web-only):** per-task assignee add/remove after
+creation (edit-task currently covers task fields + status/hours, not
+re-assigning), qual assignment / status changes, recurring-task template
+authoring, worklist amend + carry-over apply, and **print/PDF** (the
 landscape worklist grid). Printing has no Tk equivalent and will need a
 PDF renderer (e.g. ReportLab) rather than the browser's print path.
 

@@ -246,6 +246,7 @@ class WorklistListDTO:
 
 @dataclass
 class WeekTaskDTO:
+    id: int
     name: str
     status: str
     category: str | None

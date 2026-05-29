@@ -23,10 +23,12 @@ from ..auth.sensitive_info import scan_text
 from ..data import ranks as rank_catalog
 from ..services import alerts as alerts_service
 from ..services import effective as eff
+from ..services.task_generator import generate_for_worklist
 
 DUTY_SECTIONS = (1, 2, 3, 4, 5, 6)
 ROSTER_STATUSES = ("active", "incoming", "departed")
 PRD_REASONS = ("initial", "extension", "correction")
+TASK_STATUSES = ("open", "in_progress", "done", "discarded", "carried")
 
 
 # --------------------------------------------------------------------------
@@ -435,5 +437,174 @@ def lock_worklist(worklist_id, locked_by_name=None):
         wl.locked_at = datetime.now()
         wl.locked_by_name = (locked_by_name or None) and locked_by_name.strip()
         return wl.id
+
+    return _q
+
+
+def _monday_of(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+def _name_for(week_starting: date) -> str:
+    """"Week N Month YYYY" label, matching the route helper exactly."""
+    first = week_starting.replace(day=1)
+    first_monday = (
+        _monday_of(first)
+        if first.weekday() == 0
+        else first + timedelta(days=(7 - first.weekday()) % 7)
+    )
+    week_index = ((week_starting - first_monday).days // 7) + 1
+    return f"Week {week_index} {week_starting.strftime('%B %Y')}"
+
+
+def create_worklist(week_starting):
+    """Create (or find) the base worklist for a week and seed recurring tasks.
+
+    Returns the worklist id. If a base worklist already exists for that
+    Monday it's returned unchanged (matching the route's idempotent create
+    -> setup behaviour). Snaps any in-week date to its Monday.
+    """
+    def _q(s: Session) -> int:
+        monday = _parse_date(week_starting)
+        if monday is None:
+            raise ValidationError("a week start date is required (YYYY-MM-DD)")
+        if monday.weekday() != 0:
+            monday = _monday_of(monday)
+        existing = s.scalar(
+            select(M.Worklist).where(
+                M.Worklist.week_starting == monday,
+                M.Worklist.active == True,  # noqa: E712
+                M.Worklist.parent_id.is_(None),
+            )
+        )
+        if existing:
+            return existing.id
+        wl = M.Worklist(week_starting=monday, name=_name_for(monday), version=1)
+        s.add(wl)
+        s.flush()
+        generate_for_worklist(s, wl)
+        return wl.id
+
+    return _q
+
+
+def generate_worklist_tasks(worklist_id):
+    """(Re)generate recurring-template tasks for an existing worklist."""
+    def _q(s: Session) -> int | None:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            return None
+        if wl.locked:
+            raise ValidationError("amend the worklist before generating tasks")
+        generate_for_worklist(s, wl)
+        return wl.id
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Tasks
+# --------------------------------------------------------------------------
+
+
+def create_task(worklist_id, *, name, scheduled_date=None, category_id=None,
+                description=None, person_ids=(), poic_person_id=None,
+                external_poic_name=None):
+    """Create a TaskInstance under a worklist and attach assignees.
+
+    Mirrors the route's POIC defaulting: a single assignee, or the first of
+    several, becomes the lead when none is chosen explicitly and there's no
+    external lead.
+    """
+    def _q(s: Session) -> int:
+        wl = s.get(M.Worklist, worklist_id)
+        if wl is None:
+            raise ValidationError("worklist not found")
+        if wl.locked:
+            raise ValidationError("worklist is locked; amend it before editing tasks")
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValidationError("task name is required")
+        inst = M.TaskInstance(
+            worklist_id=worklist_id,
+            scheduled_date=_parse_date(scheduled_date),
+            category_id=int(category_id) if category_id else None,
+            name=clean_name[:240],
+            description=description or None,
+            status="open",
+        )
+        s.add(inst)
+        s.flush()
+        pids = [int(x) for x in person_ids if str(x).strip()]
+        poic = int(poic_person_id) if poic_person_id else None
+        ext = (external_poic_name or "").strip()
+        if pids and poic is None and not ext:
+            poic = pids[0]
+        for pid in pids:
+            s.add(M.TaskAssignment(instance_id=inst.id, person_id=pid,
+                                   is_poic=(pid == poic)))
+        if ext:
+            s.add(M.TaskAssignment(instance_id=inst.id, external_poic_name=ext,
+                                   is_poic=True))
+        s.flush()
+        return inst.id
+
+    return _q
+
+
+def update_task(task_id, *, name, scheduled_date=None, category_id=None,
+                status="open", hours=None, description=None,
+                completion_notes=None):
+    def _q(s: Session) -> int | None:
+        inst = s.get(M.TaskInstance, task_id)
+        if not inst:
+            return None
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        if wl is not None and wl.locked:
+            raise ValidationError("worklist is locked; amend it before editing tasks")
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise ValidationError("task name is required")
+        inst.name = clean_name[:240]
+        inst.scheduled_date = _parse_date(scheduled_date)
+        inst.category_id = int(category_id) if category_id else None
+        inst.status = status
+        inst.hours = float(hours) if hours not in (None, "") else None
+        inst.description = description or None
+        inst.completion_notes = completion_notes or None
+        if status == "done" and inst.completed_at is None:
+            inst.completed_at = datetime.now()
+        if status != "done":
+            inst.completed_at = None
+        return inst.worklist_id
+
+    return _q
+
+
+def archive_task(task_id, reason=""):
+    def _q(s: Session) -> int | None:
+        inst = s.get(M.TaskInstance, task_id)
+        if not inst:
+            return None
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        if wl is not None and wl.locked:
+            raise ValidationError("worklist is locked; amend it before editing tasks")
+        inst.active = False
+        inst.archived_at = datetime.now()
+        inst.archived_reason = reason or None
+        return inst.worklist_id
+
+    return _q
+
+
+def task_categories_choices():
+    """Return [(id, name)] for active task categories."""
+    def _q(s: Session):
+        rows = s.scalars(
+            select(M.TaskCategory)
+            .where(M.TaskCategory.active == True)  # noqa: E712
+            .order_by(M.TaskCategory.display_order)
+        ).all()
+        return [(c.id, c.name) for c in rows]
 
     return _q
