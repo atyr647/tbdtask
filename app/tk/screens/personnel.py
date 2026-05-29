@@ -4,11 +4,42 @@ from __future__ import annotations
 
 from tkinter import ttk
 
-from .. import theme
+from .. import commands, forms, theme
+from ..actions import run_write
 from ..context import read
 from ..widgets import Card, SearchableTree, StatTile, VScroll, badge, empty_state
 from .. import queries as Q
 from .base import Screen
+
+
+def _person_fields(incoming: bool, sponsor_choices=None):
+    """Field spec shared by the add/edit person forms."""
+    fields = [
+        forms.text("last_name", "Last name", required=True),
+        forms.text("first_name", "First name"),
+        forms.choice("rate", "Rate / title",
+                     [(c, c) for c in commands.rate_choices()]),
+        forms.text("position", "Position"),
+    ]
+    if incoming:
+        fields += [
+            forms.date("arrival_date", "Arrival date"),
+            forms.choice("sponsor_person_id", "Sponsor", sponsor_choices or []),
+            forms.boolean("orders_received", "Orders received"),
+            forms.boolean("itinerary_received", "Itinerary received"),
+            forms.boolean("aob_scheduled", "AOB scheduled"),
+            forms.boolean("barracks_assigned", "Barracks assigned"),
+        ]
+    else:
+        fields += [
+            forms.choice("duty_section", "Duty section",
+                         [(d, str(d)) for d in commands.DUTY_SECTIONS]),
+            forms.date("prd_date", "PRD"),
+            forms.boolean("has_drivers_license", "Has driver's license"),
+            forms.date("drivers_license_expires", "License expires"),
+        ]
+    fields.append(forms.multiline("notes", "Notes"))
+    return fields
 
 _GROUP_ORDER = ["Leadership", "Senior", "Professional", "Associate", "Other"]
 
@@ -22,7 +53,14 @@ class PersonnelScreen(Screen):
             self._show_profile(int(person_id))
             return
 
-        self.header("Personnel")
+        bar = self.header("Personnel")
+        actions = ttk.Frame(bar)
+        actions.pack(side="right")
+        ttk.Button(actions, text="+ Add person", style="Accent.TButton",
+                   command=self._add_person).pack(side="left", padx=2)
+        ttk.Button(actions, text="+ Incoming",
+                   command=self._add_incoming).pack(side="left", padx=2)
+
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
 
@@ -99,6 +137,14 @@ class PersonnelScreen(Screen):
                 meta += f"   ·   Sponsor: {r.sponsor_label}"
             ttk.Label(card.body, text=meta, style="CardMuted.TLabel").pack(
                 anchor="w", pady=(6, 0))
+            acts = ttk.Frame(card.body, style="Card.TFrame")
+            acts.pack(fill="x", pady=(6, 0))
+            ttk.Button(acts, text="Edit checklist",
+                       command=lambda pid=r.id: self._edit_checklist(pid)).pack(
+                side="left")
+            ttk.Button(acts, text="Mark arrived", style="Accent.TButton",
+                       command=lambda pid=r.id, nm=r.name:
+                       self._mark_arrived(pid, nm)).pack(side="left", padx=4)
 
     # -- Departed ---------------------------------------------------------
     def _build_departed(self, parent):
@@ -132,6 +178,16 @@ class PersonnelScreen(Screen):
         bar = self.header(prof.name, None if prof.active else "Departed")
         ttk.Button(bar, text="← Back",
                    command=lambda: self.app.show("personnel")).pack(side="right")
+        if prof.active:
+            ttk.Button(bar, text="Edit", style="Accent.TButton",
+                       command=lambda: self._edit_person(person_id)).pack(
+                side="right", padx=4)
+            ttk.Button(bar, text="Add absence",
+                       command=lambda: self._add_absence(person_id)).pack(
+                side="right", padx=4)
+            ttk.Button(bar, text="Move to departed",
+                       command=lambda: self._depart(person_id, prof.name)).pack(
+                side="right", padx=4)
 
         scroller = VScroll(self)
         scroller.pack(fill="both", expand=True)
@@ -215,3 +271,99 @@ class PersonnelScreen(Screen):
             else:
                 span = "current · " + span
             ttk.Label(row, text=span, style="CardMuted.TLabel").pack(side="right")
+
+    # -- Write actions ----------------------------------------------------
+    def _add_person(self):
+        vals = forms.prompt(self, "Add person", _person_fields(incoming=False),
+                            submit_label="Create")
+        if not vals:
+            return
+        run_write(
+            self, commands.create_person(**vals),
+            pii_texts=(vals.get("notes"),),
+            on_done=lambda: self.app.show("personnel", tab="active"),
+        )
+
+    def _add_incoming(self):
+        sponsors = read(commands.active_people_choices())
+        vals = forms.prompt(self, "Add incoming personnel",
+                            _person_fields(incoming=True, sponsor_choices=sponsors),
+                            submit_label="Create")
+        if not vals:
+            return
+        run_write(
+            self, commands.create_incoming(**vals),
+            pii_texts=(vals.get("notes"),),
+            on_done=lambda: self.app.show("personnel", tab="incoming"),
+        )
+
+    def _edit_person(self, person_id: int):
+        initial = read(Q.person_current(person_id))
+        if not initial:
+            return
+        vals = forms.prompt(self, "Edit person", _person_fields(incoming=False),
+                            initial=initial, submit_label="Save")
+        if not vals:
+            return
+        run_write(
+            self, commands.update_person(person_id, **vals),
+            pii_texts=(vals.get("notes"),),
+            on_done=lambda: self.app.show("personnel", person_id=person_id),
+        )
+
+    def _depart(self, person_id: int, name: str):
+        vals = forms.prompt(self, f"Move {name} to departed",
+                            [forms.text("reason", "Reason")], submit_label="Confirm")
+        if vals is None:
+            return
+        run_write(
+            self, commands.archive_person(person_id, vals.get("reason") or ""),
+            pii_texts=(vals.get("reason"),),
+            on_done=lambda: self.app.show("personnel", tab="active"),
+        )
+
+    def _add_absence(self, person_id: int):
+        codes = read(commands.absence_code_choices())
+        vals = forms.prompt(self, "Add absence", [
+            forms.choice("code_id", "Code", codes, required=True),
+            forms.date("start_date", "Start date", required=True),
+            forms.date("end_date", "End date", required=True),
+            forms.time_("start_time", "Start time"),
+            forms.time_("end_time", "End time"),
+            forms.text("reason", "Reason"),
+            forms.multiline("notes", "Notes"),
+        ], submit_label="Add")
+        if not vals:
+            return
+        run_write(
+            self, commands.create_absence(person_id=person_id, **vals),
+            pii_texts=(vals.get("reason"), vals.get("notes")),
+            on_done=lambda: self.app.show("personnel", person_id=person_id),
+        )
+
+    def _edit_checklist(self, person_id: int):
+        initial = read(Q.person_current(person_id))
+        if not initial:
+            return
+        sponsors = read(commands.active_people_choices())
+        vals = forms.prompt(self, "In-processing checklist", [
+            forms.date("arrival_date", "Arrival date"),
+            forms.choice("sponsor_person_id", "Sponsor", sponsors),
+            forms.boolean("orders_received", "Orders received"),
+            forms.boolean("itinerary_received", "Itinerary received"),
+            forms.boolean("aob_scheduled", "AOB scheduled"),
+            forms.boolean("barracks_assigned", "Barracks assigned"),
+        ], initial=initial, submit_label="Save")
+        if not vals:
+            return
+        run_write(
+            self, commands.update_checklist(person_id, **vals),
+            on_done=lambda: self.app.show("personnel", tab="incoming"),
+        )
+
+    def _mark_arrived(self, person_id: int, name: str):
+        run_write(
+            self, commands.mark_arrived(person_id),
+            confirm=("Mark arrived", f"Move {name} to the active roster?"),
+            on_done=lambda: self.app.show("personnel", tab="incoming"),
+        )

@@ -62,19 +62,25 @@ keeps the screens dumb and the session lifetime contained.
 
 ## Porting status
 
-**Done (read side):** Today / day overview, Personnel (Active / Incoming /
+**Read side (done):** Today / day overview, Personnel (Active / Incoming /
 Departed + profile), Qualifications (readiness overview + colour matrix),
 Absences (list + calendar grid), Worklists (list + week view), Alerts.
 
-**Not yet ported (still web-only):** the write/edit flows — create &
-edit personnel, the worklist creation wizard + per-day task setup, absence
-entry, qual assignment, recurring-task templates, lock/amend, carry-over
-apply, PRD/snooze/dismiss actions, and **print/PDF** (the landscape
-worklist grid). The `write()` helper in `context.py` is the seam these
-will hang off. Printing has no Tk equivalent and will need a PDF renderer
-(e.g. ReportLab) rather than the browser's print path.
+**Write side (done):** create person, create incoming, edit person
+(effective-dated rate / duty / PRD / license + status), in-processing
+checklist, mark-arrived, move-to-departed; create / edit / archive
+absence; alert triage (dismiss / snooze / resolve) and PRD actions
+(update PRD, archive person from alert); lock a worklist. These go
+through `commands.py` (which mirrors the route handlers' validation,
+effective-dating, soft-delete, and alert recompute), `forms.py` (the
+modal dialog framework), and `actions.py` (the PII/CUI acknowledge gate +
+validation-error handling + refresh).
 
-This is intentionally a read-first cut: the slow, frequently-viewed
-screens that motivated leaving WebKit are all here and verified against
-seeded data. Editing can be ported screen-by-screen behind the same DTO
-boundary.
+**Not yet ported (still web-only):** the worklist creation wizard +
+per-day task setup, qual assignment / status changes, recurring-task
+templates, worklist amend + carry-over apply, and **print/PDF** (the
+landscape worklist grid). Printing has no Tk equivalent and will need a
+PDF renderer (e.g. ReportLab) rather than the browser's print path.
+
+Every write hangs off `context.write()` behind the same DTO boundary, so
+the remaining flows are additive.

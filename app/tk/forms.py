@@ -1,0 +1,173 @@
+"""A small modal form dialog used by the write flows.
+
+``prompt(parent, title, fields, initial=...)`` opens a centred modal,
+collects values, and returns a dict keyed by field name (or ``None`` if
+cancelled). Field specs are ``Field`` instances; each kind maps to a Tk
+widget and a small read/normalise step.
+"""
+
+from __future__ import annotations
+
+import tkinter as tk
+from dataclasses import dataclass, field as dc_field
+from tkinter import ttk
+from typing import Any
+
+from . import theme
+
+
+@dataclass
+class Field:
+    name: str
+    label: str
+    kind: str = "text"            # text | multiline | date | time | int | choice | bool
+    required: bool = False
+    choices: list[tuple[Any, str]] = dc_field(default_factory=list)  # (value, label)
+    help: str | None = None
+    width: int = 32
+
+
+# Convenience constructors keep call sites readable.
+def text(name, label, **kw): return Field(name, label, "text", **kw)
+def multiline(name, label, **kw): return Field(name, label, "multiline", **kw)
+def date(name, label, **kw): return Field(name, label, "date", help="YYYY-MM-DD", **kw)
+def time_(name, label, **kw): return Field(name, label, "time", help="HH:MM", **kw)
+def integer(name, label, **kw): return Field(name, label, "int", **kw)
+def choice(name, label, choices, **kw): return Field(name, label, "choice",
+                                                     choices=choices, **kw)
+def boolean(name, label, **kw): return Field(name, label, "bool", **kw)
+
+
+class _FormDialog(tk.Toplevel):
+    def __init__(self, parent, title, fields, initial, submit_label):
+        super().__init__(parent)
+        self.title(title)
+        self.configure(bg=theme.BG, padx=18, pady=16)
+        self.transient(parent)
+        self.resizable(False, False)
+        self.result: dict | None = None
+        self._fields = fields
+        self._vars: dict[str, Any] = {}
+        self._widgets: dict[str, Any] = {}
+        initial = initial or {}
+
+        ttk.Label(self, text=title, style="H2.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
+        for i, f in enumerate(fields, start=1):
+            ttk.Label(self, text=f.label + (" *" if f.required else ""),
+                      style="TLabel").grid(row=i, column=0, sticky="nw", pady=4,
+                                           padx=(0, 10))
+            self._build_field(f, i, initial.get(f.name))
+
+        self._error = ttk.Label(self, text="", style="TLabel", foreground=theme.BAD)
+        self._error.grid(row=len(fields) + 1, column=0, columnspan=2, sticky="w",
+                         pady=(6, 0))
+
+        btns = ttk.Frame(self)
+        btns.grid(row=len(fields) + 2, column=0, columnspan=2, sticky="e", pady=(12, 0))
+        ttk.Button(btns, text="Cancel", command=self._cancel).pack(side="right")
+        ttk.Button(btns, text=submit_label, style="Accent.TButton",
+                   command=self._submit).pack(side="right", padx=(0, 8))
+
+        self.bind("<Escape>", lambda e: self._cancel())
+        self.bind("<Return>", lambda e: self._submit())
+        self._center(parent)
+        self.grab_set()
+        if fields:
+            first = self._widgets[fields[0].name]
+            if hasattr(first, "focus_set"):
+                first.focus_set()
+
+    def _build_field(self, f: Field, row: int, value):
+        if f.kind == "multiline":
+            w = tk.Text(self, width=f.width, height=4, relief="solid", bd=1,
+                        bg=theme.PANEL, fg=theme.TEXT, highlightthickness=0)
+            if value:
+                w.insert("1.0", str(value))
+            w.grid(row=row, column=1, sticky="ew", pady=4)
+            self._widgets[f.name] = w
+        elif f.kind == "bool":
+            var = tk.BooleanVar(value=bool(value))
+            w = ttk.Checkbutton(self, variable=var)
+            w.grid(row=row, column=1, sticky="w", pady=4)
+            self._vars[f.name] = var
+            self._widgets[f.name] = w
+        elif f.kind == "choice":
+            var = tk.StringVar()
+            labels = [lbl for _, lbl in f.choices]
+            w = ttk.Combobox(self, textvariable=var, values=labels,
+                             state="readonly", width=f.width - 2)
+            # Preselect by value or label.
+            for val, lbl in f.choices:
+                if value is not None and (value == val or value == lbl):
+                    var.set(lbl)
+                    break
+            else:
+                if labels and not f.required:
+                    pass
+            w.grid(row=row, column=1, sticky="ew", pady=4)
+            self._vars[f.name] = var
+            self._widgets[f.name] = w
+        else:
+            var = tk.StringVar(value="" if value is None else str(value))
+            w = ttk.Entry(self, textvariable=var, width=f.width)
+            w.grid(row=row, column=1, sticky="ew", pady=4)
+            self._vars[f.name] = var
+            self._widgets[f.name] = w
+        if f.help:
+            ttk.Label(self, text=f.help, style="Muted.TLabel").grid(
+                row=row, column=2, sticky="w", padx=(8, 0))
+
+    def _read(self, f: Field):
+        if f.kind == "multiline":
+            return self._widgets[f.name].get("1.0", "end").strip() or None
+        if f.kind == "bool":
+            return self._vars[f.name].get()
+        if f.kind == "choice":
+            chosen = self._vars[f.name].get()
+            for val, lbl in f.choices:
+                if lbl == chosen:
+                    return val
+            return None
+        raw = self._vars[f.name].get().strip()
+        if f.kind == "int":
+            return int(raw) if raw else None
+        return raw or None
+
+    def _submit(self):
+        values: dict = {}
+        for f in self._fields:
+            try:
+                v = self._read(f)
+            except ValueError:
+                self._error.configure(text=f"{f.label}: expected a number")
+                return
+            if f.required and v in (None, "", False) and f.kind != "bool":
+                self._error.configure(text=f"{f.label} is required")
+                return
+            values[f.name] = v
+        self.result = values
+        self.grab_release()
+        self.destroy()
+
+    def _cancel(self):
+        self.result = None
+        self.grab_release()
+        self.destroy()
+
+    def _center(self, parent):
+        self.update_idletasks()
+        try:
+            px, py = parent.winfo_rootx(), parent.winfo_rooty()
+            pw, ph = parent.winfo_width(), parent.winfo_height()
+            w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+            self.geometry(f"+{px + (pw - w) // 2}+{py + (ph - h) // 3}")
+        except tk.TclError:
+            pass
+
+
+def prompt(parent, title, fields, initial=None, submit_label="Save") -> dict | None:
+    dlg = _FormDialog(parent, title, fields, initial, submit_label)
+    parent.wait_window(dlg)
+    return dlg.result

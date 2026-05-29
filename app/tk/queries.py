@@ -92,6 +92,8 @@ def _alert_dto(s: Session, a: M.Alert) -> dto.AlertRowDTO:
         snoozed_until=a.snoozed_until,
         dismissed_at=a.dismissed_at,
         resolved_at=a.resolved_at,
+        is_prd=a.alert_type.startswith("prd_"),
+        has_person=a.person_id is not None,
     )
 
 
@@ -710,5 +712,66 @@ def alerts_list(show: str = "active"):
         else:
             rows = alerts_service.active_alerts(s)
         return [_alert_dto(s, a) for a in rows]
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Raw current values for pre-filling edit forms
+# --------------------------------------------------------------------------
+
+
+def person_current(person_id: int):
+    """Current editable values for a person (raw, not labels)."""
+    def _q(s: Session) -> dict | None:
+        p = s.get(M.Person, person_id)
+        if p is None:
+            return None
+        rate = _current(p.rates, "rate")
+        ds = _current(p.duty_sections, "duty_section")
+        prd = _current(p.prds, "prd_date")
+        dl_has = _current(p.drivers_licenses, "has_license")
+        dl_exp = _current(p.drivers_licenses, "expires_on")
+        return {
+            "last_name": p.last_name,
+            "first_name": p.first_name,
+            "rate": rate,
+            "position": p.position,
+            "notes": p.notes,
+            "duty_section": ds,
+            "prd_date": prd.isoformat() if prd else None,
+            "has_drivers_license": bool(dl_has),
+            "drivers_license_expires": dl_exp.isoformat() if dl_exp else None,
+            "roster_status": _current_status(p) or "active",
+            "is_incoming": _current_status(p) == "incoming",
+            "arrival_date": p.arrival_date.isoformat() if p.arrival_date else None,
+            "sponsor_person_id": p.sponsor_person_id,
+            "orders_received": p.orders_received,
+            "itinerary_received": p.itinerary_received,
+            "aob_scheduled": p.aob_scheduled,
+            "barracks_assigned": p.barracks_assigned,
+        }
+
+    return _q
+
+
+def absence_get(absence_id: int):
+    """Current values for a single absence, for the edit form."""
+    def _q(s: Session) -> dict | None:
+        a = s.get(M.Absence, absence_id)
+        if a is None:
+            return None
+        return {
+            "id": a.id,
+            "person_id": a.person_id,
+            "person_name": a.person.full_display,
+            "code_id": a.code_id,
+            "start_date": a.start_date.isoformat(),
+            "end_date": a.end_date.isoformat(),
+            "start_time": a.start_time.strftime("%H:%M") if a.start_time else None,
+            "end_time": a.end_time.strftime("%H:%M") if a.end_time else None,
+            "reason": a.reason,
+            "notes": a.notes,
+        }
 
     return _q

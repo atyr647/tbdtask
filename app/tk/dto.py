@@ -303,6 +303,8 @@ class AlertRowDTO:
     snoozed_until: date | None
     dismissed_at: datetime | None
     resolved_at: datetime | None
+    is_prd: bool = False
+    has_person: bool = False
 
 
 @dataclass

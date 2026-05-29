@@ -6,11 +6,29 @@ import tkinter as tk
 from datetime import date
 from tkinter import ttk
 
-from .. import theme
+from .. import commands, forms, theme
+from ..actions import run_write
 from ..context import read
 from ..widgets import SearchableTree, empty_state
 from .. import queries as Q
 from .base import Screen
+
+
+def _absence_fields(person_choice=None, code_choices=None):
+    fields = []
+    if person_choice is not None:
+        fields.append(forms.choice("person_id", "Person", person_choice,
+                                   required=True))
+    fields += [
+        forms.choice("code_id", "Code", code_choices or [], required=True),
+        forms.date("start_date", "Start date", required=True),
+        forms.date("end_date", "End date", required=True),
+        forms.time_("start_time", "Start time"),
+        forms.time_("end_time", "End time"),
+        forms.text("reason", "Reason"),
+        forms.multiline("notes", "Notes"),
+    ]
+    return fields
 
 
 class AbsencesScreen(Screen):
@@ -18,7 +36,9 @@ class AbsencesScreen(Screen):
 
     def refresh(self, tab: str = "list", cal_start: str | None = None, **_):
         self.clear()
-        self.header("Absences")
+        bar = self.header("Absences")
+        ttk.Button(bar, text="+ Add absence", style="Accent.TButton",
+                   command=self._add_absence).pack(side="right")
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
         listing = ttk.Frame(nb, style="TFrame", padding=12)
@@ -34,11 +54,14 @@ class AbsencesScreen(Screen):
         if not rows:
             empty_state(parent, "No absences recorded.").pack(anchor="w")
             return
+        ttk.Label(parent, text="Double-click a row to edit.",
+                  style="Muted.TLabel").pack(anchor="w", pady=(0, 4))
         table = SearchableTree(
             parent,
             columns=[("name", "Name", 200), ("code", "Code", 90),
                      ("start", "Start", 110), ("end", "End", 110),
                      ("kind", "Type", 90), ("reason", "Reason", 280)],
+            on_open=lambda iid: self._edit_absence(int(iid)),
             search_label="Filter",
         )
         table.pack(fill="both", expand=True)
@@ -49,6 +72,39 @@ class AbsencesScreen(Screen):
              "reason": r.reason or ""}
             for r in rows
         ])
+
+    # -- Write actions ----------------------------------------------------
+    def _add_absence(self):
+        people = read(commands.active_people_choices())
+        codes = read(commands.absence_code_choices())
+        vals = forms.prompt(self, "Add absence",
+                            _absence_fields(person_choice=people, code_choices=codes),
+                            submit_label="Add")
+        if not vals:
+            return
+        run_write(
+            self, commands.create_absence(**vals),
+            pii_texts=(vals.get("reason"), vals.get("notes")),
+            on_done=lambda: self.app.show("absences", tab="list"),
+        )
+
+    def _edit_absence(self, absence_id: int):
+        initial = read(Q.absence_get(absence_id))
+        if not initial:
+            return
+        codes = read(commands.absence_code_choices())
+        vals = forms.prompt(
+            self, f"Edit absence — {initial['person_name']}",
+            _absence_fields(code_choices=codes), initial=initial,
+            submit_label="Save")
+        if vals is None:
+            return
+        run_write(
+            self, commands.update_absence(absence_id, **vals),
+            pii_texts=(vals.get("reason"), vals.get("notes")),
+            confirm=None,
+            on_done=lambda: self.app.show("absences", tab="list"),
+        )
 
     def _build_calendar(self, parent, cal_start):
         start = date.fromisoformat(cal_start) if cal_start else date.today()

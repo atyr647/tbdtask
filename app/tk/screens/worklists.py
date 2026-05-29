@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from tkinter import ttk
 
-from .. import theme
+from .. import commands, forms, theme
+from ..actions import run_write
 from ..context import read
 from ..widgets import Card, VScroll, badge, empty_state
 from .. import queries as Q
@@ -70,6 +71,10 @@ class WorklistsScreen(Screen):
         if view.locked:
             badge(bar, f"locked by {view.locked_by or '—'}", status="qualified"
                   ).pack(side="right", padx=8)
+        else:
+            ttk.Button(bar, text="Lock week", style="Accent.TButton",
+                       command=lambda: self._lock(worklist_id)).pack(
+                side="right", padx=8)
         if view.pending_count:
             badge(bar, f"{view.pending_count} carry-over pending",
                   status="in_progress").pack(side="right", padx=8)
@@ -133,3 +138,19 @@ class WorklistsScreen(Screen):
             if meta:
                 ttk.Label(row, text=" · ".join(meta), style="CardMuted.TLabel"
                           ).pack(side="right")
+
+    def _lock(self, worklist_id):
+        vals = forms.prompt(
+            self, "Lock week",
+            [forms.text("locked_by_name", "Locked by")],
+            submit_label="Lock")
+        if vals is None:
+            return
+        run_write(
+            self,
+            commands.lock_worklist(worklist_id, vals.get("locked_by_name")),
+            confirm=("Lock week",
+                     "Locking makes this week immutable. Changes afterwards "
+                     "require an amendment. Continue?"),
+            on_done=lambda: self.app.show("worklists", worklist_id=worklist_id),
+        )

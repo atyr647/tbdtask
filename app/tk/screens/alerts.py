@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from tkinter import ttk
 
-from .. import theme
+from .. import commands, forms, theme
+from ..actions import run_write
 from ..context import read
 from ..widgets import Card, VScroll, badge, empty_state
 from .. import queries as Q
@@ -55,3 +56,65 @@ class AlertsScreen(Screen):
             if meta:
                 ttk.Label(card.body, text=" · ".join(meta),
                           style="CardMuted.TLabel").pack(anchor="w", pady=(4, 0))
+            if show == "active":
+                self._action_bar(card.body, a)
+
+    def _refresh(self, show):
+        return lambda: self.app.show("alerts", show=show)
+
+    def _action_bar(self, parent, a):
+        acts = ttk.Frame(parent, style="Card.TFrame")
+        acts.pack(fill="x", pady=(8, 0))
+        ttk.Button(acts, text="Dismiss",
+                   command=lambda: run_write(
+                       self, commands.dismiss_alert(a.id),
+                       on_done=self._refresh("active"))).pack(side="left")
+        ttk.Button(acts, text="Snooze",
+                   command=lambda: self._snooze(a.id)).pack(side="left", padx=4)
+        ttk.Button(acts, text="Resolve",
+                   command=lambda: self._resolve(a.id)).pack(side="left", padx=4)
+        if a.is_prd and a.has_person:
+            ttk.Button(acts, text="Update PRD", style="Accent.TButton",
+                       command=lambda: self._extend_prd(a.id)).pack(side="left", padx=4)
+            ttk.Button(acts, text="Archive person",
+                       command=lambda: self._archive(a.id, a.person_label)).pack(
+                side="left", padx=4)
+
+    def _snooze(self, alert_id):
+        vals = forms.prompt(self, "Snooze alert",
+                            [forms.date("until", "Snooze until", required=True)],
+                            submit_label="Snooze")
+        if not vals:
+            return
+        run_write(self, commands.snooze_alert(alert_id, vals["until"]),
+                  on_done=self._refresh("active"))
+
+    def _resolve(self, alert_id):
+        vals = forms.prompt(self, "Resolve alert",
+                            [forms.text("note", "Note (optional)")],
+                            submit_label="Resolve")
+        if vals is None:
+            return
+        run_write(self, commands.resolve_alert(alert_id, vals.get("note")),
+                  pii_texts=(vals.get("note"),), on_done=self._refresh("active"))
+
+    def _extend_prd(self, alert_id):
+        vals = forms.prompt(self, "Update planned rotation date", [
+            forms.date("new_date", "New PRD"),
+            forms.integer("days", "…or extend by N days"),
+        ], submit_label="Update")
+        if not vals:
+            return
+        if not vals.get("new_date") and not vals.get("days"):
+            return
+        run_write(self, commands.extend_prd(
+            alert_id, new_date=vals.get("new_date"), days=vals.get("days")),
+            on_done=self._refresh("active"))
+
+    def _archive(self, alert_id, name):
+        run_write(
+            self, commands.archive_person_from_alert(alert_id),
+            confirm=("Archive person",
+                     f"Move {name or 'this person'} to departed and resolve "
+                     "the alert?"),
+            on_done=self._refresh("active"))
