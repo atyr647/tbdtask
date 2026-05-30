@@ -86,3 +86,13 @@ def test_font_registration_returns_a_family():
     name = pdf._register_fonts()
     assert isinstance(name, str) and name
     assert pdf._register_fonts() == name  # idempotent
+
+
+def test_date_field_accepts_custom_help():
+    """Regression: forms.date/time_ injected a default help= that collided
+    when a caller also passed help=, crashing the template form."""
+    from app.tk import forms
+    f = forms.date("d", "D", help="custom")
+    assert f.kind == "date" and f.help == "custom"
+    assert forms.date("d2", "D2").help == "YYYY-MM-DD"
+    assert forms.time_("t", "T", help="x").help == "x"

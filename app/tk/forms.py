@@ -31,8 +31,12 @@ class Field:
 # Convenience constructors keep call sites readable.
 def text(name, label, **kw): return Field(name, label, "text", **kw)
 def multiline(name, label, **kw): return Field(name, label, "multiline", **kw)
-def date(name, label, **kw): return Field(name, label, "date", help="YYYY-MM-DD", **kw)
-def time_(name, label, **kw): return Field(name, label, "time", help="HH:MM", **kw)
+def date(name, label, **kw):
+    kw.setdefault("help", "YYYY-MM-DD")
+    return Field(name, label, "date", **kw)
+def time_(name, label, **kw):
+    kw.setdefault("help", "HH:MM")
+    return Field(name, label, "time", **kw)
 def integer(name, label, **kw): return Field(name, label, "int", **kw)
 def number(name, label, **kw): return Field(name, label, "float", **kw)
 def choice(name, label, choices, **kw): return Field(name, label, "choice",
