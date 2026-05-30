@@ -1005,8 +1005,8 @@ def qual_catalog():
         ).all()
         counts_rows = s.execute(
             select(M.PersonQual.qual_id, M.PersonQual.status).where(
-                M.PersonQual.valid_to.is_(None), M.PersonQual.active == True
-            )  # noqa: E712
+                M.PersonQual.valid_to.is_(None), M.PersonQual.active.is_(True)
+            )
         ).all()
         counts: dict[int, dict[str, int]] = {}
         for qid, st in counts_rows:
