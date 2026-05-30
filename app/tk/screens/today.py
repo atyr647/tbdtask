@@ -24,30 +24,49 @@ class TodayScreen(Screen):
         bar = self.header(on_date.strftime("%A · %d %B %Y"))
         nav = ttk.Frame(bar)
         nav.pack(side="right")
-        ttk.Button(nav, text="‹ Prev",
-                   command=lambda: self.app.show("today", day_iso=data.prev_day)
-                   ).pack(side="left", padx=2)
-        ttk.Button(nav, text="Today",
-                   command=lambda: self.app.show("today")).pack(side="left", padx=2)
-        ttk.Button(nav, text="Next ›",
-                   command=lambda: self.app.show("today", day_iso=data.next_day)
-                   ).pack(side="left", padx=2)
+        ttk.Button(
+            nav,
+            text="‹ Prev",
+            command=lambda: self.app.show("today", day_iso=data.prev_day),
+        ).pack(side="left", padx=2)
+        ttk.Button(nav, text="Today", command=lambda: self.app.show("today")).pack(
+            side="left", padx=2
+        )
+        ttk.Button(
+            nav,
+            text="Next ›",
+            command=lambda: self.app.show("today", day_iso=data.next_day),
+        ).pack(side="left", padx=2)
 
         # Stat row
         stats = ttk.Frame(self)
         stats.pack(fill="x", pady=(0, 14))
-        pct_color = (theme.GOOD if data.percent_present >= 80
-                     else theme.WARN if data.percent_present >= 60 else theme.BAD)
+        pct_color = (
+            theme.GOOD
+            if data.percent_present >= 80
+            else theme.WARN
+            if data.percent_present >= 60
+            else theme.BAD
+        )
         tiles = [
             (f"{data.percent_present:g}%", "present", pct_color),
             (data.present_full, "fully present", theme.TEXT),
-            (data.full_absent, "out (full day)", theme.BAD if data.full_absent else theme.MUTED),
-            (data.partial_absent, "partial day", theme.WARN if data.partial_absent else theme.MUTED),
+            (
+                data.full_absent,
+                "out (full day)",
+                theme.BAD if data.full_absent else theme.MUTED,
+            ),
+            (
+                data.partial_absent,
+                "partial day",
+                theme.WARN if data.partial_absent else theme.MUTED,
+            ),
             (data.total, "on roster", theme.TEXT),
         ]
         for i, (val, cap, col) in enumerate(tiles):
             StatTile(stats, val, cap, color=col).grid(
-                row=0, column=i, sticky="ew", padx=(0 if i == 0 else 8, 0))
+                row=0, column=i, sticky="ew", padx=(0 if i == 0 else 8, 0)
+            )
             stats.columnconfigure(i, weight=1)
 
         scroller = VScroll(self)
@@ -66,18 +85,23 @@ class TodayScreen(Screen):
             for r in data.absent_rows:
                 row = ttk.Frame(out_card.body, style="Card.TFrame")
                 row.pack(fill="x", pady=2)
-                badge(row, r.code or "OUT", status="dinq" if not r.partial else "in_progress"
-                      ).pack(side="left")
-                ttk.Label(row, text=f"  {r.name}", style="Card.TLabel").pack(side="left")
+                badge(
+                    row,
+                    r.code or "OUT",
+                    status="dinq" if not r.partial else "in_progress",
+                ).pack(side="left")
+                ttk.Label(row, text=f"  {r.name}", style="Card.TLabel").pack(
+                    side="left"
+                )
                 extra = r.window_label or "full day"
                 if r.reason:
                     extra += f" — {r.reason}"
-                ttk.Label(row, text=extra, style="CardMuted.TLabel").pack(
-                    side="right")
+                ttk.Label(row, text=extra, style="CardMuted.TLabel").pack(side="right")
         if data.by_code:
             codes = "   ".join(f"{k}: {v}" for k, v in sorted(data.by_code.items()))
             ttk.Label(out_card.body, text=codes, style="CardMuted.TLabel").pack(
-                anchor="w", pady=(8, 0))
+                anchor="w", pady=(8, 0)
+            )
 
         # Tasks
         task_card = Card(cols, title=f"Tasks ({len(data.tasks)})")
@@ -88,7 +112,9 @@ class TodayScreen(Screen):
             for t in data.tasks:
                 row = ttk.Frame(task_card.body, style="Card.TFrame")
                 row.pack(fill="x", pady=3)
-                badge(row, t.status.replace("_", " "), status=t.status).pack(side="left")
+                badge(row, t.status.replace("_", " "), status=t.status).pack(
+                    side="left"
+                )
                 name = ttk.Label(row, text=f"  {t.name}", style="Card.TLabel")
                 name.pack(side="left")
                 meta = []
@@ -99,5 +125,6 @@ class TodayScreen(Screen):
                 elif t.assignees:
                     meta.append(", ".join(t.assignees[:3]))
                 if meta:
-                    ttk.Label(row, text=" · ".join(meta), style="CardMuted.TLabel"
-                              ).pack(side="right")
+                    ttk.Label(
+                        row, text=" · ".join(meta), style="CardMuted.TLabel"
+                    ).pack(side="right")

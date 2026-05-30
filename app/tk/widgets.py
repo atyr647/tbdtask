@@ -20,8 +20,7 @@ class VScroll(ttk.Frame):
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
         self.canvas = tk.Canvas(self, bg=theme.BG, highlightthickness=0, bd=0)
-        self.vbar = ttk.Scrollbar(self, orient="vertical",
-                                  command=self.canvas.yview)
+        self.vbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vbar.set)
         self.vbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -67,7 +66,8 @@ class Card(ttk.Frame):
         inner.pack(fill="both", expand=True, padx=1, pady=1)
         if title:
             ttk.Label(inner, text=title, style="CardH2.TLabel").pack(
-                anchor="w", pady=(0, 8))
+                anchor="w", pady=(0, 8)
+            )
         self.body = ttk.Frame(inner, style="Card.TFrame")
         self.body.pack(fill="both", expand=True)
 
@@ -84,16 +84,24 @@ class StatTile(Card):
         ttk.Label(self.body, text=caption, style="StatCaption.TLabel").pack(anchor="w")
 
 
-def badge(master, text: str, status: str | None = None,
-          severity: str | None = None) -> tk.Label:
+def badge(
+    master, text: str, status: str | None = None, severity: str | None = None
+) -> tk.Label:
     """A small coloured pill. Pass either a qual/task ``status`` or a
     ``severity`` to pick the colour."""
     if severity is not None:
         fg, bg = theme.severity_colors(severity)
     else:
         fg, bg = theme.status_colors(status)
-    return tk.Label(master, text=text, bg=bg, fg=fg, padx=7, pady=1,
-                    font=("TkDefaultFont", 9, "bold"))
+    return tk.Label(
+        master,
+        text=text,
+        bg=bg,
+        fg=fg,
+        padx=7,
+        pady=1,
+        font=("TkDefaultFont", 9, "bold"),
+    )
 
 
 class SearchableTree(ttk.Frame):
@@ -104,8 +112,14 @@ class SearchableTree(ttk.Frame):
     filter matches a case-insensitive substring across all visible cells.
     """
 
-    def __init__(self, master, columns, on_open: Callable[[str], None] | None = None,
-                 search_label: str = "Search", **kw):
+    def __init__(
+        self,
+        master,
+        columns,
+        on_open: Callable[[str], None] | None = None,
+        search_label: str = "Search",
+        **kw,
+    ):
         super().__init__(master, **kw)
         self._columns = columns
         self._all_rows: list[dict] = []
@@ -122,8 +136,9 @@ class SearchableTree(ttk.Frame):
         self._count.pack(side="right")
 
         keys = [c[0] for c in columns]
-        self.tree = ttk.Treeview(self, columns=keys, show="headings",
-                                 selectmode="browse")
+        self.tree = ttk.Treeview(
+            self, columns=keys, show="headings", selectmode="browse"
+        )
         for key, heading, width in columns:
             self.tree.heading(key, text=heading)
             self.tree.column(key, width=width, anchor="w", stretch=(width >= 200))
@@ -156,12 +171,12 @@ class SearchableTree(ttk.Frame):
                 continue
             tags = list(row.get("_tags", ()))
             tags.append("odd" if shown % 2 else "even")
-            self.tree.insert("", "end", iid=str(row.get("_id", i)),
-                             values=values, tags=tags)
+            self.tree.insert(
+                "", "end", iid=str(row.get("_id", i)), values=values, tags=tags
+            )
             shown += 1
         total = len(self._all_rows)
-        self._count.configure(
-            text=f"{shown} of {total}" if q else f"{total}")
+        self._count.configure(text=f"{shown} of {total}" if q else f"{total}")
 
     def _handle_open(self, _e):
         sel = self.tree.selection()

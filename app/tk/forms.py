@@ -33,24 +33,47 @@ class Field:
 
 
 # Convenience constructors keep call sites readable.
-def text(name, label, **kw): return Field(name, label, "text", **kw)
-def multiline(name, label, **kw): return Field(name, label, "multiline", **kw)
+def text(name, label, **kw):
+    return Field(name, label, "text", **kw)
+
+
+def multiline(name, label, **kw):
+    return Field(name, label, "multiline", **kw)
+
+
 def date(name, label, **kw):
     kw.setdefault("help", "YYYY-MM-DD")
     return Field(name, label, "date", **kw)
+
+
 def time_(name, label, **kw):
     kw.setdefault("help", "HH:MM")
     return Field(name, label, "time", **kw)
-def integer(name, label, **kw): return Field(name, label, "int", **kw)
-def number(name, label, **kw): return Field(name, label, "float", **kw)
-def choice(name, label, choices, **kw): return Field(name, label, "choice",
-                                                     choices=choices, **kw)
+
+
+def integer(name, label, **kw):
+    return Field(name, label, "int", **kw)
+
+
+def number(name, label, **kw):
+    return Field(name, label, "float", **kw)
+
+
+def choice(name, label, choices, **kw):
+    return Field(name, label, "choice", choices=choices, **kw)
+
+
 def combo(name, label, choices, **kw):
     """An editable dropdown: pick a listed value or type a custom one."""
     return Field(name, label, "combo", choices=choices, **kw)
-def multichoice(name, label, choices, **kw): return Field(name, label, "multichoice",
-                                                          choices=choices, **kw)
-def boolean(name, label, **kw): return Field(name, label, "bool", **kw)
+
+
+def multichoice(name, label, choices, **kw):
+    return Field(name, label, "multichoice", choices=choices, **kw)
+
+
+def boolean(name, label, **kw):
+    return Field(name, label, "bool", **kw)
 
 
 class _FormDialog(tk.Toplevel):
@@ -71,11 +94,13 @@ class _FormDialog(tk.Toplevel):
         initial = initial or {}
 
         ttk.Label(self, text=title, style="H2.TLabel").grid(
-            row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 10)
+        )
 
         for i, f in enumerate(fields, start=1):
-            lbl = ttk.Label(self, text=f.label + (" *" if f.required else ""),
-                            style="TLabel")
+            lbl = ttk.Label(
+                self, text=f.label + (" *" if f.required else ""), style="TLabel"
+            )
             lbl.grid(row=i, column=0, sticky="nw", pady=4, padx=(0, 10))
             self._rows.setdefault(f.name, []).append((lbl, i, 0))
             self._build_field(f, i, initial.get(f.name))
@@ -95,14 +120,16 @@ class _FormDialog(tk.Toplevel):
         self._apply_visibility()
 
         self._error = ttk.Label(self, text="", style="TLabel", foreground=theme.BAD)
-        self._error.grid(row=len(fields) + 1, column=0, columnspan=2, sticky="w",
-                         pady=(6, 0))
+        self._error.grid(
+            row=len(fields) + 1, column=0, columnspan=2, sticky="w", pady=(6, 0)
+        )
 
         btns = ttk.Frame(self)
         btns.grid(row=len(fields) + 2, column=0, columnspan=2, sticky="e", pady=(12, 0))
         ttk.Button(btns, text="Cancel", command=self._cancel).pack(side="right")
-        ttk.Button(btns, text=submit_label, style="Accent.TButton",
-                   command=self._submit).pack(side="right", padx=(0, 8))
+        ttk.Button(
+            btns, text=submit_label, style="Accent.TButton", command=self._submit
+        ).pack(side="right", padx=(0, 8))
 
         self.bind("<Escape>", lambda e: self._cancel())
         self.bind("<Return>", lambda e: self._submit())
@@ -115,8 +142,16 @@ class _FormDialog(tk.Toplevel):
 
     def _build_field(self, f: Field, row: int, value):
         if f.kind == "multiline":
-            w = tk.Text(self, width=f.width, height=4, relief="solid", bd=1,
-                        bg=theme.PANEL, fg=theme.TEXT, highlightthickness=0)
+            w = tk.Text(
+                self,
+                width=f.width,
+                height=4,
+                relief="solid",
+                bd=1,
+                bg=theme.PANEL,
+                fg=theme.TEXT,
+                highlightthickness=0,
+            )
             if value:
                 w.insert("1.0", str(value))
             w.grid(row=row, column=1, sticky="ew", pady=4)
@@ -130,8 +165,13 @@ class _FormDialog(tk.Toplevel):
         elif f.kind == "choice":
             var = tk.StringVar()
             labels = [lbl for _, lbl in f.choices]
-            w = ttk.Combobox(self, textvariable=var, values=labels,
-                             state="readonly", width=f.width - 2)
+            w = ttk.Combobox(
+                self,
+                textvariable=var,
+                values=labels,
+                state="readonly",
+                width=f.width - 2,
+            )
             # Preselect by value or label.
             for val, lbl in f.choices:
                 if value is not None and (value == val or value == lbl):
@@ -147,34 +187,49 @@ class _FormDialog(tk.Toplevel):
             # Editable dropdown: choose a listed value or type a custom one.
             var = tk.StringVar(value="" if value is None else str(value))
             labels = [lbl for _, lbl in f.choices]
-            w = ttk.Combobox(self, textvariable=var, values=labels,
-                             state="normal", width=f.width - 2)
+            w = ttk.Combobox(
+                self, textvariable=var, values=labels, state="normal", width=f.width - 2
+            )
             w.grid(row=row, column=1, sticky="ew", pady=4)
             self._vars[f.name] = var
             self._widgets[f.name] = w
         elif f.kind == "multichoice":
             # A scrollable checkbox list — picks any subset of choices.
-            box = tk.Frame(self, bg=theme.PANEL, bd=1, relief="solid",
-                           highlightthickness=0)
+            box = tk.Frame(
+                self, bg=theme.PANEL, bd=1, relief="solid", highlightthickness=0
+            )
             box.grid(row=row, column=1, sticky="ew", pady=4)
-            canvas = tk.Canvas(box, bg=theme.PANEL, highlightthickness=0,
-                               height=min(160, 24 * max(1, len(f.choices))))
+            canvas = tk.Canvas(
+                box,
+                bg=theme.PANEL,
+                highlightthickness=0,
+                height=min(160, 24 * max(1, len(f.choices))),
+            )
             sb = ttk.Scrollbar(box, orient="vertical", command=canvas.yview)
             inner = tk.Frame(canvas, bg=theme.PANEL)
             canvas.configure(yscrollcommand=sb.set)
             canvas.pack(side="left", fill="both", expand=True)
             sb.pack(side="right", fill="y")
             canvas.create_window((0, 0), window=inner, anchor="nw")
-            inner.bind("<Configure>",
-                       lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+            inner.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
+            )
             preset = set(value or ())
             vars_for_choice: list[tuple[Any, tk.BooleanVar]] = []
             for val, lbl in f.choices:
                 bv = tk.BooleanVar(value=val in preset)
-                tk.Checkbutton(inner, text=lbl, variable=bv, bg=theme.PANEL,
-                               fg=theme.TEXT, anchor="w", highlightthickness=0,
-                               activebackground=theme.PANEL,
-                               selectcolor=theme.PANEL).pack(fill="x", anchor="w")
+                tk.Checkbutton(
+                    inner,
+                    text=lbl,
+                    variable=bv,
+                    bg=theme.PANEL,
+                    fg=theme.TEXT,
+                    anchor="w",
+                    highlightthickness=0,
+                    activebackground=theme.PANEL,
+                    selectcolor=theme.PANEL,
+                ).pack(fill="x", anchor="w")
                 vars_for_choice.append((val, bv))
             self._vars[f.name] = vars_for_choice
             self._widgets[f.name] = box

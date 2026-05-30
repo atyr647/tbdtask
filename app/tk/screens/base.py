@@ -43,14 +43,16 @@ class Screen(ttk.Frame):
         ttk.Label(bar, text=text, style="H1.TLabel").pack(side="left")
         if subtitle:
             ttk.Label(bar, text=subtitle, style="Muted.TLabel").pack(
-                side="left", padx=(12, 0), pady=(10, 0))
+                side="left", padx=(12, 0), pady=(10, 0)
+            )
         return bar
 
     def _show_error(self, tb: str) -> None:
         self.clear()
         self.header("Something went wrong")
-        box = tk.Text(self, height=20, wrap="word", bg=theme.PANEL,
-                      fg=theme.BAD, relief="flat")
+        box = tk.Text(
+            self, height=20, wrap="word", bg=theme.PANEL, fg=theme.BAD, relief="flat"
+        )
         box.insert("1.0", tb)
         box.configure(state="disabled")
         box.pack(fill="both", expand=True)

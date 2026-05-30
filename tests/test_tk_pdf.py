@@ -38,11 +38,23 @@ def week(session):
     wl = make_worklist(session, monday)
     session.commit()
     # A task assigned to p1, and an absence for p2 on Monday.
-    run(session, C.create_task(
-        wl.id, name="Sweep the deck", scheduled_date=monday.isoformat(),
-        person_ids=[p1.id]))
-    make_absence(session, person_id=p2.id, code_id=codes["Leave"].id,
-                 start_date=monday, end_date=monday, reason="family")
+    run(
+        session,
+        C.create_task(
+            wl.id,
+            name="Sweep the deck",
+            scheduled_date=monday.isoformat(),
+            person_ids=[p1.id],
+        ),
+    )
+    make_absence(
+        session,
+        person_id=p2.id,
+        code_id=codes["Leave"].id,
+        start_date=monday,
+        end_date=monday,
+        reason="family",
+    )
     session.commit()
     return wl.id
 
@@ -92,6 +104,7 @@ def test_date_field_accepts_custom_help():
     """Regression: forms.date/time_ injected a default help= that collided
     when a caller also passed help=, crashing the template form."""
     from app.tk import forms
+
     f = forms.date("d", "D", help="custom")
     assert f.kind == "date" and f.help == "custom"
     assert forms.date("d2", "D2").help == "YYYY-MM-DD"
@@ -106,20 +119,27 @@ def test_form_visible_when_and_combo(tmp_path):
     and combo maps a chosen label to its value while allowing custom text.
     Driven headlessly under a Tk root."""
     import os
+
     os.environ.setdefault("TBDTASK_SINGLE_TENANT", "1")
     import tkinter as tk
+
     try:
         root = tk.Tk()
     except tk.TclError:
         import pytest
+
         pytest.skip("no display")
     root.withdraw()
     from app.tk import forms
 
     fields = [
         forms.choice("kind", "Kind", [("e", "Enlisted"), ("o", "Officer")]),
-        forms.choice("rating", "Rating", [("BM", "BM"), ("IT", "IT")],
-                     visible_when=("kind", lambda v: v == "e")),
+        forms.choice(
+            "rating",
+            "Rating",
+            [("BM", "BM"), ("IT", "IT")],
+            visible_when=("kind", lambda v: v == "e"),
+        ),
         forms.combo("pos", "Pos", [("LPO", "LPO"), ("LCPO", "LCPO")]),
     ]
     dlg = forms._FormDialog(root, "t", fields, {"kind": "o", "pos": "LPO"}, "Save")
@@ -138,12 +158,15 @@ def test_form_multi_condition_visible_when():
     """A field with a LIST of (controller, predicate) conditions shows only
     when ALL pass (used for the undesignated-junior Community field)."""
     import os
+
     os.environ.setdefault("TBDTASK_SINGLE_TENANT", "1")
     import tkinter as tk
+
     try:
         root = tk.Tk()
     except tk.TclError:
         import pytest
+
         pytest.skip("no display")
     root.withdraw()
     from app.tk import forms
@@ -151,10 +174,15 @@ def test_form_multi_condition_visible_when():
     fields = [
         forms.choice("paygrade", "PG", [("E-1", "E-1"), ("E-5", "E-5")]),
         forms.choice("rating", "Rating", [("", "(none)"), ("BM", "BM")]),
-        forms.choice("community", "Community", [("seaman", "Seaman"),
-                                                ("fireman", "Fireman")],
-                     visible_when=[("paygrade", lambda v: v in ("E-1", "E-2", "E-3")),
-                                   ("rating", lambda v: not v)]),
+        forms.choice(
+            "community",
+            "Community",
+            [("seaman", "Seaman"), ("fireman", "Fireman")],
+            visible_when=[
+                ("paygrade", lambda v: v in ("E-1", "E-2", "E-3")),
+                ("rating", lambda v: not v),
+            ],
+        ),
     ]
     dlg = forms._FormDialog(root, "t", fields, {}, "Save")
     comm = dlg._field_by_name["community"]
