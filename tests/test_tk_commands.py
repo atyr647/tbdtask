@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from app import models as M
 from app.tenancy import tenant_context
@@ -17,8 +18,10 @@ from app.tk import commands as C
 
 from tests.conftest import (
     make_absence_codes,
+    make_assignment,
     make_person,
     make_qual,
+    make_task,
     make_worklist,
     set_prd,
 )
