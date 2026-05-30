@@ -36,9 +36,16 @@ def run(session, cmd):
 
 
 def test_create_person_writes_effective_rows(session):
-    pid = run(session, C.create_person(
-        last_name="Vega", rate="Technician", duty_section=3,
-        prd_date="2027-01-01", notes="hello"))
+    pid = run(
+        session,
+        C.create_person(
+            last_name="Vega",
+            rate="Technician",
+            duty_section=3,
+            prd_date="2027-01-01",
+            notes="hello",
+        ),
+    )
     session.commit()
     p = session.get(M.Person, pid)
     assert p.full_display == "Technician Vega"
@@ -46,28 +53,39 @@ def test_create_person_writes_effective_rows(session):
     assert any(d.duty_section == 3 for d in p.duty_sections)
     assert any(pr.prd_date == date(2027, 1, 1) for pr in p.prds)
     # roster status defaults to active
-    assert any(s.status == "active" and s.valid_to is None
-               for s in p.roster_statuses)
+    assert any(s.status == "active" and s.valid_to is None for s in p.roster_statuses)
 
 
 def test_create_incoming_sets_incoming_status(session):
-    pid = run(session, C.create_incoming(
-        last_name="Olson", rate="Intern", arrival_date="2026-07-01",
-        orders_received=True))
+    pid = run(
+        session,
+        C.create_incoming(
+            last_name="Olson",
+            rate="Intern",
+            arrival_date="2026-07-01",
+            orders_received=True,
+        ),
+    )
     session.commit()
     p = session.get(M.Person, pid)
     assert p.arrival_date == date(2026, 7, 1)
     assert p.orders_received is True
-    assert any(s.status == "incoming" and s.valid_to is None
-               for s in p.roster_statuses)
+    assert any(s.status == "incoming" and s.valid_to is None for s in p.roster_statuses)
 
 
 def test_update_person_closes_prior_rate_row(session):
     p = make_person(session, last_name="Banks", rate="Coordinator")
     session.commit()
-    run(session, C.update_person(
-        p.id, last_name="Banks", rate="Supervisor", roster_status="active",
-        effective_date=date.today().isoformat()))
+    run(
+        session,
+        C.update_person(
+            p.id,
+            last_name="Banks",
+            rate="Supervisor",
+            roster_status="active",
+            effective_date=date.today().isoformat(),
+        ),
+    )
     session.commit()
     session.refresh(p)
     current = [r for r in p.rates if r.valid_to is None]
@@ -83,8 +101,7 @@ def test_mark_arrived_flips_status(session):
     run(session, C.mark_arrived(pid))
     session.commit()
     p = session.get(M.Person, pid)
-    assert any(s.status == "active" and s.valid_to is None
-               for s in p.roster_statuses)
+    assert any(s.status == "active" and s.valid_to is None for s in p.roster_statuses)
 
 
 def test_archive_person_soft_deletes(session):
@@ -104,29 +121,44 @@ def test_create_absence_and_validation(session):
     codes = make_absence_codes(session)
     p = make_person(session, last_name="Juarez")
     session.commit()
-    aid = run(session, C.create_absence(
-        person_id=p.id, code_id=codes["Leave"].id,
-        start_date=date.today().isoformat(),
-        end_date=(date.today() + timedelta(days=2)).isoformat(),
-        reason="family"))
+    aid = run(
+        session,
+        C.create_absence(
+            person_id=p.id,
+            code_id=codes["Leave"].id,
+            start_date=date.today().isoformat(),
+            end_date=(date.today() + timedelta(days=2)).isoformat(),
+            reason="family",
+        ),
+    )
     session.commit()
     assert session.get(M.Absence, aid).reason == "family"
 
     with pytest.raises(C.ValidationError):
-        run(session, C.create_absence(
-            person_id=p.id, code_id=codes["Leave"].id,
-            start_date=date.today().isoformat(),
-            end_date=(date.today() - timedelta(days=2)).isoformat()))
+        run(
+            session,
+            C.create_absence(
+                person_id=p.id,
+                code_id=codes["Leave"].id,
+                start_date=date.today().isoformat(),
+                end_date=(date.today() - timedelta(days=2)).isoformat(),
+            ),
+        )
 
 
 def test_archive_absence(session):
     codes = make_absence_codes(session)
     p = make_person(session, last_name="Spencer")
     session.commit()
-    aid = run(session, C.create_absence(
-        person_id=p.id, code_id=codes["School"].id,
-        start_date=date.today().isoformat(),
-        end_date=date.today().isoformat()))
+    aid = run(
+        session,
+        C.create_absence(
+            person_id=p.id,
+            code_id=codes["School"].id,
+            start_date=date.today().isoformat(),
+            end_date=date.today().isoformat(),
+        ),
+    )
     session.commit()
     run(session, C.archive_absence(aid, "cancelled"))
     session.commit()
@@ -155,8 +187,7 @@ def test_alert_snooze_and_resolve(session):
 def test_extend_prd_updates_person_and_resolves(session):
     p = make_person(session, last_name="Foster")
     set_prd(session, p.id, date.today() + timedelta(days=30))
-    a = M.Alert(alert_type="prd_1month", severity="urgent",
-                person_id=p.id, org_id=1)
+    a = M.Alert(alert_type="prd_1month", severity="urgent", person_id=p.id, org_id=1)
     session.add(a)
     session.commit()
     run(session, C.extend_prd(a.id, days=180))
@@ -199,10 +230,15 @@ def test_create_task_defaults_first_assignee_to_poic(session):
     monday = date.today() - timedelta(days=date.today().weekday())
     wl = make_worklist(session, monday)
     session.commit()
-    tid = run(session, C.create_task(
-        wl.id, name="Sweep the deck",
-        scheduled_date=monday.isoformat(),
-        person_ids=[p1.id, p2.id]))
+    tid = run(
+        session,
+        C.create_task(
+            wl.id,
+            name="Sweep the deck",
+            scheduled_date=monday.isoformat(),
+            person_ids=[p1.id, p2.id],
+        ),
+    )
     session.commit()
     inst = session.get(M.TaskInstance, tid)
     assert inst.name == "Sweep the deck"
@@ -264,14 +300,17 @@ def test_assign_quals_derives_expiry_from_validity(session):
     q1 = make_qual(session, "Forklift", validity_period_days=365)
     q2 = make_qual(session, "Crane")  # no validity window
     session.commit()
-    n = run(session, C.assign_quals(
-        p.id, qual_ids=[q1.id, q2.id], status="qualified",
-        achieved_at="2026-01-01"))
+    n = run(
+        session,
+        C.assign_quals(
+            p.id, qual_ids=[q1.id, q2.id], status="qualified", achieved_at="2026-01-01"
+        ),
+    )
     session.commit()
     assert n == 2
     rows = {pq.qual_id: pq for pq in session.get(M.Person, p.id).quals}
     assert rows[q1.id].expires_at == datetime(2027, 1, 1)  # +365d
-    assert rows[q2.id].expires_at is None                  # no window -> none
+    assert rows[q2.id].expires_at is None  # no window -> none
 
 
 def test_assign_quals_requires_a_selection(session):
@@ -300,9 +339,16 @@ def test_update_person_qual_closes_and_appends(session):
     run(session, C.assign_quals(p.id, qual_ids=[q.id], status="in_progress"))
     session.commit()
     pq = next(r for r in session.get(M.Person, p.id).quals if r.valid_to is None)
-    run(session, C.update_person_qual(
-        p.id, pq.id, status="qualified", achieved_at="2026-03-01",
-        effective_date="2026-03-01"))
+    run(
+        session,
+        C.update_person_qual(
+            p.id,
+            pq.id,
+            status="qualified",
+            achieved_at="2026-03-01",
+            effective_date="2026-03-01",
+        ),
+    )
     session.commit()
     rows = session.get(M.Person, p.id).quals
     current = [r for r in rows if r.valid_to is None]
@@ -422,16 +468,25 @@ def test_create_template_with_recurrence_and_quals(session):
     q = make_qual(session, "Crane")
     session.commit()
     rec = C._build_recurrence("weekdays", weekdays=[0, 2, 4])
-    tid = run(session, C.create_template(
-        name="Field Day", recurrence=rec, required_quals=[q.id],
-        carry_over_policy="never", estimated_hours=2.5))
+    tid = run(
+        session,
+        C.create_template(
+            name="Field Day",
+            recurrence=rec,
+            required_quals=[q.id],
+            carry_over_policy="never",
+            estimated_hours=2.5,
+        ),
+    )
     session.commit()
     t = session.get(M.TaskTemplate, tid)
     assert t.recurrence_rule == {"kind": "weekdays", "weekdays": [0, 2, 4]}
     assert t.carry_over_policy == "never" and t.estimated_hours == 2.5
     req = session.scalars(
         select(M.TaskTemplateRequiredQual.qual_id).where(
-            M.TaskTemplateRequiredQual.task_template_id == tid)).all()
+            M.TaskTemplateRequiredQual.task_template_id == tid
+        )
+    ).all()
     assert list(req) == [q.id]
 
 
@@ -441,14 +496,23 @@ def test_update_template_resets_required_quals(session):
     session.commit()
     tid = run(session, C.create_template(name="T", required_quals=[q1.id]))
     session.commit()
-    run(session, C.update_template(tid, name="T2", required_quals=[q2.id],
-                                   recurrence=C._build_recurrence("daily")))
+    run(
+        session,
+        C.update_template(
+            tid,
+            name="T2",
+            required_quals=[q2.id],
+            recurrence=C._build_recurrence("daily"),
+        ),
+    )
     session.commit()
     t = session.get(M.TaskTemplate, tid)
     assert t.name == "T2" and t.recurrence_rule == {"kind": "daily"}
     req = session.scalars(
         select(M.TaskTemplateRequiredQual.qual_id).where(
-            M.TaskTemplateRequiredQual.task_template_id == tid)).all()
+            M.TaskTemplateRequiredQual.task_template_id == tid
+        )
+    ).all()
     assert list(req) == [q2.id]
 
 
@@ -464,9 +528,14 @@ def test_build_recurrence_variants():
     assert C._build_recurrence("none") is None
     assert C._build_recurrence("daily") == {"kind": "daily"}
     assert C._build_recurrence("monthly_date", day=15) == {
-        "kind": "monthly_date", "day": 15}
+        "kind": "monthly_date",
+        "day": 15,
+    }
     assert C._build_recurrence("monthly_nth_weekday", n=2, weekday=3) == {
-        "kind": "monthly_nth_weekday", "n": 2, "weekday": 3}
+        "kind": "monthly_nth_weekday",
+        "n": 2,
+        "weekday": 3,
+    }
 
 
 # -- Worklist update / amend / archive / carry-over -------------------------
@@ -489,14 +558,15 @@ def test_amend_clones_tasks_and_assignments(session):
     tid = make_task(session, worklist_id=wl.id, name="Carry me")
     make_assignment(session, instance_id=tid.id, person_id=p1.id, is_poic=True)
     session.commit()
-    new_id = run(session, C.amend_worklist(
-        wl.id, amendment_reason="typo", operator_name="Chief"))
+    new_id = run(
+        session, C.amend_worklist(wl.id, amendment_reason="typo", operator_name="Chief")
+    )
     session.commit()
     clone = session.get(M.Worklist, new_id)
     assert clone.parent_id == wl.id and clone.version == 2 and not clone.locked
     clone_tasks = session.scalars(
-        select(M.TaskInstance).where(
-            M.TaskInstance.worklist_id == new_id)).all()
+        select(M.TaskInstance).where(M.TaskInstance.worklist_id == new_id)
+    ).all()
     assert len(list(clone_tasks)) == 1
     ct = list(clone_tasks)[0]
     assert ct.name == "Carry me" and ct.carried_from_instance_id == tid.id
@@ -536,10 +606,16 @@ def test_apply_carry_overs_carry_and_discard(session):
     make_assignment(session, instance_id=t1.id, person_id=p1.id, is_poic=True)
     t2 = make_task(session, worklist_id=prev.id, name="Drop task", status="open")
     session.commit()
-    acted = run(session, C.apply_carry_overs(cur.id, {
-        t1.id: {"action": "carry"},
-        t2.id: {"action": "discard"},
-    }))
+    acted = run(
+        session,
+        C.apply_carry_overs(
+            cur.id,
+            {
+                t1.id: {"action": "carry"},
+                t2.id: {"action": "discard"},
+            },
+        ),
+    )
     session.commit()
     assert acted == 2
     assert session.get(M.TaskInstance, t1.id).status == "carried"
@@ -547,7 +623,9 @@ def test_apply_carry_overs_carry_and_discard(session):
     carried = session.scalars(
         select(M.TaskInstance).where(
             M.TaskInstance.worklist_id == cur.id,
-            M.TaskInstance.carried_from_instance_id == t1.id)).all()
+            M.TaskInstance.carried_from_instance_id == t1.id,
+        )
+    ).all()
     assert len(list(carried)) == 1
 
 
@@ -556,11 +634,12 @@ def test_apply_carry_overs_carry_and_discard(session):
 
 def test_rank_catalog_token_assembly():
     from app.data import ranks as r
+
     assert r.rate_token("E-4", "BM") == "BM3"
-    assert r.rate_token("E-7", "BM") == "BMC"     # Chief
-    assert r.rate_token("E-8", "GM") == "GMCS"    # Senior Chief
-    assert r.rate_token("E-9", "OS") == "OSCM"    # Master Chief
-    assert r.rate_token("E-4", None) == "PO3"     # non-rated
+    assert r.rate_token("E-7", "BM") == "BMC"  # Chief
+    assert r.rate_token("E-8", "GM") == "GMCS"  # Senior Chief
+    assert r.rate_token("E-9", "OS") == "OSCM"  # Master Chief
+    assert r.rate_token("E-4", None) == "PO3"  # non-rated
     assert r.rate_token("W-3") == "CWO3"
     assert r.rate_token("O-4") == "LCDR"
     # grouping is paygrade-driven
@@ -571,25 +650,26 @@ def test_rank_catalog_token_assembly():
     assert r.group_for(None, "E-2") == "Junior Enlisted"
     # reverse rating extraction for edit pre-fill
     assert r.rating_of("BMC", "E-7") == "BM"
-    assert r.rating_of("PO3", "E-4") is None      # non-rated token
+    assert r.rating_of("PO3", "E-4") is None  # non-rated token
 
 
 def test_e1_e3_apprenticeship_communities():
     from app.data import ranks as r
+
     # Rated strikers: rating + community letter + grade letter.
-    assert r.rate_token("E-3", "BM") == "BMSN"    # Seaman
-    assert r.rate_token("E-3", "EN") == "ENFN"    # Fireman (Engineman)
-    assert r.rate_token("E-2", "CM") == "CMCA"    # Constructionman
-    assert r.rate_token("E-1", "AD") == "ADAR"    # Airman
-    assert r.rate_token("E-3", "HM") == "HMHN"    # Hospitalman
-    assert r.rate_token("E-3", "MM") == "MMFN"    # Machinist's Mate -> Fireman
-    assert r.rate_token("E-2", "OS") == "OSSA"    # Operations Specialist -> Seaman
+    assert r.rate_token("E-3", "BM") == "BMSN"  # Seaman
+    assert r.rate_token("E-3", "EN") == "ENFN"  # Fireman (Engineman)
+    assert r.rate_token("E-2", "CM") == "CMCA"  # Constructionman
+    assert r.rate_token("E-1", "AD") == "ADAR"  # Airman
+    assert r.rate_token("E-3", "HM") == "HMHN"  # Hospitalman
+    assert r.rate_token("E-3", "MM") == "MMFN"  # Machinist's Mate -> Fireman
+    assert r.rate_token("E-2", "OS") == "OSSA"  # Operations Specialist -> Seaman
     # Undesignated (no rating): bare apprentice token by chosen community.
     assert r.rate_token("E-3", None, "fireman") == "FN"
     assert r.rate_token("E-2", None, "airman") == "AA"
     assert r.rate_token("E-1", None, "constructionman") == "CR"
     assert r.rate_token("E-3", None, "hospitalman") == "HN"
-    assert r.rate_token("E-3", None) == "SN"      # defaults to Seaman
+    assert r.rate_token("E-3", None) == "SN"  # defaults to Seaman
     # Community lookup from a rating.
     assert r.community_for_rating("EN") == "fireman"
     assert r.community_for_rating("CM") == "constructionman"
@@ -599,7 +679,7 @@ def test_e1_e3_apprenticeship_communities():
     # Reverse: extract rating + community from a stored E1-E3 token.
     assert r.rating_of("ENFN", "E-3") == "EN"
     assert r.rating_of("CMCA", "E-2") == "CM"
-    assert r.rating_of("FN", "E-3") is None        # undesignated -> no rating
+    assert r.rating_of("FN", "E-3") is None  # undesignated -> no rating
     assert r.community_of("FN", "E-3") == "fireman"
     assert r.community_of("ENFN", "E-3") == "fireman"
     assert r.community_of("CR", "E-1") == "constructionman"
@@ -607,20 +687,22 @@ def test_e1_e3_apprenticeship_communities():
 
 def test_create_person_e1e3_striker_and_undesignated(session):
     # Designated striker.
-    pid = run(session, C.create_person(
-        last_name="Reed", paygrade="E-3", rating="EN"))
+    pid = run(session, C.create_person(last_name="Reed", paygrade="E-3", rating="EN"))
     session.commit()
     assert session.get(M.Person, pid).full_display == "ENFN Reed"
     # Undesignated fireman recruit (community drives the token).
-    pid2 = run(session, C.create_person(
-        last_name="Poe", paygrade="E-1", community="fireman"))
+    pid2 = run(
+        session, C.create_person(last_name="Poe", paygrade="E-1", community="fireman")
+    )
     session.commit()
     assert session.get(M.Person, pid2).full_display == "FR Poe"
 
 
 def test_create_person_with_paygrade_and_rating(session):
-    pid = run(session, C.create_person(
-        last_name="Diaz", paygrade="E-5", rating="IT", position="LPO"))
+    pid = run(
+        session,
+        C.create_person(last_name="Diaz", paygrade="E-5", rating="IT", position="LPO"),
+    )
     session.commit()
     p = session.get(M.Person, pid)
     assert p.full_display == "IT2 Diaz"
@@ -631,8 +713,7 @@ def test_create_person_with_paygrade_and_rating(session):
 
 def test_create_person_officer_ignores_rating(session):
     # An officer paygrade yields the rank token; rating is irrelevant.
-    pid = run(session, C.create_person(
-        last_name="Cole", paygrade="O-3", rating=None))
+    pid = run(session, C.create_person(last_name="Cole", paygrade="O-3", rating=None))
     session.commit()
     p = session.get(M.Person, pid)
     assert p.full_display == "LT Cole"
@@ -641,12 +722,10 @@ def test_create_person_officer_ignores_rating(session):
 
 
 def test_update_person_changes_paygrade_token(session):
-    pid = run(session, C.create_person(
-        last_name="Frye", paygrade="E-4", rating="BM"))
+    pid = run(session, C.create_person(last_name="Frye", paygrade="E-4", rating="BM"))
     session.commit()
     # advance BM3 -> BM2
-    run(session, C.update_person(pid, last_name="Frye", paygrade="E-5",
-                                 rating="BM"))
+    run(session, C.update_person(pid, last_name="Frye", paygrade="E-5", rating="BM"))
     session.commit()
     p = session.get(M.Person, pid)
     assert p.full_display == "BM2 Frye"

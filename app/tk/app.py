@@ -60,14 +60,30 @@ class App(tk.Tk):
         self.bind("<Control-r>", lambda e: self.refresh_current())
 
     def _build_sidebar(self):
-        tk.Label(self.sidebar, text="Worklist\nTracker", bg=theme.SIDEBAR,
-                 fg="white", font=self.fonts.h2, justify="left",
-                 anchor="w", padx=18, pady=18).pack(fill="x")
+        tk.Label(
+            self.sidebar,
+            text="Worklist\nTracker",
+            bg=theme.SIDEBAR,
+            fg="white",
+            font=self.fonts.h2,
+            justify="left",
+            anchor="w",
+            padx=18,
+            pady=18,
+        ).pack(fill="x")
         self._nav_buttons = {}
         for key, label, _ in NAV:
-            btn = tk.Label(self.sidebar, text=label, bg=theme.SIDEBAR,
-                           fg="#c7d0e6", font=self.fonts.bold, anchor="w",
-                           padx=18, pady=11, cursor="hand2")
+            btn = tk.Label(
+                self.sidebar,
+                text=label,
+                bg=theme.SIDEBAR,
+                fg="#c7d0e6",
+                font=self.fonts.bold,
+                anchor="w",
+                padx=18,
+                pady=11,
+                cursor="hand2",
+            )
             btn.pack(fill="x")
             btn.bind("<Button-1>", lambda e, k=key: self.show(k))
             btn.bind("<Enter>", lambda e, b=btn, k=key: self._hover(b, k, True))
@@ -76,9 +92,15 @@ class App(tk.Tk):
 
         spacer = tk.Frame(self.sidebar, bg=theme.SIDEBAR)
         spacer.pack(fill="both", expand=True)
-        tk.Label(self.sidebar, text="Offline · local data",
-                 bg=theme.SIDEBAR, fg="#6b7595",
-                 font=self.fonts.small, padx=18, pady=10).pack(fill="x")
+        tk.Label(
+            self.sidebar,
+            text="Offline · local data",
+            bg=theme.SIDEBAR,
+            fg="#6b7595",
+            font=self.fonts.small,
+            padx=18,
+            pady=10,
+        ).pack(fill="x")
 
     def _hover(self, btn, key, entering):
         if key == self._current:

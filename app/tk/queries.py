@@ -144,13 +144,19 @@ def day_view(on_date: date):
         for inst in scheduled:
             assignments = [a for a in inst.assignments if a.active]
             assignees = [
-                (a.person.full_display if a.person else (a.external_poic_name or "(ext)"))
+                (
+                    a.person.full_display
+                    if a.person
+                    else (a.external_poic_name or "(ext)")
+                )
                 for a in assignments
             ]
             poic_label = None
             for a in assignments:
                 if a.is_poic:
-                    poic_label = a.person.full_display if a.person else a.external_poic_name
+                    poic_label = (
+                        a.person.full_display if a.person else a.external_poic_name
+                    )
                     break
             tasks.append(
                 dto.DayTaskDTO(
@@ -232,8 +238,11 @@ def home():
         rows = [_alert_dto(s, a) for a in alerts_service.active_alerts(s)]
         urgent = sum(1 for r in rows if r.severity in ("urgent", "critical", "danger"))
         warn = sum(1 for r in rows if r.severity in ("warn", "warning"))
-        info = sum(1 for r in rows if r.severity not in (
-            "urgent", "critical", "danger", "warn", "warning"))
+        info = sum(
+            1
+            for r in rows
+            if r.severity not in ("urgent", "critical", "danger", "warn", "warning")
+        )
         return dto.HomeDTO(
             day=day,
             current_worklist=current_wl,
@@ -264,7 +273,8 @@ def personnel_active():
             .order_by(M.Person.display_order)
         ).all()
         grouped: dict[str, list[dto.PersonRowDTO]] = {
-            g: [] for g in rank_catalog.GROUP_ORDER}
+            g: [] for g in rank_catalog.GROUP_ORDER
+        }
         for p in people:
             if _current_status(p) == "incoming":
                 continue
@@ -376,8 +386,10 @@ def person_profile(person_id: int):
         )
         dls = eff_rows(
             p.drivers_licenses,
-            lambda r: ("Licensed" if r.has_license else "No license")
-            + (f" · exp {r.expires_on.isoformat()}" if r.expires_on else ""),
+            lambda r: (
+                ("Licensed" if r.has_license else "No license")
+                + (f" · exp {r.expires_on.isoformat()}" if r.expires_on else "")
+            ),
         )
 
         qual_rows = list(
@@ -538,7 +550,8 @@ def absence_calendar(start: date, days: int = 28):
                 dto.CalendarRowDTO(
                     name=r.person.full_display,
                     cells=[
-                        dto.CalendarCellDTO(c.code, c.partial, c.reason) for c in r.cells
+                        dto.CalendarCellDTO(c.code, c.partial, c.reason)
+                        for c in r.cells
                     ],
                 )
                 for r in view.rows
@@ -709,6 +722,7 @@ def _grid_task(t) -> dto.GridTaskDTO:
 
 def week_grid(worklist_id: int, days: int = 5):
     """Print-ready person-row x day-column grid DTO for the landscape PDF."""
+
     def _q(s: Session) -> dto.WeekGridDTO | None:
         wl = s.get(M.Worklist, worklist_id)
         if wl is None:
@@ -735,31 +749,42 @@ def week_grid(worklist_id: int, days: int = 5):
                 span = None
                 if c.absence_start_time and c.absence_end_time:
                     span = f"{c.absence_start_time}–{c.absence_end_time}"
-                elif (c.absence_start_date and c.absence_end_date
-                      and c.absence_start_date != c.absence_end_date):
-                    span = (f"{c.absence_start_date.strftime('%m/%d').lstrip('0')}"
-                            f"–{c.absence_end_date.strftime('%m/%d').lstrip('0')}")
-                cells.append(dto.GridCellDTO(
-                    absence_code=c.absence_code,
-                    absence_partial=c.absence_partial,
-                    absence_span=span,
-                    absence_reason=c.absence_reason,
-                    tasks=[_grid_task(t) for t in c.tasks],
-                ))
-            rows.append(dto.GridRowDTO(
-                name=r.person.full_display,
-                duty_section=r.duty_section,
-                cells=cells,
-            ))
+                elif (
+                    c.absence_start_date
+                    and c.absence_end_date
+                    and c.absence_start_date != c.absence_end_date
+                ):
+                    span = (
+                        f"{c.absence_start_date.strftime('%m/%d').lstrip('0')}"
+                        f"–{c.absence_end_date.strftime('%m/%d').lstrip('0')}"
+                    )
+                cells.append(
+                    dto.GridCellDTO(
+                        absence_code=c.absence_code,
+                        absence_partial=c.absence_partial,
+                        absence_span=span,
+                        absence_reason=c.absence_reason,
+                        tasks=[_grid_task(t) for t in c.tasks],
+                    )
+                )
+            rows.append(
+                dto.GridRowDTO(
+                    name=r.person.full_display,
+                    duty_section=r.duty_section,
+                    cells=cells,
+                )
+            )
 
         unassigned = []
         for d, task_rows in grid.unassigned_by_day.items():
             if not task_rows:
                 continue
-            unassigned.append(dto.GridUnassignedDayDTO(
-                day_label=d.strftime("%a ") + d.strftime("%b ") + str(d.day),
-                tasks=[_grid_task(t) for t in task_rows],
-            ))
+            unassigned.append(
+                dto.GridUnassignedDayDTO(
+                    day_label=d.strftime("%a ") + d.strftime("%b ") + str(d.day),
+                    tasks=[_grid_task(t) for t in task_rows],
+                )
+            )
 
         locked_label = None
         if wl.locked:
@@ -819,6 +844,7 @@ def alerts_list(show: str = "active"):
 
 def person_current(person_id: int):
     """Current editable values for a person (raw, not labels)."""
+
     def _q(s: Session) -> dict | None:
         p = s.get(M.Person, person_id)
         if p is None:
@@ -857,6 +883,7 @@ def person_current(person_id: int):
 
 def absence_get(absence_id: int):
     """Current values for a single absence, for the edit form."""
+
     def _q(s: Session) -> dict | None:
         a = s.get(M.Absence, absence_id)
         if a is None:
@@ -880,6 +907,7 @@ def absence_get(absence_id: int):
 def task_get(task_id: int):
     """Current values for a single task instance, for the edit form, plus a
     rendered list of its active assignees."""
+
     def _q(s: Session) -> dict | None:
         inst = s.get(M.TaskInstance, task_id)
         if inst is None:
@@ -903,7 +931,8 @@ def task_get(task_id: int):
             "worklist_id": inst.worklist_id,
             "name": inst.name,
             "scheduled_date": inst.scheduled_date.isoformat()
-            if inst.scheduled_date else None,
+            if inst.scheduled_date
+            else None,
             "category_id": inst.category_id,
             "status": inst.status,
             "hours": inst.hours,
@@ -923,6 +952,7 @@ def task_get(task_id: int):
 def task_assignments(task_id: int):
     """Task header + its active assignments (id, name, is_poic) for the
     assignee-management dialog."""
+
     def _q(s: Session) -> dict | None:
         inst = s.get(M.TaskInstance, task_id)
         if inst is None:
@@ -940,7 +970,8 @@ def task_assignments(task_id: int):
         assignments = [
             {
                 "id": a.id,
-                "name": a.person.full_display if a.person
+                "name": a.person.full_display
+                if a.person
                 else (a.external_poic_name or "(external)"),
                 "is_poic": a.is_poic,
                 "is_person": a.person_id is not None,
@@ -965,6 +996,7 @@ def task_assignments(task_id: int):
 
 def qual_catalog():
     """All active qualifications with a usage rollup, for the catalog tab."""
+
     def _q(s: Session) -> list[dict]:
         quals = s.scalars(
             select(M.Qualification)
@@ -972,9 +1004,9 @@ def qual_catalog():
             .order_by(M.Qualification.display_order, M.Qualification.name)
         ).all()
         counts_rows = s.execute(
-            select(M.PersonQual.qual_id, M.PersonQual.status)
-            .where(M.PersonQual.valid_to.is_(None),
-                   M.PersonQual.active == True)  # noqa: E712
+            select(M.PersonQual.qual_id, M.PersonQual.status).where(
+                M.PersonQual.valid_to.is_(None), M.PersonQual.active.is_(True)
+            )
         ).all()
         counts: dict[int, dict[str, int]] = {}
         for qid, st in counts_rows:
@@ -982,15 +1014,17 @@ def qual_catalog():
         out = []
         for q in quals:
             c = counts.get(q.id, {})
-            out.append({
-                "id": q.id,
-                "name": q.name,
-                "qualified": c.get("qualified", 0),
-                "in_progress": c.get("in_progress", 0),
-                "assigned": c.get("assigned", 0),
-                "dinq": c.get("dinq", 0),
-                "validity_period_days": q.validity_period_days,
-            })
+            out.append(
+                {
+                    "id": q.id,
+                    "name": q.name,
+                    "qualified": c.get("qualified", 0),
+                    "in_progress": c.get("in_progress", 0),
+                    "assigned": c.get("assigned", 0),
+                    "dinq": c.get("dinq", 0),
+                    "validity_period_days": q.validity_period_days,
+                }
+            )
         return out
 
     return _q
@@ -1030,15 +1064,19 @@ def template_list():
 def template_get(template_id: int):
     """Raw template values + recurrence parts + required-qual ids, for the
     edit form."""
+
     def _q(s: Session) -> dict | None:
         t = s.get(M.TaskTemplate, template_id)
         if t is None:
             return None
         rule = t.recurrence_rule or {}
-        required = list(s.scalars(
-            select(M.TaskTemplateRequiredQual.qual_id)
-            .where(M.TaskTemplateRequiredQual.task_template_id == template_id)
-        ).all())
+        required = list(
+            s.scalars(
+                select(M.TaskTemplateRequiredQual.qual_id).where(
+                    M.TaskTemplateRequiredQual.task_template_id == template_id
+                )
+            ).all()
+        )
         return {
             "id": t.id,
             "name": t.name,
@@ -1082,20 +1120,24 @@ def carry_over_candidates(worklist_id: int):
         out = []
         for c in cands:
             assignees = [
-                a.person.full_display if a.person
+                a.person.full_display
+                if a.person
                 else (a.external_poic_name or "(external)")
                 for a in c.assignments
             ]
-            out.append({
-                "instance_id": c.instance.id,
-                "name": c.instance.name,
-                "status": c.instance.status,
-                "source_week": c.source_worklist.week_starting.isoformat()
-                if c.source_worklist else None,
-                "suggested": c.suggested_action,
-                "policy": c.template_policy,
-                "assignees": assignees,
-            })
+            out.append(
+                {
+                    "instance_id": c.instance.id,
+                    "name": c.instance.name,
+                    "status": c.instance.status,
+                    "source_week": c.source_worklist.week_starting.isoformat()
+                    if c.source_worklist
+                    else None,
+                    "suggested": c.suggested_action,
+                    "policy": c.template_policy,
+                    "assignees": assignees,
+                }
+            )
         return {"worklist_id": wl.id, "locked": False, "candidates": out}
 
     return _q

@@ -32,8 +32,7 @@ def run_write(parent, cmd, *, pii_texts=(), confirm=None, on_done=None):
         labels = "\n  • ".join(warnings)
         if not messagebox.askokcancel(
             "Sensitive information detected",
-            "This text looks like it may contain:\n  • " + labels
-            + "\n\nSave anyway?",
+            "This text looks like it may contain:\n  • " + labels + "\n\nSave anyway?",
             parent=parent,
         ):
             return None

@@ -113,40 +113,75 @@ def apply(root: tk.Tk) -> Fonts:
     style.configure("TLabel", background=BG, foreground=TEXT)
     style.configure("Card.TLabel", background=PANEL, foreground=TEXT)
     style.configure("Muted.TLabel", background=BG, foreground=MUTED, font=fonts.small)
-    style.configure("CardMuted.TLabel", background=PANEL, foreground=MUTED,
-                    font=fonts.small)
+    style.configure(
+        "CardMuted.TLabel", background=PANEL, foreground=MUTED, font=fonts.small
+    )
     style.configure("H1.TLabel", background=BG, foreground=TEXT, font=fonts.h1)
     style.configure("H2.TLabel", background=BG, foreground=TEXT, font=fonts.h2)
     style.configure("CardH2.TLabel", background=PANEL, foreground=TEXT, font=fonts.h2)
     style.configure("Stat.TLabel", background=PANEL, foreground=ACCENT, font=fonts.stat)
-    style.configure("StatCaption.TLabel", background=PANEL, foreground=MUTED,
-                    font=fonts.small)
+    style.configure(
+        "StatCaption.TLabel", background=PANEL, foreground=MUTED, font=fonts.small
+    )
 
-    style.configure("TButton", background=PANEL2, foreground=TEXT, padding=(10, 5),
-                    relief="flat", borderwidth=0)
-    style.map("TButton",
-              background=[("active", PANEL3), ("pressed", BORDER)])
-    style.configure("Accent.TButton", background=ACCENT, foreground="white",
-                    padding=(12, 6))
+    style.configure(
+        "TButton",
+        background=PANEL2,
+        foreground=TEXT,
+        padding=(10, 5),
+        relief="flat",
+        borderwidth=0,
+    )
+    style.map("TButton", background=[("active", PANEL3), ("pressed", BORDER)])
+    style.configure(
+        "Accent.TButton", background=ACCENT, foreground="white", padding=(12, 6)
+    )
     style.map("Accent.TButton", background=[("active", "#1c46c9")])
 
     # Treeview (used for dense tables and the qual matrix)
-    style.configure("Treeview",
-                    background=PANEL, fieldbackground=PANEL, foreground=TEXT,
-                    rowheight=26, borderwidth=0, font=fonts.body)
-    style.configure("Treeview.Heading", background=PANEL3, foreground=TEXT_DIM,
-                    font=fonts.bold, relief="flat", padding=(6, 4))
-    style.map("Treeview", background=[("selected", "#cdd9ff")],
-              foreground=[("selected", TEXT)])
+    style.configure(
+        "Treeview",
+        background=PANEL,
+        fieldbackground=PANEL,
+        foreground=TEXT,
+        rowheight=26,
+        borderwidth=0,
+        font=fonts.body,
+    )
+    style.configure(
+        "Treeview.Heading",
+        background=PANEL3,
+        foreground=TEXT_DIM,
+        font=fonts.bold,
+        relief="flat",
+        padding=(6, 4),
+    )
+    style.map(
+        "Treeview",
+        background=[("selected", "#cdd9ff")],
+        foreground=[("selected", TEXT)],
+    )
 
     style.configure("TNotebook", background=BG, borderwidth=0)
-    style.configure("TNotebook.Tab", background=PANEL2, foreground=TEXT_DIM,
-                    padding=(14, 7), font=fonts.bold)
-    style.map("TNotebook.Tab",
-              background=[("selected", PANEL)],
-              foreground=[("selected", ACCENT)])
+    style.configure(
+        "TNotebook.Tab",
+        background=PANEL2,
+        foreground=TEXT_DIM,
+        padding=(14, 7),
+        font=fonts.bold,
+    )
+    style.map(
+        "TNotebook.Tab",
+        background=[("selected", PANEL)],
+        foreground=[("selected", ACCENT)],
+    )
 
     style.configure("TEntry", fieldbackground=PANEL, foreground=TEXT, padding=4)
-    style.configure("Vertical.TScrollbar", background=PANEL2, troughcolor=BG,
-                    borderwidth=0, arrowsize=12)
+    style.configure(
+        "Vertical.TScrollbar",
+        background=PANEL2,
+        troughcolor=BG,
+        borderwidth=0,
+        arrowsize=12,
+    )
     return fonts

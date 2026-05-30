@@ -307,7 +307,7 @@ class GridTaskDTO:
 class GridCellDTO:
     absence_code: str | None
     absence_partial: bool
-    absence_span: str | None     # pre-rendered "0800-1200" or "6/1-6/3"
+    absence_span: str | None  # pre-rendered "0800-1200" or "6/1-6/3"
     absence_reason: str | None
     tasks: list[GridTaskDTO]
 
@@ -315,7 +315,7 @@ class GridCellDTO:
 @dataclass
 class GridHeaderDTO:
     weekday: str
-    date_label: str              # "Jun 1"
+    date_label: str  # "Jun 1"
     percent_present: float
     present_count: int
     out_count: int
@@ -331,7 +331,7 @@ class GridRowDTO:
 
 @dataclass
 class GridUnassignedDayDTO:
-    day_label: str               # "Mon Jun 1"
+    day_label: str  # "Mon Jun 1"
     tasks: list[GridTaskDTO]
 
 
@@ -340,7 +340,7 @@ class WeekGridDTO:
     worklist_name: str
     week_starting: date
     locked: bool
-    locked_label: str | None     # "Locked 2026-06-01 by Chief"
+    locked_label: str | None  # "Locked 2026-06-01 by Chief"
     amendment_label: str | None  # "Amendment v2 (reason)"
     headers: list[GridHeaderDTO]
     rows: list[GridRowDTO]

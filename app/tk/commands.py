@@ -31,8 +31,13 @@ ROSTER_STATUSES = ("active", "incoming", "departed")
 PRD_REASONS = ("initial", "extension", "correction")
 TASK_STATUSES = ("open", "in_progress", "done", "discarded", "carried")
 PERSON_QUAL_STATUSES = (
-    "not_assigned", "assigned", "in_progress", "qualified", "dinq",
-    "expired", "waived",
+    "not_assigned",
+    "assigned",
+    "in_progress",
+    "qualified",
+    "dinq",
+    "expired",
+    "waived",
 )
 CARRY_OVER_POLICIES = (
     ("auto_same_person", "Auto carry to same person (default)"),
@@ -100,8 +105,9 @@ def paygrade_choices() -> list[tuple[str, str]]:
 
 def rating_choices() -> list[tuple[str, str]]:
     """(rating, rating) for enlisted; a leading '(non-rated)' option."""
-    return ([(rank_catalog.NON_RATED_LABEL, rank_catalog.NON_RATED_LABEL)]
-            + [(r, r) for r in rank_catalog.RATINGS])
+    return [(rank_catalog.NON_RATED_LABEL, rank_catalog.NON_RATED_LABEL)] + [
+        (r, r) for r in rank_catalog.RATINGS
+    ]
 
 
 def community_choices() -> list[tuple[str, str]]:
@@ -124,6 +130,7 @@ def is_junior_enlisted(paygrade: str | None) -> bool:
 
 def absence_code_choices():
     """Return [(id, code)] for active absence codes."""
+
     def _q(s: Session):
         rows = s.scalars(
             select(M.AbsenceCode)
@@ -137,6 +144,7 @@ def absence_code_choices():
 
 def active_people_choices():
     """Return [(id, name)] for active personnel (for sponsor/person pickers)."""
+
     def _q(s: Session):
         rows = s.scalars(
             select(M.Person)
@@ -169,64 +177,119 @@ def _resolve_rate(paygrade=None, rating=None, rate=None, community=None):
     return None, None
 
 
-def create_person(*, last_name, first_name=None, paygrade=None, rating=None,
-                  community=None, rate=None, position=None, notes=None,
-                  duty_section=None,
-                  prd_date=None, has_drivers_license=False,
-                  drivers_license_expires=None, roster_status="active"):
+def create_person(
+    *,
+    last_name,
+    first_name=None,
+    paygrade=None,
+    rating=None,
+    community=None,
+    rate=None,
+    position=None,
+    notes=None,
+    duty_section=None,
+    prd_date=None,
+    has_drivers_license=False,
+    drivers_license_expires=None,
+    roster_status="active",
+):
     def _q(s: Session) -> int:
         today = date.today()
         rate_token, pg = _resolve_rate(paygrade, rating, rate, community)
         full_display = f"{rate_token} {last_name}".strip() if rate_token else last_name
-        last_pos = s.scalar(
-            select(M.Person.display_order)
-            .order_by(M.Person.display_order.desc()).limit(1)
-        ) or 0
+        last_pos = (
+            s.scalar(
+                select(M.Person.display_order)
+                .order_by(M.Person.display_order.desc())
+                .limit(1)
+            )
+            or 0
+        )
         p = M.Person(
-            last_name=last_name, first_name=first_name,
-            full_display=full_display.strip(), position=position, notes=notes,
+            last_name=last_name,
+            first_name=first_name,
+            full_display=full_display.strip(),
+            position=position,
+            notes=notes,
             display_order=last_pos + 1,
         )
         s.add(p)
         s.flush()
         if rate_token:
-            s.add(M.PersonRate(person_id=p.id, rate=rate_token,
-                               paygrade=pg, valid_from=today))
+            s.add(
+                M.PersonRate(
+                    person_id=p.id, rate=rate_token, paygrade=pg, valid_from=today
+                )
+            )
         if duty_section:
-            s.add(M.PersonDutySection(person_id=p.id,
-                                      duty_section=int(duty_section),
-                                      valid_from=today))
+            s.add(
+                M.PersonDutySection(
+                    person_id=p.id, duty_section=int(duty_section), valid_from=today
+                )
+            )
         if prd_date:
-            s.add(M.PersonPrd(person_id=p.id, prd_date=_parse_date(prd_date),
-                              change_reason="initial", valid_from=today))
-        s.add(M.PersonRosterStatus(person_id=p.id, status=roster_status,
-                                   valid_from=today))
-        s.add(M.PersonDriversLicense(
-            person_id=p.id, has_license=bool(has_drivers_license),
-            expires_on=_parse_date(drivers_license_expires), valid_from=today))
+            s.add(
+                M.PersonPrd(
+                    person_id=p.id,
+                    prd_date=_parse_date(prd_date),
+                    change_reason="initial",
+                    valid_from=today,
+                )
+            )
+        s.add(
+            M.PersonRosterStatus(person_id=p.id, status=roster_status, valid_from=today)
+        )
+        s.add(
+            M.PersonDriversLicense(
+                person_id=p.id,
+                has_license=bool(has_drivers_license),
+                expires_on=_parse_date(drivers_license_expires),
+                valid_from=today,
+            )
+        )
         s.flush()
         return p.id
 
     return _q
 
 
-def create_incoming(*, last_name, first_name=None, paygrade=None, rating=None,
-                    community=None, rate=None, notes=None, arrival_date=None,
-                    sponsor_person_id=None, orders_received=False,
-                    itinerary_received=False, aob_scheduled=False,
-                    barracks_assigned=False, position=None):
+def create_incoming(
+    *,
+    last_name,
+    first_name=None,
+    paygrade=None,
+    rating=None,
+    community=None,
+    rate=None,
+    notes=None,
+    arrival_date=None,
+    sponsor_person_id=None,
+    orders_received=False,
+    itinerary_received=False,
+    aob_scheduled=False,
+    barracks_assigned=False,
+    position=None,
+):
     def _q(s: Session) -> int:
         today = date.today()
         rate_token, pg = _resolve_rate(paygrade, rating, rate, community)
         full_display = f"{rate_token} {last_name}".strip() if rate_token else last_name
-        last_pos = s.scalar(
-            select(M.Person.display_order)
-            .order_by(M.Person.display_order.desc()).limit(1)
-        ) or 0
+        last_pos = (
+            s.scalar(
+                select(M.Person.display_order)
+                .order_by(M.Person.display_order.desc())
+                .limit(1)
+            )
+            or 0
+        )
         p = M.Person(
-            last_name=last_name, first_name=first_name,
-            full_display=full_display.strip(), notes=notes, position=position,
-            display_order=last_pos + 1, arrival_date=_parse_date(arrival_date),
+            last_name=last_name,
+            first_name=first_name,
+            full_display=full_display.strip(),
+            notes=notes,
+            position=position,
+            display_order=last_pos + 1,
+            arrival_date=_parse_date(arrival_date),
             sponsor_person_id=int(sponsor_person_id) if sponsor_person_id else None,
             orders_received=bool(orders_received),
             itinerary_received=bool(itinerary_received),
@@ -236,22 +299,37 @@ def create_incoming(*, last_name, first_name=None, paygrade=None, rating=None,
         s.add(p)
         s.flush()
         if rate_token:
-            s.add(M.PersonRate(person_id=p.id, rate=rate_token,
-                               paygrade=pg, valid_from=today))
-        s.add(M.PersonRosterStatus(person_id=p.id, status="incoming",
-                                   valid_from=today))
+            s.add(
+                M.PersonRate(
+                    person_id=p.id, rate=rate_token, paygrade=pg, valid_from=today
+                )
+            )
+        s.add(M.PersonRosterStatus(person_id=p.id, status="incoming", valid_from=today))
         s.flush()
         return p.id
 
     return _q
 
 
-def update_person(person_id, *, last_name, first_name=None, paygrade=None,
-                  rating=None, community=None, rate=None, position=None,
-                  notes=None,
-                  duty_section=None, prd_date=None, prd_reason="correction",
-                  has_drivers_license=False, drivers_license_expires=None,
-                  roster_status="active", effective_date=None):
+def update_person(
+    person_id,
+    *,
+    last_name,
+    first_name=None,
+    paygrade=None,
+    rating=None,
+    community=None,
+    rate=None,
+    position=None,
+    notes=None,
+    duty_section=None,
+    prd_date=None,
+    prd_reason="correction",
+    has_drivers_license=False,
+    drivers_license_expires=None,
+    roster_status="active",
+    effective_date=None,
+):
     def _q(s: Session) -> int | None:
         p = s.get(M.Person, person_id)
         if not p:
@@ -262,40 +340,70 @@ def update_person(person_id, *, last_name, first_name=None, paygrade=None,
         p.first_name = first_name
         p.position = position
         p.notes = notes
-        p.full_display = (f"{rate_token} {last_name}".strip()
-                          if rate_token else last_name)
+        p.full_display = (
+            f"{rate_token} {last_name}".strip() if rate_token else last_name
+        )
         if rate_token:
             eff.set_new_value(
-                s, M.PersonRate, person_id=p.id, effective_date=eff_date,
+                s,
+                M.PersonRate,
+                person_id=p.id,
+                effective_date=eff_date,
                 fields={"rate": rate_token, "paygrade": pg},
-                no_op_if_unchanged=("rate", "paygrade"))
+                no_op_if_unchanged=("rate", "paygrade"),
+            )
         if duty_section:
             eff.set_new_value(
-                s, M.PersonDutySection, person_id=p.id, effective_date=eff_date,
+                s,
+                M.PersonDutySection,
+                person_id=p.id,
+                effective_date=eff_date,
                 fields={"duty_section": int(duty_section)},
-                no_op_if_unchanged=("duty_section",))
+                no_op_if_unchanged=("duty_section",),
+            )
         if prd_date:
             eff.set_new_value(
-                s, M.PersonPrd, person_id=p.id, effective_date=eff_date,
-                fields={"prd_date": _parse_date(prd_date),
-                        "change_reason": prd_reason},
-                no_op_if_unchanged=("prd_date",))
+                s,
+                M.PersonPrd,
+                person_id=p.id,
+                effective_date=eff_date,
+                fields={"prd_date": _parse_date(prd_date), "change_reason": prd_reason},
+                no_op_if_unchanged=("prd_date",),
+            )
         eff.set_new_value(
-            s, M.PersonRosterStatus, person_id=p.id, effective_date=eff_date,
-            fields={"status": roster_status}, no_op_if_unchanged=("status",))
+            s,
+            M.PersonRosterStatus,
+            person_id=p.id,
+            effective_date=eff_date,
+            fields={"status": roster_status},
+            no_op_if_unchanged=("status",),
+        )
         eff.set_new_value(
-            s, M.PersonDriversLicense, person_id=p.id, effective_date=eff_date,
-            fields={"has_license": bool(has_drivers_license),
-                    "expires_on": _parse_date(drivers_license_expires)},
-            no_op_if_unchanged=("has_license", "expires_on"))
+            s,
+            M.PersonDriversLicense,
+            person_id=p.id,
+            effective_date=eff_date,
+            fields={
+                "has_license": bool(has_drivers_license),
+                "expires_on": _parse_date(drivers_license_expires),
+            },
+            no_op_if_unchanged=("has_license", "expires_on"),
+        )
         return p.id
 
     return _q
 
 
-def update_checklist(person_id, *, orders_received, itinerary_received,
-                     aob_scheduled, barracks_assigned, arrival_date=None,
-                     sponsor_person_id=None):
+def update_checklist(
+    person_id,
+    *,
+    orders_received,
+    itinerary_received,
+    aob_scheduled,
+    barracks_assigned,
+    arrival_date=None,
+    sponsor_person_id=None,
+):
     def _q(s: Session) -> int | None:
         p = s.get(M.Person, person_id)
         if not p:
@@ -318,8 +426,13 @@ def mark_arrived(person_id):
         if not p:
             return None
         eff.set_new_value(
-            s, M.PersonRosterStatus, person_id=p.id, effective_date=date.today(),
-            fields={"status": "active"}, no_op_if_unchanged=("status",))
+            s,
+            M.PersonRosterStatus,
+            person_id=p.id,
+            effective_date=date.today(),
+            fields={"status": "active"},
+            no_op_if_unchanged=("status",),
+        )
         return p.id
 
     return _q
@@ -334,8 +447,13 @@ def archive_person(person_id, reason=""):
         p.archived_at = datetime.now()
         p.archived_reason = reason or None
         eff.set_new_value(
-            s, M.PersonRosterStatus, person_id=p.id, effective_date=date.today(),
-            fields={"status": "departed"}, no_op_if_unchanged=("status",))
+            s,
+            M.PersonRosterStatus,
+            person_id=p.id,
+            effective_date=date.today(),
+            fields={"status": "departed"},
+            no_op_if_unchanged=("status",),
+        )
         return p.id
 
     return _q
@@ -351,19 +469,37 @@ class ValidationError(Exception):
     surfaces the message rather than the generic error boundary."""
 
 
-def create_absence(*, person_id, code_id, start_date, end_date,
-                   start_time=None, end_time=None, reason=None, notes=None):
+def create_absence(
+    *,
+    person_id,
+    code_id,
+    start_date,
+    end_date,
+    start_time=None,
+    end_time=None,
+    reason=None,
+    notes=None,
+):
     def _q(s: Session) -> int:
-        if not s.get(M.Person, int(person_id)) or not s.get(M.AbsenceCode, int(code_id)):
+        if not s.get(M.Person, int(person_id)) or not s.get(
+            M.AbsenceCode, int(code_id)
+        ):
             raise ValidationError("person or absence code not found")
         sd, ed = _parse_date(start_date), _parse_date(end_date)
         if sd is None or ed is None:
             raise ValidationError("start and end dates are required (YYYY-MM-DD)")
         if ed < sd:
             raise ValidationError("end date precedes start date")
-        a = M.Absence(person_id=int(person_id), code_id=int(code_id),
-                      start_date=sd, end_date=ed, start_time=_parse_time(start_time),
-                      end_time=_parse_time(end_time), reason=reason, notes=notes)
+        a = M.Absence(
+            person_id=int(person_id),
+            code_id=int(code_id),
+            start_date=sd,
+            end_date=ed,
+            start_time=_parse_time(start_time),
+            end_time=_parse_time(end_time),
+            reason=reason,
+            notes=notes,
+        )
         s.add(a)
         s.flush()
         return a.id
@@ -371,8 +507,17 @@ def create_absence(*, person_id, code_id, start_date, end_date,
     return _q
 
 
-def update_absence(absence_id, *, code_id, start_date, end_date,
-                   start_time=None, end_time=None, reason=None, notes=None):
+def update_absence(
+    absence_id,
+    *,
+    code_id,
+    start_date,
+    end_date,
+    start_time=None,
+    end_time=None,
+    reason=None,
+    notes=None,
+):
     def _q(s: Session) -> int | None:
         a = s.get(M.Absence, absence_id)
         if not a:
@@ -461,10 +606,17 @@ def extend_prd(alert_id, *, new_date=None, days=None):
             base = cur.prd_date if cur else date.today()
             new_prd = base + timedelta(days=d)
         eff.set_new_value(
-            s, M.PersonPrd, person_id=a.person_id, effective_date=date.today(),
-            fields={"prd_date": new_prd, "change_reason": "extension",
-                    "note": f"Updated from alert #{alert_id}"},
-            no_op_if_unchanged=("prd_date",))
+            s,
+            M.PersonPrd,
+            person_id=a.person_id,
+            effective_date=date.today(),
+            fields={
+                "prd_date": new_prd,
+                "change_reason": "extension",
+                "note": f"Updated from alert #{alert_id}",
+            },
+            no_op_if_unchanged=("prd_date",),
+        )
         a.resolved_at = datetime.now()
         a.notes = (a.notes or "") + f"\nDeparture date updated to {new_prd.isoformat()}"
         s.flush()
@@ -485,8 +637,13 @@ def archive_person_from_alert(alert_id, reason="Departure date passed"):
         p.archived_at = datetime.now()
         p.archived_reason = reason
         eff.set_new_value(
-            s, M.PersonRosterStatus, person_id=p.id, effective_date=date.today(),
-            fields={"status": "departed"}, no_op_if_unchanged=("status",))
+            s,
+            M.PersonRosterStatus,
+            person_id=p.id,
+            effective_date=date.today(),
+            fields={"status": "departed"},
+            no_op_if_unchanged=("status",),
+        )
         a.resolved_at = datetime.now()
         a.notes = (a.notes or "") + f"\nPersonnel archived: {reason}"
         s.flush()
@@ -520,7 +677,7 @@ def _monday_of(d: date) -> date:
 
 
 def _name_for(week_starting: date) -> str:
-    """"Week N Month YYYY" label, matching the route helper exactly."""
+    """ "Week N Month YYYY" label, matching the route helper exactly."""
     first = week_starting.replace(day=1)
     first_monday = (
         _monday_of(first)
@@ -538,6 +695,7 @@ def create_worklist(week_starting):
     Monday it's returned unchanged (matching the route's idempotent create
     -> setup behaviour). Snaps any in-week date to its Monday.
     """
+
     def _q(s: Session) -> int:
         monday = _parse_date(week_starting)
         if monday is None:
@@ -564,6 +722,7 @@ def create_worklist(week_starting):
 
 def generate_worklist_tasks(worklist_id):
     """(Re)generate recurring-template tasks for an existing worklist."""
+
     def _q(s: Session) -> int | None:
         wl = s.get(M.Worklist, worklist_id)
         if not wl:
@@ -581,15 +740,24 @@ def generate_worklist_tasks(worklist_id):
 # --------------------------------------------------------------------------
 
 
-def create_task(worklist_id, *, name, scheduled_date=None, category_id=None,
-                description=None, person_ids=(), poic_person_id=None,
-                external_poic_name=None):
+def create_task(
+    worklist_id,
+    *,
+    name,
+    scheduled_date=None,
+    category_id=None,
+    description=None,
+    person_ids=(),
+    poic_person_id=None,
+    external_poic_name=None,
+):
     """Create a TaskInstance under a worklist and attach assignees.
 
     Mirrors the route's POIC defaulting: a single assignee, or the first of
     several, becomes the lead when none is chosen explicitly and there's no
     external lead.
     """
+
     def _q(s: Session) -> int:
         wl = s.get(M.Worklist, worklist_id)
         if wl is None:
@@ -615,20 +783,34 @@ def create_task(worklist_id, *, name, scheduled_date=None, category_id=None,
         if pids and poic is None and not ext:
             poic = pids[0]
         for pid in pids:
-            s.add(M.TaskAssignment(instance_id=inst.id, person_id=pid,
-                                   is_poic=(pid == poic)))
+            s.add(
+                M.TaskAssignment(
+                    instance_id=inst.id, person_id=pid, is_poic=(pid == poic)
+                )
+            )
         if ext:
-            s.add(M.TaskAssignment(instance_id=inst.id, external_poic_name=ext,
-                                   is_poic=True))
+            s.add(
+                M.TaskAssignment(
+                    instance_id=inst.id, external_poic_name=ext, is_poic=True
+                )
+            )
         s.flush()
         return inst.id
 
     return _q
 
 
-def update_task(task_id, *, name, scheduled_date=None, category_id=None,
-                status="open", hours=None, description=None,
-                completion_notes=None):
+def update_task(
+    task_id,
+    *,
+    name,
+    scheduled_date=None,
+    category_id=None,
+    status="open",
+    hours=None,
+    description=None,
+    completion_notes=None,
+):
     def _q(s: Session) -> int | None:
         inst = s.get(M.TaskInstance, task_id)
         if not inst:
@@ -673,6 +855,7 @@ def archive_task(task_id, reason=""):
 
 def task_categories_choices():
     """Return [(id, name)] for active task categories."""
+
     def _q(s: Session):
         rows = s.scalars(
             select(M.TaskCategory)
@@ -708,15 +891,18 @@ def qual_choices(exclude_person_id: int | None = None):
     If ``exclude_person_id`` is given, quals the person already holds a
     current row for are dropped, so the assign form only offers new ones.
     """
+
     def _q(s: Session):
         held: set[int] = set()
         if exclude_person_id is not None:
-            held = set(s.scalars(
-                select(M.PersonQual.qual_id).where(
-                    M.PersonQual.person_id == exclude_person_id,
-                    M.PersonQual.valid_to.is_(None),
-                )
-            ).all())
+            held = set(
+                s.scalars(
+                    select(M.PersonQual.qual_id).where(
+                        M.PersonQual.person_id == exclude_person_id,
+                        M.PersonQual.valid_to.is_(None),
+                    )
+                ).all()
+            )
         rows = s.scalars(
             select(M.Qualification)
             .where(M.Qualification.active == True)  # noqa: E712
@@ -727,8 +913,15 @@ def qual_choices(exclude_person_id: int | None = None):
     return _q
 
 
-def assign_quals(person_id, *, qual_ids, status="assigned", started_at=None,
-                 achieved_at=None, notes=None):
+def assign_quals(
+    person_id,
+    *,
+    qual_ids,
+    status="assigned",
+    started_at=None,
+    achieved_at=None,
+    notes=None,
+):
     """Bulk-assign one or more qualifications to a person.
 
     ``status`` / ``started_at`` / ``achieved_at`` / ``notes`` apply to every
@@ -736,6 +929,7 @@ def assign_quals(person_id, *, qual_ids, status="assigned", started_at=None,
     ``validity_period_days`` when an achieved date is given, matching the
     route. Returns the count created.
     """
+
     def _q(s: Session) -> int:
         p = s.get(M.Person, person_id)
         if not p:
@@ -754,10 +948,18 @@ def assign_quals(person_id, *, qual_ids, status="assigned", started_at=None,
             expires_dt = None
             if achieved_dt and q.validity_period_days:
                 expires_dt = achieved_dt + timedelta(days=q.validity_period_days)
-            s.add(M.PersonQual(
-                person_id=p.id, qual_id=q.id, status=status,
-                started_at=started_dt, achieved_at=achieved_dt,
-                expires_at=expires_dt, notes=notes or None, valid_from=today))
+            s.add(
+                M.PersonQual(
+                    person_id=p.id,
+                    qual_id=q.id,
+                    status=status,
+                    started_at=started_dt,
+                    achieved_at=achieved_dt,
+                    expires_at=expires_dt,
+                    notes=notes or None,
+                    valid_from=today,
+                )
+            )
             created += 1
         # Flush inside the tenant context so the org_id autofill listener
         # populates org_id before the (possibly out-of-context) commit.
@@ -767,11 +969,20 @@ def assign_quals(person_id, *, qual_ids, status="assigned", started_at=None,
     return _q
 
 
-def update_person_qual(person_id, pq_id, *, status, started_at=None,
-                       achieved_at=None, notes=None, effective_date=None):
+def update_person_qual(
+    person_id,
+    pq_id,
+    *,
+    status,
+    started_at=None,
+    achieved_at=None,
+    notes=None,
+    effective_date=None,
+):
     """Change a current person-qual: close the active row and append a new
     one capturing the change (the effective-dated audit pattern the route
     uses). Refuses to edit a historical row."""
+
     def _q(s: Session) -> int | None:
         pq = s.get(M.PersonQual, pq_id)
         if not pq or pq.person_id != person_id:
@@ -786,10 +997,18 @@ def update_person_qual(person_id, pq_id, *, status, started_at=None,
         if achieved_dt and q and q.validity_period_days:
             expires_dt = achieved_dt + timedelta(days=q.validity_period_days)
         pq.valid_to = eff_date
-        s.add(M.PersonQual(
-            person_id=person_id, qual_id=pq.qual_id, status=status,
-            started_at=started_dt, achieved_at=achieved_dt,
-            expires_at=expires_dt, notes=notes or None, valid_from=eff_date))
+        s.add(
+            M.PersonQual(
+                person_id=person_id,
+                qual_id=pq.qual_id,
+                status=status,
+                started_at=started_dt,
+                achieved_at=achieved_dt,
+                expires_at=expires_dt,
+                notes=notes or None,
+                valid_from=eff_date,
+            )
+        )
         s.flush()
         return person_id
 
@@ -804,14 +1023,19 @@ def update_person_qual(person_id, pq_id, *, status, started_at=None,
 def create_qual(name):
     """Add a qualification to the catalog. The web UI only exposes the
     name; other fields (code/category/validity) stay null as there."""
+
     def _q(s: Session) -> int:
         clean = (name or "").strip()
         if not clean:
             raise ValidationError("a name is required")
-        last_pos = s.scalar(
-            select(M.Qualification.display_order)
-            .order_by(M.Qualification.display_order.desc()).limit(1)
-        ) or 0
+        last_pos = (
+            s.scalar(
+                select(M.Qualification.display_order)
+                .order_by(M.Qualification.display_order.desc())
+                .limit(1)
+            )
+            or 0
+        )
         q = M.Qualification(name=clean, display_order=last_pos + 1)
         s.add(q)
         s.flush()
@@ -858,10 +1082,10 @@ def _ensure_task_unlocked(s: Session, inst: M.TaskInstance) -> None:
         raise ValidationError("worklist is locked; amend it before editing tasks")
 
 
-def add_assignment(task_id, *, person_id=None, external_poic_name=None,
-                   is_poic=False):
+def add_assignment(task_id, *, person_id=None, external_poic_name=None, is_poic=False):
     """Attach a person (or an off-roster lead) to a task. Setting POIC
     demotes any current lead, matching the route."""
+
     def _q(s: Session) -> int | None:
         inst = s.get(M.TaskInstance, task_id)
         if not inst:
@@ -871,15 +1095,22 @@ def add_assignment(task_id, *, person_id=None, external_poic_name=None,
         if not person_id and not ext:
             raise ValidationError("pick a person or enter an off-roster lead name")
         if is_poic:
-            for a in s.scalars(select(M.TaskAssignment).where(
-                M.TaskAssignment.instance_id == inst.id,
-                M.TaskAssignment.is_poic == True,  # noqa: E712
-                M.TaskAssignment.active == True,  # noqa: E712
-            )).all():
+            for a in s.scalars(
+                select(M.TaskAssignment).where(
+                    M.TaskAssignment.instance_id == inst.id,
+                    M.TaskAssignment.is_poic == True,  # noqa: E712
+                    M.TaskAssignment.active == True,  # noqa: E712
+                )
+            ).all():
                 a.is_poic = False
-        s.add(M.TaskAssignment(
-            instance_id=inst.id, person_id=int(person_id) if person_id else None,
-            external_poic_name=ext, is_poic=bool(is_poic)))
+        s.add(
+            M.TaskAssignment(
+                instance_id=inst.id,
+                person_id=int(person_id) if person_id else None,
+                external_poic_name=ext,
+                is_poic=bool(is_poic),
+            )
+        )
         s.flush()
         return inst.id
 
@@ -888,17 +1119,20 @@ def add_assignment(task_id, *, person_id=None, external_poic_name=None,
 
 def set_assignment_poic(task_id, assignment_id):
     """Make one assignment the lead, demoting the rest."""
+
     def _q(s: Session) -> int | None:
         a = s.get(M.TaskAssignment, assignment_id)
         if not a or a.instance_id != task_id:
             return None
         inst = s.get(M.TaskInstance, task_id)
         _ensure_task_unlocked(s, inst)
-        for other in s.scalars(select(M.TaskAssignment).where(
-            M.TaskAssignment.instance_id == task_id,
-            M.TaskAssignment.is_poic == True,  # noqa: E712
-            M.TaskAssignment.active == True,  # noqa: E712
-        )).all():
+        for other in s.scalars(
+            select(M.TaskAssignment).where(
+                M.TaskAssignment.instance_id == task_id,
+                M.TaskAssignment.is_poic == True,  # noqa: E712
+                M.TaskAssignment.active == True,  # noqa: E712
+            )
+        ).all():
             other.is_poic = False
         a.is_poic = True
         return task_id
@@ -925,8 +1159,9 @@ def remove_assignment(task_id, assignment_id):
 # --------------------------------------------------------------------------
 
 
-def _build_recurrence(kind, *, weekdays=None, n=None, weekday=None, day=None,
-                      anchor=None) -> dict | None:
+def _build_recurrence(
+    kind, *, weekdays=None, n=None, weekday=None, day=None, anchor=None
+) -> dict | None:
     kind = (kind or "none").strip()
     if kind in ("none", ""):
         return None
@@ -935,21 +1170,38 @@ def _build_recurrence(kind, *, weekdays=None, n=None, weekday=None, day=None,
     if kind == "weekdays":
         return {"kind": "weekdays", "weekdays": [int(x) for x in (weekdays or [])]}
     if kind == "every_n_weeks":
-        return {"kind": "every_n_weeks", "n": int(n or 2),
-                "weekday": int(weekday or 0), "anchor": anchor or None}
+        return {
+            "kind": "every_n_weeks",
+            "n": int(n or 2),
+            "weekday": int(weekday or 0),
+            "anchor": anchor or None,
+        }
     if kind == "monthly_date":
         return {"kind": "monthly_date", "day": int(day or 1)}
     if kind == "monthly_nth_weekday":
-        return {"kind": "monthly_nth_weekday", "n": int(n or 1),
-                "weekday": int(weekday or 0)}
+        return {
+            "kind": "monthly_nth_weekday",
+            "n": int(n or 1),
+            "weekday": int(weekday or 0),
+        }
     return None
 
 
-def create_template(*, name, category_id=None, description=None,
-                    estimated_hours=None, carry_over_policy="auto_same_person",
-                    recurrence=None, required_drivers_license=False,
-                    required_duty_section=None, required_quals=(), notes=None,
-                    splittable=False, reassignable=True):
+def create_template(
+    *,
+    name,
+    category_id=None,
+    description=None,
+    estimated_hours=None,
+    carry_over_policy="auto_same_person",
+    recurrence=None,
+    required_drivers_license=False,
+    required_duty_section=None,
+    required_quals=(),
+    notes=None,
+    splittable=False,
+    reassignable=True,
+):
     def _q(s: Session) -> int:
         clean = (name or "").strip()
         if not clean:
@@ -958,32 +1210,47 @@ def create_template(*, name, category_id=None, description=None,
             name=clean[:240],
             category_id=int(category_id) if category_id else None,
             description=description or None,
-            estimated_hours=float(estimated_hours) if estimated_hours not in
-            (None, "") else None,
+            estimated_hours=float(estimated_hours)
+            if estimated_hours not in (None, "")
+            else None,
             splittable=bool(splittable),
             reassignable=bool(reassignable),
             carry_over_policy=carry_over_policy or "auto_same_person",
             recurrence_rule=recurrence,
             required_drivers_license=bool(required_drivers_license),
             required_duty_section=int(required_duty_section)
-            if required_duty_section else None,
-            notes=notes or None)
+            if required_duty_section
+            else None,
+            notes=notes or None,
+        )
         s.add(tmpl)
         s.flush()
         for qid in required_quals or []:
-            s.add(M.TaskTemplateRequiredQual(task_template_id=tmpl.id,
-                                             qual_id=int(qid)))
+            s.add(
+                M.TaskTemplateRequiredQual(task_template_id=tmpl.id, qual_id=int(qid))
+            )
         s.flush()
         return tmpl.id
 
     return _q
 
 
-def update_template(template_id, *, name, category_id=None, description=None,
-                    estimated_hours=None, carry_over_policy="auto_same_person",
-                    recurrence=None, required_drivers_license=False,
-                    required_duty_section=None, required_quals=(), notes=None,
-                    splittable=False, reassignable=True):
+def update_template(
+    template_id,
+    *,
+    name,
+    category_id=None,
+    description=None,
+    estimated_hours=None,
+    carry_over_policy="auto_same_person",
+    recurrence=None,
+    required_drivers_license=False,
+    required_duty_section=None,
+    required_quals=(),
+    notes=None,
+    splittable=False,
+    reassignable=True,
+):
     def _q(s: Session) -> int | None:
         tmpl = s.get(M.TaskTemplate, template_id)
         if not tmpl:
@@ -994,21 +1261,25 @@ def update_template(template_id, *, name, category_id=None, description=None,
         tmpl.name = clean[:240]
         tmpl.category_id = int(category_id) if category_id else None
         tmpl.description = description or None
-        tmpl.estimated_hours = (float(estimated_hours)
-                                if estimated_hours not in (None, "") else None)
+        tmpl.estimated_hours = (
+            float(estimated_hours) if estimated_hours not in (None, "") else None
+        )
         tmpl.splittable = bool(splittable)
         tmpl.reassignable = bool(reassignable)
         tmpl.carry_over_policy = carry_over_policy or "auto_same_person"
         tmpl.recurrence_rule = recurrence
         tmpl.required_drivers_license = bool(required_drivers_license)
-        tmpl.required_duty_section = (int(required_duty_section)
-                                      if required_duty_section else None)
+        tmpl.required_duty_section = (
+            int(required_duty_section) if required_duty_section else None
+        )
         tmpl.notes = notes or None
         s.query(M.TaskTemplateRequiredQual).filter(
-            M.TaskTemplateRequiredQual.task_template_id == template_id).delete()
+            M.TaskTemplateRequiredQual.task_template_id == template_id
+        ).delete()
         for qid in required_quals or []:
-            s.add(M.TaskTemplateRequiredQual(task_template_id=tmpl.id,
-                                             qual_id=int(qid)))
+            s.add(
+                M.TaskTemplateRequiredQual(task_template_id=tmpl.id, qual_id=int(qid))
+            )
         s.flush()
         return tmpl.id
 
@@ -1054,6 +1325,7 @@ def update_worklist(worklist_id, *, name, notes=None):
 def amend_worklist(worklist_id, *, amendment_reason, operator_name=None):
     """Clone a locked worklist into a new editable version, duplicating its
     tasks + assignments. Returns the new worklist id."""
+
     def _q(s: Session) -> int:
         parent = s.get(M.Worklist, worklist_id)
         if not parent:
@@ -1063,43 +1335,72 @@ def amend_worklist(worklist_id, *, amendment_reason, operator_name=None):
         reason = (amendment_reason or "").strip()
         if not reason:
             raise ValidationError("an amendment reason is required")
-        sibling_version = s.scalar(
-            select(M.Worklist.version)
-            .where((M.Worklist.id == parent.id) |
-                   (M.Worklist.parent_id == parent.id))
-            .order_by(M.Worklist.version.desc()).limit(1)) or 1
+        sibling_version = (
+            s.scalar(
+                select(M.Worklist.version)
+                .where(
+                    (M.Worklist.id == parent.id) | (M.Worklist.parent_id == parent.id)
+                )
+                .order_by(M.Worklist.version.desc())
+                .limit(1)
+            )
+            or 1
+        )
         clone = M.Worklist(
-            week_starting=parent.week_starting, name=parent.name,
-            version=sibling_version + 1, parent_id=parent.id, notes=parent.notes,
-            amended_at=datetime.now(), amendment_reason=reason,
-            operator_name=(operator_name or None) and operator_name.strip())
+            week_starting=parent.week_starting,
+            name=parent.name,
+            version=sibling_version + 1,
+            parent_id=parent.id,
+            notes=parent.notes,
+            amended_at=datetime.now(),
+            amendment_reason=reason,
+            operator_name=(operator_name or None) and operator_name.strip(),
+        )
         s.add(clone)
         s.flush()
         from sqlalchemy.orm import selectinload
+
         instances = s.scalars(
-            select(M.TaskInstance).where(
+            select(M.TaskInstance)
+            .where(
                 M.TaskInstance.worklist_id == parent.id,
                 M.TaskInstance.active == True,  # noqa: E712
-            ).options(selectinload(M.TaskInstance.assignments))).all()
+            )
+            .options(selectinload(M.TaskInstance.assignments))
+        ).all()
         for inst in instances:
             new_inst = M.TaskInstance(
-                template_id=inst.template_id, worklist_id=clone.id,
-                scheduled_date=inst.scheduled_date, category_id=inst.category_id,
-                name=inst.name, description=inst.description, status=inst.status,
-                hours=inst.hours, notes=inst.notes,
+                template_id=inst.template_id,
+                worklist_id=clone.id,
+                scheduled_date=inst.scheduled_date,
+                category_id=inst.category_id,
+                name=inst.name,
+                description=inst.description,
+                status=inst.status,
+                hours=inst.hours,
+                notes=inst.notes,
                 completion_notes=inst.completion_notes,
-                completed_at=inst.completed_at, carried_from_instance_id=inst.id,
-                display_order=inst.display_order)
+                completed_at=inst.completed_at,
+                carried_from_instance_id=inst.id,
+                display_order=inst.display_order,
+            )
             s.add(new_inst)
             s.flush()
             for a in inst.assignments:
                 if not a.active:
                     continue
-                s.add(M.TaskAssignment(
-                    instance_id=new_inst.id, person_id=a.person_id,
-                    is_poic=a.is_poic, external_poic_name=a.external_poic_name,
-                    completed=a.completed, completion_notes=a.completion_notes,
-                    hours_worked=a.hours_worked, display_order=a.display_order))
+                s.add(
+                    M.TaskAssignment(
+                        instance_id=new_inst.id,
+                        person_id=a.person_id,
+                        is_poic=a.is_poic,
+                        external_poic_name=a.external_poic_name,
+                        completed=a.completed,
+                        completion_notes=a.completion_notes,
+                        hours_worked=a.hours_worked,
+                        display_order=a.display_order,
+                    )
+                )
         s.flush()
         return clone.id
 
@@ -1126,6 +1427,7 @@ def apply_carry_overs(worklist_id, decisions):
     poic_person_id=...). Actions: carry | reassign | complete | discard |
     leave. Returns the count of decisions acted on.
     """
+
     def _q(s: Session) -> int:
         wl = s.get(M.Worklist, worklist_id)
         if not wl:
@@ -1141,9 +1443,13 @@ def apply_carry_overs(worklist_id, decisions):
             action = decision.get("action", "leave")
             if action == "reassign":
                 apply_carry_over(
-                    s, wl, c, "reassign",
+                    s,
+                    wl,
+                    c,
+                    "reassign",
                     reassign_person_ids=decision.get("reassign_person_ids") or [],
-                    new_poic_person_id=decision.get("poic_person_id"))
+                    new_poic_person_id=decision.get("poic_person_id"),
+                )
             else:
                 apply_carry_over(s, wl, c, action)
             acted += 1
@@ -1155,11 +1461,13 @@ def apply_carry_overs(worklist_id, decisions):
 
 def task_template_choices():
     """Return [(id, name)] for active task templates."""
+
     def _q(s: Session):
         rows = s.scalars(
             select(M.TaskTemplate)
             .where(M.TaskTemplate.active == True)  # noqa: E712
-            .order_by(M.TaskTemplate.display_order, M.TaskTemplate.id)).all()
+            .order_by(M.TaskTemplate.display_order, M.TaskTemplate.id)
+        ).all()
         return [(t.id, t.name) for t in rows]
 
     return _q

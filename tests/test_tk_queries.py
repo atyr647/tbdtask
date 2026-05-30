@@ -40,8 +40,11 @@ def populated(session):
     q = make_qual(session, "Forklift")
     session.add(
         M.PersonQual(
-            person_id=p1.id, qual_id=q.id, status="qualified",
-            valid_from=date.today(), org_id=1,
+            person_id=p1.id,
+            qual_id=q.id,
+            status="qualified",
+            valid_from=date.today(),
+            org_id=1,
         )
     )
     make_absence(
@@ -55,7 +58,9 @@ def populated(session):
     monday = date.today() - timedelta(days=date.today().weekday())
     wl = make_worklist(session, monday)
     make_task(
-        session, worklist_id=wl.id, name="Sweep the deck",
+        session,
+        worklist_id=wl.id,
+        name="Sweep the deck",
         scheduled_date=date.today(),
     )
     session.commit()
@@ -147,8 +152,7 @@ def test_task_assignments_query(session, populated):
     # Build a task with an assignee under the fixture's worklist.
     wid = populated["worklist"]
     t = make_task(session, worklist_id=wid, name="Q task")
-    make_assignment(session, instance_id=t.id, person_id=populated["p1"],
-                    is_poic=True)
+    make_assignment(session, instance_id=t.id, person_id=populated["p1"], is_poic=True)
     session.commit()
     data = run(session, Q.task_assignments(t.id))
     assert data["task_name"] == "Q task"
@@ -157,8 +161,10 @@ def test_task_assignments_query(session, populated):
 
 
 def test_template_list_and_get(session, populated):
-    tid = run(session, C.create_template(
-        name="Recurring X", recurrence=C._build_recurrence("daily")))
+    tid = run(
+        session,
+        C.create_template(name="Recurring X", recurrence=C._build_recurrence("daily")),
+    )
     session.commit()
     lst = run(session, Q.template_list())
     assert any(t["id"] == tid and t["recurrence"] == "Every day" for t in lst)

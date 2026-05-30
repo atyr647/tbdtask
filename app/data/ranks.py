@@ -27,13 +27,29 @@ from __future__ import annotations
 
 # (paygrade, kind). kind is one of: enlisted | warrant | officer.
 PAYGRADES: list[tuple[str, str]] = [
-    ("E-1", "enlisted"), ("E-2", "enlisted"), ("E-3", "enlisted"),
-    ("E-4", "enlisted"), ("E-5", "enlisted"), ("E-6", "enlisted"),
-    ("E-7", "enlisted"), ("E-8", "enlisted"), ("E-9", "enlisted"),
-    ("W-2", "warrant"), ("W-3", "warrant"), ("W-4", "warrant"), ("W-5", "warrant"),
-    ("O-1", "officer"), ("O-2", "officer"), ("O-3", "officer"), ("O-4", "officer"),
-    ("O-5", "officer"), ("O-6", "officer"), ("O-7", "officer"), ("O-8", "officer"),
-    ("O-9", "officer"), ("O-10", "officer"),
+    ("E-1", "enlisted"),
+    ("E-2", "enlisted"),
+    ("E-3", "enlisted"),
+    ("E-4", "enlisted"),
+    ("E-5", "enlisted"),
+    ("E-6", "enlisted"),
+    ("E-7", "enlisted"),
+    ("E-8", "enlisted"),
+    ("E-9", "enlisted"),
+    ("W-2", "warrant"),
+    ("W-3", "warrant"),
+    ("W-4", "warrant"),
+    ("W-5", "warrant"),
+    ("O-1", "officer"),
+    ("O-2", "officer"),
+    ("O-3", "officer"),
+    ("O-4", "officer"),
+    ("O-5", "officer"),
+    ("O-6", "officer"),
+    ("O-7", "officer"),
+    ("O-8", "officer"),
+    ("O-9", "officer"),
+    ("O-10", "officer"),
 ]
 
 ENLISTED_GRADES: set[str] = {g for g, k in PAYGRADES if k == "enlisted"}
@@ -42,11 +58,22 @@ OFFICER_GRADES: set[str] = {g for g, k in PAYGRADES if k == "officer"}
 
 # Warrant / officer rank abbreviations by paygrade.
 WARRANT_RANK: dict[str, str] = {
-    "W-2": "CWO2", "W-3": "CWO3", "W-4": "CWO4", "W-5": "CWO5",
+    "W-2": "CWO2",
+    "W-3": "CWO3",
+    "W-4": "CWO4",
+    "W-5": "CWO5",
 }
 OFFICER_RANK: dict[str, str] = {
-    "O-1": "ENS", "O-2": "LTJG", "O-3": "LT", "O-4": "LCDR", "O-5": "CDR",
-    "O-6": "CAPT", "O-7": "RDML", "O-8": "RADM", "O-9": "VADM", "O-10": "ADM",
+    "O-1": "ENS",
+    "O-2": "LTJG",
+    "O-3": "LT",
+    "O-4": "LCDR",
+    "O-5": "CDR",
+    "O-6": "CAPT",
+    "O-7": "RDML",
+    "O-8": "RADM",
+    "O-9": "VADM",
+    "O-10": "ADM",
 }
 
 # Enlisted grade suffixes for E-4 and up. Rated sailors append these to the
@@ -54,7 +81,12 @@ OFFICER_RANK: dict[str, str] = {
 # E-1..E-3 are handled separately because the suffix depends on the rating's
 # apprenticeship community (see below), e.g. EN + E-3 -> ENFN, CM + E-3 -> CMCN.
 ENLISTED_SUFFIX: dict[str, str] = {
-    "E-4": "3", "E-5": "2", "E-6": "1", "E-7": "C", "E-8": "CS", "E-9": "CM",
+    "E-4": "3",
+    "E-5": "2",
+    "E-6": "1",
+    "E-7": "C",
+    "E-8": "CS",
+    "E-9": "CM",
 }
 
 # E-1..E-3 apprenticeship: a community letter + a grade letter.
@@ -73,16 +105,36 @@ COMMUNITIES: list[tuple[str, str]] = [
     ("hospitalman", "Hospitalman"),
 ]
 COMMUNITY_LETTER: dict[str, str] = {
-    "seaman": "S", "fireman": "F", "airman": "A",
-    "constructionman": "C", "hospitalman": "H",
+    "seaman": "S",
+    "fireman": "F",
+    "airman": "A",
+    "constructionman": "C",
+    "hospitalman": "H",
 }
 _LETTER_COMMUNITY = {v: k for k, v in COMMUNITY_LETTER.items()}
 
 # Ratings whose apprenticeship community is NOT the default (Seaman).
 _FIREMAN = {"MM", "MMN", "EN", "EM", "GSE", "GSM", "HT", "DC", "IC", "MR", "CWT"}
 _AIRMAN = {
-    "ABE", "ABF", "ABH", "AC", "AD", "AE", "AG", "AM", "AME", "AO", "AS",
-    "AT", "AWF", "AWO", "AWR", "AWS", "AWV", "AZ", "PR",
+    "ABE",
+    "ABF",
+    "ABH",
+    "AC",
+    "AD",
+    "AE",
+    "AG",
+    "AM",
+    "AME",
+    "AO",
+    "AS",
+    "AT",
+    "AWF",
+    "AWO",
+    "AWR",
+    "AWS",
+    "AWV",
+    "AZ",
+    "PR",
 }
 _CONSTRUCTIONMAN = {"BU", "CE", "CM", "EA", "EO", "SW", "UT"}
 _HOSPITALMAN = {"HM"}
@@ -106,9 +158,15 @@ def community_for_rating(rating: str | None) -> str:
 # to the Seaman apprentice token; the real one is computed in ``rate_token``
 # from the chosen community.
 NON_RATED: dict[str, str] = {
-    "E-1": "SR", "E-2": "SA", "E-3": "SN",
-    "E-4": "PO3", "E-5": "PO2", "E-6": "PO1",
-    "E-7": "CPO", "E-8": "SCPO", "E-9": "MCPO",
+    "E-1": "SR",
+    "E-2": "SA",
+    "E-3": "SN",
+    "E-4": "PO3",
+    "E-5": "PO2",
+    "E-6": "PO1",
+    "E-7": "CPO",
+    "E-8": "SCPO",
+    "E-9": "MCPO",
 }
 
 # Every bare apprentice token (SR..HN) — used to detect undesignated E-1..E-3.
@@ -124,17 +182,78 @@ NON_RATED_LABEL = "(non-rated)"
 # Navy ratings (enlisted occupational specialties). Curated common set.
 # ---------------------------------------------------------------------------
 RATINGS: list[str] = [
-    "ABE", "ABF", "ABH", "AC", "AD", "AE", "AG", "AM", "AME", "AO", "AS",
-    "AT", "AWF", "AWO", "AWR", "AWS", "AWV", "AZ",
-    "BM", "BU",
-    "CE", "CM", "CS", "CSS", "CTI", "CTM", "CTN", "CTR", "CTT",
+    "ABE",
+    "ABF",
+    "ABH",
+    "AC",
+    "AD",
+    "AE",
+    "AG",
+    "AM",
+    "AME",
+    "AO",
+    "AS",
+    "AT",
+    "AWF",
+    "AWO",
+    "AWR",
+    "AWS",
+    "AWV",
+    "AZ",
+    "BM",
+    "BU",
+    "CE",
+    "CM",
+    "CS",
+    "CSS",
+    "CTI",
+    "CTM",
+    "CTN",
+    "CTR",
+    "CTT",
     "CWT",
-    "DC", "EA", "EM", "EN", "EO", "EOD", "ET", "FC", "FCA", "FT",
-    "GM", "GSE", "GSM", "HM", "HT", "IC", "IS", "IT",
-    "LN", "LS", "MA", "MC", "MM", "MMN", "MN", "MR", "MT",
-    "NC", "ND", "OS", "PR", "PS", "QM",
-    "RP", "RW", "SB", "SO", "STG", "STS", "SW",
-    "UT", "YN",
+    "DC",
+    "EA",
+    "EM",
+    "EN",
+    "EO",
+    "EOD",
+    "ET",
+    "FC",
+    "FCA",
+    "FT",
+    "GM",
+    "GSE",
+    "GSM",
+    "HM",
+    "HT",
+    "IC",
+    "IS",
+    "IT",
+    "LN",
+    "LS",
+    "MA",
+    "MC",
+    "MM",
+    "MMN",
+    "MN",
+    "MR",
+    "MT",
+    "NC",
+    "ND",
+    "OS",
+    "PR",
+    "PS",
+    "QM",
+    "RP",
+    "RW",
+    "SB",
+    "SO",
+    "STG",
+    "STS",
+    "SW",
+    "UT",
+    "YN",
 ]
 
 
@@ -142,10 +261,26 @@ RATINGS: list[str] = [
 # Positions / billets
 # ---------------------------------------------------------------------------
 POSITIONS: list[str] = [
-    "Department Head", "DLCPO", "LCPO", "DLPO", "LPO", "ALPO",
-    "Workcenter Supervisor", "RPPO", "Career Counselor", "DCPO", "DRMO",
-    "Hardcards", "Hazmat", "Licensing", "Tagout Audit", "Muster Report",
-    "Sponsorship", "Tool Custodian", "Training", "Watchbills",
+    "Department Head",
+    "DLCPO",
+    "LCPO",
+    "DLPO",
+    "LPO",
+    "ALPO",
+    "Workcenter Supervisor",
+    "RPPO",
+    "Career Counselor",
+    "DCPO",
+    "DRMO",
+    "Hardcards",
+    "Hazmat",
+    "Licensing",
+    "Tagout Audit",
+    "Muster Report",
+    "Sponsorship",
+    "Tool Custodian",
+    "Training",
+    "Watchbills",
 ]
 
 
@@ -167,8 +302,9 @@ def is_enlisted(paygrade: str | None) -> bool:
     return paygrade in ENLISTED_GRADES
 
 
-def rate_token(paygrade: str | None, rating: str | None = None,
-               community: str | None = None) -> str | None:
+def rate_token(
+    paygrade: str | None, rating: str | None = None, community: str | None = None
+) -> str | None:
     """Build the display rate/rank token from a paygrade.
 
     * officer/warrant -> the rank abbreviation (LT, CWO3).
@@ -263,8 +399,12 @@ def group_for(rate: str | None, paygrade: str | None = None) -> str:
 
 # Roster section order (mess precedence).
 GROUP_ORDER: list[str] = [
-    "Officers", "Warrant Officers", "Chief's Mess", "Petty Officers",
-    "Junior Enlisted", "Unassigned",
+    "Officers",
+    "Warrant Officers",
+    "Chief's Mess",
+    "Petty Officers",
+    "Junior Enlisted",
+    "Unassigned",
 ]
 
 
@@ -281,14 +421,32 @@ def all_entries() -> list[dict]:
     """
     out: list[dict] = []
     for pg in OFFICER_GRADES:
-        out.append({"code": OFFICER_RANK[pg], "label": OFFICER_RANK[pg],
-                    "paygrade": pg, "category": "Officer"})
+        out.append(
+            {
+                "code": OFFICER_RANK[pg],
+                "label": OFFICER_RANK[pg],
+                "paygrade": pg,
+                "category": "Officer",
+            }
+        )
     for pg in WARRANT_GRADES:
-        out.append({"code": WARRANT_RANK[pg], "label": WARRANT_RANK[pg],
-                    "paygrade": pg, "category": "Warrant Officer"})
+        out.append(
+            {
+                "code": WARRANT_RANK[pg],
+                "label": WARRANT_RANK[pg],
+                "paygrade": pg,
+                "category": "Warrant Officer",
+            }
+        )
     for pg in sorted(ENLISTED_GRADES):
-        out.append({"code": NON_RATED[pg], "label": NON_RATED[pg],
-                    "paygrade": pg, "category": "Enlisted"})
+        out.append(
+            {
+                "code": NON_RATED[pg],
+                "label": NON_RATED[pg],
+                "paygrade": pg,
+                "category": "Enlisted",
+            }
+        )
     # Stable order: officer (senior first), warrant, enlisted (junior first).
     return out
 
@@ -309,7 +467,9 @@ def paygrade_for(code: str) -> str | None:
 
 def by_category() -> dict[str, list[dict]]:
     groups: dict[str, list[dict]] = {
-        "Officer": [], "Warrant Officer": [], "Enlisted": [],
+        "Officer": [],
+        "Warrant Officer": [],
+        "Enlisted": [],
     }
     for entry in all_entries():
         groups[entry["category"]].append(entry)

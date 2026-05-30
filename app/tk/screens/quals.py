@@ -19,8 +19,12 @@ class QualsScreen(Screen):
     def refresh(self, tab: str = "overview", **_):
         self.clear()
         bar = self.header("Qualifications")
-        ttk.Button(bar, text="+ New qualification", style="Accent.TButton",
-                   command=self._add_qual).pack(side="right")
+        ttk.Button(
+            bar,
+            text="+ New qualification",
+            style="Accent.TButton",
+            command=self._add_qual,
+        ).pack(side="right")
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
         overview = ttk.Frame(nb, style="TFrame", padding=12)
@@ -40,32 +44,46 @@ class QualsScreen(Screen):
         if not rows:
             empty_state(parent, "No qualifications yet.").pack(anchor="w")
             return
-        ttk.Label(parent, text="Double-click to rename; use the buttons to "
-                  "rename or archive.", style="Muted.TLabel").pack(
-            anchor="w", pady=(0, 4))
+        ttk.Label(
+            parent,
+            text="Double-click to rename; use the buttons to rename or archive.",
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(0, 4))
         self._catalog_rows = {r["id"]: r for r in rows}
         table = SearchableTree(
             parent,
-            columns=[("name", "Name", 240), ("qualified", "Qualified", 90),
-                     ("in_progress", "In progress", 100),
-                     ("dinq", "DINQ", 70), ("validity", "Validity (d)", 100)],
+            columns=[
+                ("name", "Name", 240),
+                ("qualified", "Qualified", 90),
+                ("in_progress", "In progress", 100),
+                ("dinq", "DINQ", 70),
+                ("validity", "Validity (d)", 100),
+            ],
             on_open=lambda iid: self._edit_qual(int(iid)),
             search_label="Filter",
         )
         table.pack(fill="both", expand=True)
-        table.set_rows([
-            {"_id": r["id"], "name": r["name"], "qualified": r["qualified"],
-             "in_progress": r["in_progress"], "dinq": r["dinq"],
-             "validity": r["validity_period_days"] or ""}
-            for r in rows
-        ])
+        table.set_rows(
+            [
+                {
+                    "_id": r["id"],
+                    "name": r["name"],
+                    "qualified": r["qualified"],
+                    "in_progress": r["in_progress"],
+                    "dinq": r["dinq"],
+                    "validity": r["validity_period_days"] or "",
+                }
+                for r in rows
+            ]
+        )
         btns = ttk.Frame(parent)
         btns.pack(fill="x", pady=(6, 0))
-        ttk.Button(btns, text="Rename selected",
-                   command=lambda: self._edit_selected(table)).pack(side="left")
-        ttk.Button(btns, text="Archive selected",
-                   command=lambda: self._archive_selected(table)).pack(
-            side="left", padx=4)
+        ttk.Button(
+            btns, text="Rename selected", command=lambda: self._edit_selected(table)
+        ).pack(side="left")
+        ttk.Button(
+            btns, text="Archive selected", command=lambda: self._archive_selected(table)
+        ).pack(side="left", padx=4)
 
     def _selected_id(self, table):
         sel = table.tree.selection()
@@ -82,45 +100,67 @@ class QualsScreen(Screen):
             self._archive_qual(qid)
 
     def _add_qual(self):
-        vals = forms.prompt(self, "New qualification",
-                            [forms.text("name", "Name", required=True)],
-                            submit_label="Create")
+        vals = forms.prompt(
+            self,
+            "New qualification",
+            [forms.text("name", "Name", required=True)],
+            submit_label="Create",
+        )
         if not vals:
             return
-        run_write(self, commands.create_qual(vals["name"]),
-                  on_done=lambda: self.app.show("quals", tab="catalog"))
+        run_write(
+            self,
+            commands.create_qual(vals["name"]),
+            on_done=lambda: self.app.show("quals", tab="catalog"),
+        )
 
     def _edit_qual(self, qual_id):
         row = getattr(self, "_catalog_rows", {}).get(qual_id)
         initial = {"name": row["name"]} if row else {}
-        vals = forms.prompt(self, "Rename qualification",
-                            [forms.text("name", "Name", required=True)],
-                            initial=initial, submit_label="Save")
+        vals = forms.prompt(
+            self,
+            "Rename qualification",
+            [forms.text("name", "Name", required=True)],
+            initial=initial,
+            submit_label="Save",
+        )
         if not vals:
             return
-        run_write(self, commands.update_qual(qual_id, vals["name"]),
-                  on_done=lambda: self.app.show("quals", tab="catalog"))
+        run_write(
+            self,
+            commands.update_qual(qual_id, vals["name"]),
+            on_done=lambda: self.app.show("quals", tab="catalog"),
+        )
 
     def _archive_qual(self, qual_id):
-        vals = forms.prompt(self, "Archive qualification",
-                            [forms.text("reason", "Reason")],
-                            submit_label="Archive")
+        vals = forms.prompt(
+            self,
+            "Archive qualification",
+            [forms.text("reason", "Reason")],
+            submit_label="Archive",
+        )
         if vals is None:
             return
         run_write(
-            self, commands.archive_qual(qual_id, vals.get("reason") or ""),
-            confirm=("Archive qualification",
-                     "Hide this qualification from the catalog and matrix?"),
-            on_done=lambda: self.app.show("quals", tab="catalog"))
+            self,
+            commands.archive_qual(qual_id, vals.get("reason") or ""),
+            confirm=(
+                "Archive qualification",
+                "Hide this qualification from the catalog and matrix?",
+            ),
+            on_done=lambda: self.app.show("quals", tab="catalog"),
+        )
 
     # -- Overview ---------------------------------------------------------
     def _build_overview(self, parent):
         summaries = read(Q.quals_overview(threshold=2))
         gaps = sum(1 for s in summaries if s.gap)
-        ttk.Label(parent,
-                  text=f"{len(summaries)} qualifications · {gaps} below the "
-                       f"2-qualified threshold",
-                  style="Muted.TLabel").pack(anchor="w", pady=(0, 6))
+        ttk.Label(
+            parent,
+            text=f"{len(summaries)} qualifications · {gaps} below the "
+            f"2-qualified threshold",
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(0, 6))
         scroller = VScroll(parent)
         scroller.pack(fill="both", expand=True)
         for su in summaries:
@@ -128,34 +168,42 @@ class QualsScreen(Screen):
             card.pack(fill="x", pady=4)
             top = ttk.Frame(card.body, style="Card.TFrame")
             top.pack(fill="x")
-            ttk.Label(top, text=su.name, style="Card.TLabel",
-                      font=theme.Fonts().bold).pack(side="left")
+            ttk.Label(
+                top, text=su.name, style="Card.TLabel", font=theme.Fonts().bold
+            ).pack(side="left")
             if su.gap:
                 badge(top, "GAP", status="dinq").pack(side="left", padx=8)
-            counts = "   ".join(
-                f"{k}: {v}" for k, v in su.counts.items() if v)
-            ttk.Label(top, text=counts or "no assignments",
-                      style="CardMuted.TLabel").pack(side="right")
+            counts = "   ".join(f"{k}: {v}" for k, v in su.counts.items() if v)
+            ttk.Label(
+                top, text=counts or "no assignments", style="CardMuted.TLabel"
+            ).pack(side="right")
 
             line = ttk.Frame(card.body, style="Card.TFrame")
             line.pack(fill="x", pady=(6, 0))
             self._name_row(line, "Qualified", su.qualified_names, "qualified")
             if su.in_progress_names:
-                self._name_row(card.body, "In progress", su.in_progress_names,
-                               "in_progress")
+                self._name_row(
+                    card.body, "In progress", su.in_progress_names, "in_progress"
+                )
             if su.dinq_names:
                 self._name_row(card.body, "DINQ", su.dinq_names, "dinq")
             if su.expiring_soon:
                 exp = ", ".join(f"{n} ({d})" for n, d in su.expiring_soon)
-                ttk.Label(card.body, text=f"Expiring soon: {exp}",
-                          style="CardMuted.TLabel").pack(anchor="w", pady=(4, 0))
+                ttk.Label(
+                    card.body, text=f"Expiring soon: {exp}", style="CardMuted.TLabel"
+                ).pack(anchor="w", pady=(4, 0))
 
     def _name_row(self, parent, label, names, status):
         row = ttk.Frame(parent, style="Card.TFrame")
         row.pack(fill="x", pady=1)
         badge(row, label, status=status).pack(side="left")
-        ttk.Label(row, text="  " + (", ".join(names) if names else "—"),
-                  style="Card.TLabel", wraplength=820, justify="left").pack(side="left")
+        ttk.Label(
+            row,
+            text="  " + (", ".join(names) if names else "—"),
+            style="Card.TLabel",
+            wraplength=820,
+            justify="left",
+        ).pack(side="left")
 
     # -- Matrix -----------------------------------------------------------
     def _build_matrix(self, parent):
@@ -168,8 +216,11 @@ class QualsScreen(Screen):
         legend.pack(fill="x", pady=(0, 8))
         ttk.Label(legend, text="Legend:", style="Muted.TLabel").pack(side="left")
         for st in ("qualified", "in_progress", "assigned", "dinq", "expired"):
-            badge(legend, theme.STATUS_GLYPH.get(st, st) + " " + st.replace("_", " "),
-                  status=st).pack(side="left", padx=3)
+            badge(
+                legend,
+                theme.STATUS_GLYPH.get(st, st) + " " + st.replace("_", " "),
+                status=st,
+            ).pack(side="left", padx=3)
 
         # Both-axis scrollable canvas of coloured cells.
         wrap = ttk.Frame(parent)
@@ -186,41 +237,74 @@ class QualsScreen(Screen):
 
         grid = ttk.Frame(canvas, style="Card.TFrame")
         canvas.create_window((0, 0), window=grid, anchor="nw")
-        grid.bind("<Configure>",
-                  lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        grid.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
         canvas.bind("<Enter>", lambda e: self._wheel_bind(canvas))
         canvas.bind("<Leave>", lambda e: self._wheel_unbind(canvas))
 
         small = theme.Fonts().small
         # Header row: corner + qual names (truncated, full name as tooltip text)
-        corner = tk.Label(grid, text="Name", bg=theme.PANEL3, fg=theme.TEXT_DIM,
-                          font=theme.Fonts().bold, padx=8, pady=4, anchor="w",
-                          width=22)
+        corner = tk.Label(
+            grid,
+            text="Name",
+            bg=theme.PANEL3,
+            fg=theme.TEXT_DIM,
+            font=theme.Fonts().bold,
+            padx=8,
+            pady=4,
+            anchor="w",
+            width=22,
+        )
         corner.grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
         for c, qn in enumerate(data.qual_names, start=1):
-            lbl = tk.Label(grid, text=(qn[:10] + "…") if len(qn) > 11 else qn,
-                           bg=theme.PANEL3, fg=theme.TEXT_DIM, font=small,
-                           padx=4, pady=4, width=6)
+            lbl = tk.Label(
+                grid,
+                text=(qn[:10] + "…") if len(qn) > 11 else qn,
+                bg=theme.PANEL3,
+                fg=theme.TEXT_DIM,
+                font=small,
+                padx=4,
+                pady=4,
+                width=6,
+            )
             lbl.grid(row=0, column=c, sticky="nsew", padx=1, pady=1)
             self._tooltip(lbl, qn)
 
         for r, mrow in enumerate(data.rows, start=1):
             name = mrow.name + (f"  ({mrow.title})" if mrow.title else "")
             bgc = theme.PANEL2 if r % 2 else theme.PANEL
-            tk.Label(grid, text=name, bg=bgc, fg=theme.TEXT, anchor="w",
-                     font=small, padx=8, width=22).grid(
-                row=r, column=0, sticky="nsew", padx=1, pady=1)
+            tk.Label(
+                grid,
+                text=name,
+                bg=bgc,
+                fg=theme.TEXT,
+                anchor="w",
+                font=small,
+                padx=8,
+                width=22,
+            ).grid(row=r, column=0, sticky="nsew", padx=1, pady=1)
             for c, status in enumerate(mrow.cells, start=1):
                 glyph = theme.STATUS_GLYPH.get(status or "", "")
-                fg, cell_bg = (theme.status_colors(status) if status
-                               else (theme.MUTED, bgc))
-                tk.Label(grid, text=glyph, bg=cell_bg, fg=fg, font=small,
-                         width=6, padx=2, pady=3).grid(
-                    row=r, column=c, sticky="nsew", padx=1, pady=1)
+                fg, cell_bg = (
+                    theme.status_colors(status) if status else (theme.MUTED, bgc)
+                )
+                tk.Label(
+                    grid,
+                    text=glyph,
+                    bg=cell_bg,
+                    fg=fg,
+                    font=small,
+                    width=6,
+                    padx=2,
+                    pady=3,
+                ).grid(row=r, column=c, sticky="nsew", padx=1, pady=1)
 
     def _wheel_bind(self, canvas):
-        canvas.bind_all("<MouseWheel>",
-                        lambda e: canvas.yview_scroll(-1 if e.delta > 0 else 1, "units"))
+        canvas.bind_all(
+            "<MouseWheel>",
+            lambda e: canvas.yview_scroll(-1 if e.delta > 0 else 1, "units"),
+        )
         canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
         canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
 
@@ -237,8 +321,15 @@ class QualsScreen(Screen):
             win = tk.Toplevel(widget)
             win.wm_overrideredirect(True)
             win.wm_geometry(f"+{x}+{y}")
-            tk.Label(win, text=text, bg="#111", fg="white", padx=6, pady=2,
-                     font=theme.Fonts().small).pack()
+            tk.Label(
+                win,
+                text=text,
+                bg="#111",
+                fg="white",
+                padx=6,
+                pady=2,
+                font=theme.Fonts().small,
+            ).pack()
             tip["win"] = win
 
         def leave(_e):
