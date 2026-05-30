@@ -85,8 +85,31 @@ def _parse_time(value: str | None) -> time | None:
         return None
 
 
-def rate_choices() -> list[str]:
-    return [e["code"] for e in rank_catalog.all_entries()]
+def paygrade_choices() -> list[tuple[str, str]]:
+    """(paygrade, label) for the picker — grade plus its rank where fixed."""
+    out = []
+    for pg, kind in rank_catalog.PAYGRADES:
+        if kind == "officer":
+            out.append((pg, f"{pg}  {rank_catalog.OFFICER_RANK[pg]}"))
+        elif kind == "warrant":
+            out.append((pg, f"{pg}  {rank_catalog.WARRANT_RANK[pg]}"))
+        else:
+            out.append((pg, pg))
+    return out
+
+
+def rating_choices() -> list[tuple[str, str]]:
+    """(rating, rating) for enlisted; a leading '(non-rated)' option."""
+    return ([(rank_catalog.NON_RATED_LABEL, rank_catalog.NON_RATED_LABEL)]
+            + [(r, r) for r in rank_catalog.RATINGS])
+
+
+def position_choices() -> list[tuple[str, str]]:
+    return [(p, p) for p in rank_catalog.POSITIONS]
+
+
+def is_enlisted_paygrade(paygrade: str | None) -> bool:
+    return rank_catalog.is_enlisted(paygrade)
 
 
 def absence_code_choices():
@@ -120,13 +143,27 @@ def active_people_choices():
 # --------------------------------------------------------------------------
 
 
-def create_person(*, last_name, first_name=None, rate=None, position=None,
-                  notes=None, duty_section=None, prd_date=None,
-                  has_drivers_license=False, drivers_license_expires=None,
-                  roster_status="active"):
+def _resolve_rate(paygrade=None, rating=None, rate=None):
+    """Return (rate_token, paygrade) from a paygrade(+rating) selection.
+
+    Falls back to a raw ``rate`` token (deriving its paygrade) when no
+    paygrade is supplied, so older call sites/tests keep working.
+    """
+    if paygrade:
+        return rank_catalog.rate_token(paygrade, rating), paygrade
+    if rate:
+        return rate, rank_catalog.paygrade_for(rate)
+    return None, None
+
+
+def create_person(*, last_name, first_name=None, paygrade=None, rating=None,
+                  rate=None, position=None, notes=None, duty_section=None,
+                  prd_date=None, has_drivers_license=False,
+                  drivers_license_expires=None, roster_status="active"):
     def _q(s: Session) -> int:
         today = date.today()
-        full_display = f"{rate} {last_name}".strip() if rate else last_name
+        rate_token, pg = _resolve_rate(paygrade, rating, rate)
+        full_display = f"{rate_token} {last_name}".strip() if rate_token else last_name
         last_pos = s.scalar(
             select(M.Person.display_order)
             .order_by(M.Person.display_order.desc()).limit(1)
@@ -138,10 +175,9 @@ def create_person(*, last_name, first_name=None, rate=None, position=None,
         )
         s.add(p)
         s.flush()
-        if rate:
-            s.add(M.PersonRate(person_id=p.id, rate=rate,
-                               paygrade=rank_catalog.paygrade_for(rate),
-                               valid_from=today))
+        if rate_token:
+            s.add(M.PersonRate(person_id=p.id, rate=rate_token,
+                               paygrade=pg, valid_from=today))
         if duty_section:
             s.add(M.PersonDutySection(person_id=p.id,
                                       duty_section=int(duty_section),
@@ -160,20 +196,22 @@ def create_person(*, last_name, first_name=None, rate=None, position=None,
     return _q
 
 
-def create_incoming(*, last_name, first_name=None, rate=None, notes=None,
-                    arrival_date=None, sponsor_person_id=None,
-                    orders_received=False, itinerary_received=False,
-                    aob_scheduled=False, barracks_assigned=False):
+def create_incoming(*, last_name, first_name=None, paygrade=None, rating=None,
+                    rate=None, notes=None, arrival_date=None,
+                    sponsor_person_id=None, orders_received=False,
+                    itinerary_received=False, aob_scheduled=False,
+                    barracks_assigned=False, position=None):
     def _q(s: Session) -> int:
         today = date.today()
-        full_display = f"{rate} {last_name}".strip() if rate else last_name
+        rate_token, pg = _resolve_rate(paygrade, rating, rate)
+        full_display = f"{rate_token} {last_name}".strip() if rate_token else last_name
         last_pos = s.scalar(
             select(M.Person.display_order)
             .order_by(M.Person.display_order.desc()).limit(1)
         ) or 0
         p = M.Person(
             last_name=last_name, first_name=first_name,
-            full_display=full_display.strip(), notes=notes,
+            full_display=full_display.strip(), notes=notes, position=position,
             display_order=last_pos + 1, arrival_date=_parse_date(arrival_date),
             sponsor_person_id=int(sponsor_person_id) if sponsor_person_id else None,
             orders_received=bool(orders_received),
@@ -183,10 +221,9 @@ def create_incoming(*, last_name, first_name=None, rate=None, notes=None,
         )
         s.add(p)
         s.flush()
-        if rate:
-            s.add(M.PersonRate(person_id=p.id, rate=rate,
-                               paygrade=rank_catalog.paygrade_for(rate),
-                               valid_from=today))
+        if rate_token:
+            s.add(M.PersonRate(person_id=p.id, rate=rate_token,
+                               paygrade=pg, valid_from=today))
         s.add(M.PersonRosterStatus(person_id=p.id, status="incoming",
                                    valid_from=today))
         s.flush()
@@ -195,25 +232,27 @@ def create_incoming(*, last_name, first_name=None, rate=None, notes=None,
     return _q
 
 
-def update_person(person_id, *, last_name, first_name=None, rate=None,
-                  position=None, notes=None, duty_section=None, prd_date=None,
-                  prd_reason="correction", has_drivers_license=False,
-                  drivers_license_expires=None, roster_status="active",
-                  effective_date=None):
+def update_person(person_id, *, last_name, first_name=None, paygrade=None,
+                  rating=None, rate=None, position=None, notes=None,
+                  duty_section=None, prd_date=None, prd_reason="correction",
+                  has_drivers_license=False, drivers_license_expires=None,
+                  roster_status="active", effective_date=None):
     def _q(s: Session) -> int | None:
         p = s.get(M.Person, person_id)
         if not p:
             return None
         eff_date = _parse_date(effective_date) or date.today()
+        rate_token, pg = _resolve_rate(paygrade, rating, rate)
         p.last_name = last_name
         p.first_name = first_name
         p.position = position
         p.notes = notes
-        p.full_display = f"{rate} {last_name}".strip() if rate else last_name
-        if rate:
+        p.full_display = (f"{rate_token} {last_name}".strip()
+                          if rate_token else last_name)
+        if rate_token:
             eff.set_new_value(
                 s, M.PersonRate, person_id=p.id, effective_date=eff_date,
-                fields={"rate": rate, "paygrade": rank_catalog.paygrade_for(rate)},
+                fields={"rate": rate_token, "paygrade": pg},
                 no_op_if_unchanged=("rate", "paygrade"))
         if duty_section:
             eff.set_new_value(

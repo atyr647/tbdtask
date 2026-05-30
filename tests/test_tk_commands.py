@@ -549,3 +549,62 @@ def test_apply_carry_overs_carry_and_discard(session):
             M.TaskInstance.worklist_id == cur.id,
             M.TaskInstance.carried_from_instance_id == t1.id)).all()
     assert len(list(carried)) == 1
+
+
+# -- Navy rank catalog + paygrade/rating person flow ------------------------
+
+
+def test_rank_catalog_token_assembly():
+    from app.data import ranks as r
+    assert r.rate_token("E-4", "BM") == "BM3"
+    assert r.rate_token("E-7", "BM") == "BMC"     # Chief
+    assert r.rate_token("E-8", "GM") == "GMCS"    # Senior Chief
+    assert r.rate_token("E-9", "OS") == "OSCM"    # Master Chief
+    assert r.rate_token("E-4", None) == "PO3"     # non-rated
+    assert r.rate_token("W-3") == "CWO3"
+    assert r.rate_token("O-4") == "LCDR"
+    # grouping is paygrade-driven
+    assert r.group_for(None, "O-3") == "Officers"
+    assert r.group_for(None, "W-2") == "Warrant Officers"
+    assert r.group_for(None, "E-7") == "Chief's Mess"
+    assert r.group_for(None, "E-5") == "Petty Officers"
+    assert r.group_for(None, "E-2") == "Junior Enlisted"
+    # reverse rating extraction for edit pre-fill
+    assert r.rating_of("BMC", "E-7") == "BM"
+    assert r.rating_of("PO3", "E-4") is None      # non-rated token
+
+
+def test_create_person_with_paygrade_and_rating(session):
+    pid = run(session, C.create_person(
+        last_name="Diaz", paygrade="E-5", rating="IT", position="LPO"))
+    session.commit()
+    p = session.get(M.Person, pid)
+    assert p.full_display == "IT2 Diaz"
+    assert p.position == "LPO"
+    cur = next(r for r in p.rates if r.valid_to is None)
+    assert cur.rate == "IT2" and cur.paygrade == "E-5"
+
+
+def test_create_person_officer_ignores_rating(session):
+    # An officer paygrade yields the rank token; rating is irrelevant.
+    pid = run(session, C.create_person(
+        last_name="Cole", paygrade="O-3", rating=None))
+    session.commit()
+    p = session.get(M.Person, pid)
+    assert p.full_display == "LT Cole"
+    cur = next(r for r in p.rates if r.valid_to is None)
+    assert cur.rate == "LT" and cur.paygrade == "O-3"
+
+
+def test_update_person_changes_paygrade_token(session):
+    pid = run(session, C.create_person(
+        last_name="Frye", paygrade="E-4", rating="BM"))
+    session.commit()
+    # advance BM3 -> BM2
+    run(session, C.update_person(pid, last_name="Frye", paygrade="E-5",
+                                 rating="BM"))
+    session.commit()
+    p = session.get(M.Person, pid)
+    assert p.full_display == "BM2 Frye"
+    cur = [r for r in p.rates if r.valid_to is None]
+    assert len(cur) == 1 and cur[0].rate == "BM2" and cur[0].paygrade == "E-5"

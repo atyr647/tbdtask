@@ -20,12 +20,16 @@ from . import theme
 class Field:
     name: str
     label: str
-    # text | multiline | date | time | int | float | choice | multichoice | bool
+    # text | multiline | date | time | int | float | choice | combo |
+    # multichoice | bool
     kind: str = "text"
     required: bool = False
     choices: list[tuple[Any, str]] = dc_field(default_factory=list)  # (value, label)
     help: str | None = None
     width: int = 32
+    # Conditional visibility: (other_field_name, predicate(value) -> bool).
+    # The field's row hides (and reads as None) when the predicate is False.
+    visible_when: tuple[str, Any] | None = None
 
 
 # Convenience constructors keep call sites readable.
@@ -41,6 +45,9 @@ def integer(name, label, **kw): return Field(name, label, "int", **kw)
 def number(name, label, **kw): return Field(name, label, "float", **kw)
 def choice(name, label, choices, **kw): return Field(name, label, "choice",
                                                      choices=choices, **kw)
+def combo(name, label, choices, **kw):
+    """An editable dropdown: pick a listed value or type a custom one."""
+    return Field(name, label, "combo", choices=choices, **kw)
 def multichoice(name, label, choices, **kw): return Field(name, label, "multichoice",
                                                           choices=choices, **kw)
 def boolean(name, label, **kw): return Field(name, label, "bool", **kw)
@@ -57,16 +64,33 @@ class _FormDialog(tk.Toplevel):
         self._fields = fields
         self._vars: dict[str, Any] = {}
         self._widgets: dict[str, Any] = {}
+        # Per-field row widgets (label, input, help) so visible_when can
+        # show/hide a whole row. Keyed by field name.
+        self._rows: dict[str, list] = {}
+        self._field_by_name = {f.name: f for f in fields}
         initial = initial or {}
 
         ttk.Label(self, text=title, style="H2.TLabel").grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
         for i, f in enumerate(fields, start=1):
-            ttk.Label(self, text=f.label + (" *" if f.required else ""),
-                      style="TLabel").grid(row=i, column=0, sticky="nw", pady=4,
-                                           padx=(0, 10))
+            lbl = ttk.Label(self, text=f.label + (" *" if f.required else ""),
+                            style="TLabel")
+            lbl.grid(row=i, column=0, sticky="nw", pady=4, padx=(0, 10))
+            self._rows.setdefault(f.name, []).append((lbl, i, 0))
             self._build_field(f, i, initial.get(f.name))
+
+        # Wire conditional visibility: when a controller field changes, the
+        # dependent rows re-evaluate. Triggers fire on combobox select and
+        # on entry edits.
+        for f in fields:
+            if f.visible_when is None:
+                continue
+            ctrl_name = f.visible_when[0]
+            ctrl = self._vars.get(ctrl_name)
+            if isinstance(ctrl, tk.StringVar):
+                ctrl.trace_add("write", lambda *_: self._apply_visibility())
+        self._apply_visibility()
 
         self._error = ttk.Label(self, text="", style="TLabel", foreground=theme.BAD)
         self._error.grid(row=len(fields) + 1, column=0, columnspan=2, sticky="w",
@@ -117,6 +141,15 @@ class _FormDialog(tk.Toplevel):
             w.grid(row=row, column=1, sticky="ew", pady=4)
             self._vars[f.name] = var
             self._widgets[f.name] = w
+        elif f.kind == "combo":
+            # Editable dropdown: choose a listed value or type a custom one.
+            var = tk.StringVar(value="" if value is None else str(value))
+            labels = [lbl for _, lbl in f.choices]
+            w = ttk.Combobox(self, textvariable=var, values=labels,
+                             state="normal", width=f.width - 2)
+            w.grid(row=row, column=1, sticky="ew", pady=4)
+            self._vars[f.name] = var
+            self._widgets[f.name] = w
         elif f.kind == "multichoice":
             # A scrollable checkbox list — picks any subset of choices.
             box = tk.Frame(self, bg=theme.PANEL, bd=1, relief="solid",
@@ -149,9 +182,35 @@ class _FormDialog(tk.Toplevel):
             w.grid(row=row, column=1, sticky="ew", pady=4)
             self._vars[f.name] = var
             self._widgets[f.name] = w
+        # Track the input widget for visibility toggling.
+        self._rows.setdefault(f.name, []).append((self._widgets[f.name], row, 1))
         if f.help:
-            ttk.Label(self, text=f.help, style="Muted.TLabel").grid(
-                row=row, column=2, sticky="w", padx=(8, 0))
+            help_lbl = ttk.Label(self, text=f.help, style="Muted.TLabel")
+            help_lbl.grid(row=row, column=2, sticky="w", padx=(8, 0))
+            self._rows[f.name].append((help_lbl, row, 2))
+
+    def _is_visible(self, f: Field) -> bool:
+        if f.visible_when is None:
+            return True
+        ctrl_name, predicate = f.visible_when
+        ctrl = self._field_by_name.get(ctrl_name)
+        if ctrl is None:
+            return True
+        try:
+            return bool(predicate(self._read(ctrl)))
+        except Exception:
+            return True
+
+    def _apply_visibility(self):
+        for f in self._fields:
+            if f.visible_when is None:
+                continue
+            show = self._is_visible(f)
+            for widget, row, col in self._rows.get(f.name, []):
+                if show:
+                    widget.grid(row=row, column=col)
+                else:
+                    widget.grid_remove()
 
     def _read(self, f: Field):
         if f.kind == "multiline":
@@ -166,6 +225,13 @@ class _FormDialog(tk.Toplevel):
             return None
         if f.kind == "multichoice":
             return [val for val, bv in self._vars[f.name] if bv.get()]
+        if f.kind == "combo":
+            # Map a chosen label back to its value; otherwise keep the typed text.
+            raw = self._vars[f.name].get().strip()
+            for val, lbl in f.choices:
+                if lbl == raw:
+                    return val
+            return raw or None
         raw = self._vars[f.name].get().strip()
         if f.kind == "int":
             return int(raw) if raw else None
@@ -176,6 +242,11 @@ class _FormDialog(tk.Toplevel):
     def _submit(self):
         values: dict = {}
         for f in self._fields:
+            # Hidden (conditionally-invisible) fields contribute nothing and
+            # skip validation.
+            if not self._is_visible(f):
+                values[f.name] = None
+                continue
             try:
                 v = self._read(f)
             except ValueError:

@@ -263,8 +263,8 @@ def personnel_active():
             )
             .order_by(M.Person.display_order)
         ).all()
-        groups = ["Leadership", "Senior", "Professional", "Associate", "Other"]
-        grouped: dict[str, list[dto.PersonRowDTO]] = {g: [] for g in groups}
+        grouped: dict[str, list[dto.PersonRowDTO]] = {
+            g: [] for g in rank_catalog.GROUP_ORDER}
         for p in people:
             if _current_status(p) == "incoming":
                 continue
@@ -824,6 +824,7 @@ def person_current(person_id: int):
         if p is None:
             return None
         rate = _current(p.rates, "rate")
+        paygrade = _current(p.rates, "paygrade")
         ds = _current(p.duty_sections, "duty_section")
         prd = _current(p.prds, "prd_date")
         dl_has = _current(p.drivers_licenses, "has_license")
@@ -832,6 +833,8 @@ def person_current(person_id: int):
             "last_name": p.last_name,
             "first_name": p.first_name,
             "rate": rate,
+            "paygrade": paygrade,
+            "rating": rank_catalog.rating_of(rate, paygrade),
             "position": p.position,
             "notes": p.notes,
             "duty_section": ds,

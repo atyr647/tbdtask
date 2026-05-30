@@ -85,10 +85,7 @@ class WorklistsScreen(Screen):
                        command=lambda: self._amend(worklist_id)).pack(
                 side="right", padx=4)
         else:
-            ttk.Button(bar, text="Lock week", style="Accent.TButton",
-                       command=lambda: self._lock(worklist_id)).pack(
-                side="right", padx=8)
-            ttk.Button(bar, text="+ Add task",
+            ttk.Button(bar, text="+ Add task", style="Accent.TButton",
                        command=lambda: self._add_task(view)).pack(
                 side="right", padx=4)
             menu = ttk.Menubutton(bar, text="More ▾")
@@ -193,22 +190,6 @@ class WorklistsScreen(Screen):
         m.add_command(label="Remove task",
                       command=lambda: self._remove_task(task_id))
         m.tk_popup(event.x_root, event.y_root)
-
-    def _lock(self, worklist_id):
-        vals = forms.prompt(
-            self, "Lock week",
-            [forms.text("locked_by_name", "Locked by")],
-            submit_label="Lock")
-        if vals is None:
-            return
-        run_write(
-            self,
-            commands.lock_worklist(worklist_id, vals.get("locked_by_name")),
-            confirm=("Lock week",
-                     "Locking makes this week immutable. Changes afterwards "
-                     "require an amendment. Continue?"),
-            on_done=lambda: self.app.show("worklists", worklist_id=worklist_id),
-        )
 
     # -- Write actions ----------------------------------------------------
     def _new_worklist(self, suggested_monday):

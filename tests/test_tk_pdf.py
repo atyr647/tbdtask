@@ -96,3 +96,39 @@ def test_date_field_accepts_custom_help():
     assert f.kind == "date" and f.help == "custom"
     assert forms.date("d2", "D2").help == "YYYY-MM-DD"
     assert forms.time_("t", "T", help="x").help == "x"
+
+
+# -- forms: conditional visibility + editable combo -------------------------
+
+
+def test_form_visible_when_and_combo(tmp_path):
+    """visible_when hides a field (reads None) based on another field's value,
+    and combo maps a chosen label to its value while allowing custom text.
+    Driven headlessly under a Tk root."""
+    import os
+    os.environ.setdefault("TBDTASK_SINGLE_TENANT", "1")
+    import tkinter as tk
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        import pytest
+        pytest.skip("no display")
+    root.withdraw()
+    from app.tk import forms
+
+    fields = [
+        forms.choice("kind", "Kind", [("e", "Enlisted"), ("o", "Officer")]),
+        forms.choice("rating", "Rating", [("BM", "BM"), ("IT", "IT")],
+                     visible_when=("kind", lambda v: v == "e")),
+        forms.combo("pos", "Pos", [("LPO", "LPO"), ("LCPO", "LCPO")]),
+    ]
+    dlg = forms._FormDialog(root, "t", fields, {"kind": "o", "pos": "LPO"}, "Save")
+    # Officer selected -> rating row hidden -> reads as None on submit.
+    assert dlg._is_visible(dlg._field_by_name["rating"]) is False
+    # combo preset label maps back to its value.
+    assert dlg._read(dlg._field_by_name["pos"]) == "LPO"
+    # custom typed combo text passes through.
+    dlg._vars["pos"].set("Custom Billet")
+    assert dlg._read(dlg._field_by_name["pos"]) == "Custom Billet"
+    dlg.destroy()
+    root.destroy()

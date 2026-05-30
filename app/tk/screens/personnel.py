@@ -13,13 +13,21 @@ from .base import Screen
 
 
 def _person_fields(incoming: bool, sponsor_choices=None):
-    """Field spec shared by the add/edit person forms."""
+    """Field spec shared by the add/edit person forms.
+
+    Paygrade is picked first; the Rating field only shows for enlisted
+    grades (warrant/officer have no rating). Position is an editable Navy
+    billet dropdown that also accepts custom text.
+    """
     fields = [
         forms.text("last_name", "Last name", required=True),
         forms.text("first_name", "First name"),
-        forms.choice("rate", "Rate / title",
-                     [(c, c) for c in commands.rate_choices()]),
-        forms.text("position", "Position"),
+        forms.choice("paygrade", "Paygrade", commands.paygrade_choices()),
+        forms.choice("rating", "Rating", commands.rating_choices(),
+                     visible_when=("paygrade", commands.is_enlisted_paygrade),
+                     help="enlisted only"),
+        forms.combo("position", "Position / billet", commands.position_choices(),
+                    help="pick or type"),
     ]
     if incoming:
         fields += [
@@ -41,7 +49,9 @@ def _person_fields(incoming: bool, sponsor_choices=None):
     fields.append(forms.multiline("notes", "Notes"))
     return fields
 
-_GROUP_ORDER = ["Leadership", "Senior", "Professional", "Associate", "Other"]
+
+# Mess grouping order for the active roster.
+_GROUP_ORDER = list(commands.rank_catalog.GROUP_ORDER)
 
 
 class PersonnelScreen(Screen):
