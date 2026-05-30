@@ -14,12 +14,14 @@ import pytest
 
 from app import models as M
 from app.tenancy import tenant_context
+from app.tk import commands as C
 from app.tk import dto
 from app.tk import queries as Q
 
 from tests.conftest import (
     make_absence,
     make_absence_codes,
+    make_assignment,
     make_person,
     make_qual,
     make_task,
@@ -132,3 +134,48 @@ def test_worklist_list_and_week_view(session, populated):
 def test_alerts_list_returns_dtos(session, populated):
     rows = run(session, Q.alerts_list("active"))
     assert all(isinstance(r, dto.AlertRowDTO) for r in rows)
+
+
+def test_qual_catalog_rollup(session, populated):
+    rows = run(session, Q.qual_catalog())
+    forklift = next((r for r in rows if r["name"] == "Forklift"), None)
+    assert forklift is not None
+    assert forklift["qualified"] == 1  # p1 is qualified in the fixture
+
+
+def test_task_assignments_query(session, populated):
+    # Build a task with an assignee under the fixture's worklist.
+    wid = populated["worklist"]
+    t = make_task(session, worklist_id=wid, name="Q task")
+    make_assignment(session, instance_id=t.id, person_id=populated["p1"],
+                    is_poic=True)
+    session.commit()
+    data = run(session, Q.task_assignments(t.id))
+    assert data["task_name"] == "Q task"
+    assert len(data["assignments"]) == 1
+    assert data["assignments"][0]["is_poic"] is True
+
+
+def test_template_list_and_get(session, populated):
+    tid = run(session, C.create_template(
+        name="Recurring X", recurrence=C._build_recurrence("daily")))
+    session.commit()
+    lst = run(session, Q.template_list())
+    assert any(t["id"] == tid and t["recurrence"] == "Every day" for t in lst)
+    detail = run(session, Q.template_get(tid))
+    assert detail["name"] == "Recurring X" and detail["rec_kind"] == "daily"
+
+
+def test_carry_over_candidates_query(session):
+    p = make_person(session, last_name="C")
+    last_monday = date.today() - timedelta(days=date.today().weekday() + 7)
+    this_monday = date.today() - timedelta(days=date.today().weekday())
+    prev = make_worklist(session, last_monday)
+    cur = make_worklist(session, this_monday)
+    session.commit()
+    t = make_task(session, worklist_id=prev.id, name="Pending", status="open")
+    make_assignment(session, instance_id=t.id, person_id=p.id, is_poic=True)
+    session.commit()
+    data = run(session, Q.carry_over_candidates(cur.id))
+    assert data["locked"] is False
+    assert any(c["name"] == "Pending" for c in data["candidates"])

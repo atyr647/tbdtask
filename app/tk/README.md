@@ -82,9 +82,17 @@ picker + POIC defaulting), edit task (fields / status / hours /
 completion), lock a worklist; assign qualifications to a person (bulk,
 with achieved-date -> expiry derived from the qual's validity window) and
 change a person-qual's status (the close-current / append-new effective-
-dated pattern). These go through `commands.py` (which mirrors the route
-handlers' validation, effective-dating, soft-delete, POIC defaulting, and
-alert recompute), `forms.py` (the modal dialog framework, including the
+dated pattern); manage a task's assignees after creation (add person or
+off-roster lead, set/auto-demote POIC, remove); the qualification catalog
+(create / rename / archive a qual); recurring-task templates (create /
+edit / archive, with the full recurrence builder — daily / weekday set /
+every-N-weeks / day-of-month / Nth-weekday — plus required quals, driver's
+license, duty section); and the remaining worklist actions (edit name /
+notes, amend a locked week into a new editable version cloning its tasks +
+assignments, carry-over review/apply, archive). These go through
+`commands.py` (which mirrors the route handlers' validation, effective-
+dating, soft-delete, POIC defaulting, recurrence parsing, and alert
+recompute), `forms.py` (the modal dialog framework, including the
 multi-select field), and `actions.py` (the PII/CUI acknowledge gate +
 validation-error handling + refresh).
 
@@ -99,8 +107,8 @@ explains how to install it. The PDF uses a real TrueType family
 (Liberation Sans, falling back to DejaVu Sans, then ReportLab's built-in
 Helvetica) registered once per process in `pdf._register_fonts`.
 
-**Not yet ported (still web-only):** per-task assignee add/remove after
-creation (edit-task currently covers task fields + status/hours, not
-re-assigning), recurring-task template authoring, and worklist amend +
-carry-over apply. All hang off the same `context.write()` boundary, so
-they're additive.
+**Multi-tenant-only routes (intentionally not ported):** login/OIDC,
+org selection/creation, invites, members, roles, and workcenters. These
+are bypassed entirely in single-tenant mode (the offline Pi tool has no
+accounts or orgs), so they have no place in this UI. Everything the
+offline tool actually does is now native.

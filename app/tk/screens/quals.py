@@ -5,9 +5,10 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from .. import theme
+from .. import commands, forms, theme
+from ..actions import run_write
 from ..context import read
-from ..widgets import Card, VScroll, badge, empty_state
+from ..widgets import Card, SearchableTree, VScroll, badge, empty_state
 from .. import queries as Q
 from .base import Screen
 
@@ -17,16 +18,100 @@ class QualsScreen(Screen):
 
     def refresh(self, tab: str = "overview", **_):
         self.clear()
-        self.header("Qualifications")
+        bar = self.header("Qualifications")
+        ttk.Button(bar, text="+ New qualification", style="Accent.TButton",
+                   command=self._add_qual).pack(side="right")
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
         overview = ttk.Frame(nb, style="TFrame", padding=12)
         matrix = ttk.Frame(nb, style="TFrame", padding=12)
+        catalog = ttk.Frame(nb, style="TFrame", padding=12)
         nb.add(overview, text="Readiness overview")
         nb.add(matrix, text="Matrix")
+        nb.add(catalog, text="Catalog")
         self._build_overview(overview)
         self._build_matrix(matrix)
-        nb.select(1 if tab == "matrix" else 0)
+        self._build_catalog(catalog)
+        nb.select({"matrix": 1, "catalog": 2}.get(tab, 0))
+
+    # -- Catalog ----------------------------------------------------------
+    def _build_catalog(self, parent):
+        rows = read(Q.qual_catalog())
+        if not rows:
+            empty_state(parent, "No qualifications yet.").pack(anchor="w")
+            return
+        ttk.Label(parent, text="Double-click to rename; use the buttons to "
+                  "rename or archive.", style="Muted.TLabel").pack(
+            anchor="w", pady=(0, 4))
+        self._catalog_rows = {r["id"]: r for r in rows}
+        table = SearchableTree(
+            parent,
+            columns=[("name", "Name", 240), ("qualified", "Qualified", 90),
+                     ("in_progress", "In progress", 100),
+                     ("dinq", "DINQ", 70), ("validity", "Validity (d)", 100)],
+            on_open=lambda iid: self._edit_qual(int(iid)),
+            search_label="Filter",
+        )
+        table.pack(fill="both", expand=True)
+        table.set_rows([
+            {"_id": r["id"], "name": r["name"], "qualified": r["qualified"],
+             "in_progress": r["in_progress"], "dinq": r["dinq"],
+             "validity": r["validity_period_days"] or ""}
+            for r in rows
+        ])
+        btns = ttk.Frame(parent)
+        btns.pack(fill="x", pady=(6, 0))
+        ttk.Button(btns, text="Rename selected",
+                   command=lambda: self._edit_selected(table)).pack(side="left")
+        ttk.Button(btns, text="Archive selected",
+                   command=lambda: self._archive_selected(table)).pack(
+            side="left", padx=4)
+
+    def _selected_id(self, table):
+        sel = table.tree.selection()
+        return int(sel[0]) if sel else None
+
+    def _edit_selected(self, table):
+        qid = self._selected_id(table)
+        if qid is not None:
+            self._edit_qual(qid)
+
+    def _archive_selected(self, table):
+        qid = self._selected_id(table)
+        if qid is not None:
+            self._archive_qual(qid)
+
+    def _add_qual(self):
+        vals = forms.prompt(self, "New qualification",
+                            [forms.text("name", "Name", required=True)],
+                            submit_label="Create")
+        if not vals:
+            return
+        run_write(self, commands.create_qual(vals["name"]),
+                  on_done=lambda: self.app.show("quals", tab="catalog"))
+
+    def _edit_qual(self, qual_id):
+        row = getattr(self, "_catalog_rows", {}).get(qual_id)
+        initial = {"name": row["name"]} if row else {}
+        vals = forms.prompt(self, "Rename qualification",
+                            [forms.text("name", "Name", required=True)],
+                            initial=initial, submit_label="Save")
+        if not vals:
+            return
+        run_write(self, commands.update_qual(qual_id, vals["name"]),
+                  on_done=lambda: self.app.show("quals", tab="catalog"))
+
+    def _archive_qual(self, qual_id):
+        vals = forms.prompt(self, "Archive qualification",
+                            [forms.text("reason", "Reason")],
+                            submit_label="Archive")
+        if vals is None:
+            return
+        run_write(
+            self, commands.archive_qual(qual_id, vals.get("reason") or ""),
+            confirm=("Archive qualification",
+                     "Hide this qualification from the catalog and matrix?"),
+            on_done=lambda: self.app.show("quals", tab="catalog"))
 
     # -- Overview ---------------------------------------------------------
     def _build_overview(self, parent):

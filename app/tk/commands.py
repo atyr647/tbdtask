@@ -23,6 +23,7 @@ from ..auth.sensitive_info import scan_text
 from ..data import ranks as rank_catalog
 from ..services import alerts as alerts_service
 from ..services import effective as eff
+from ..services.carry_over import apply_carry_over, find_pending_carry_overs
 from ..services.task_generator import generate_for_worklist
 
 DUTY_SECTIONS = (1, 2, 3, 4, 5, 6)
@@ -33,6 +34,21 @@ PERSON_QUAL_STATUSES = (
     "not_assigned", "assigned", "in_progress", "qualified", "dinq",
     "expired", "waived",
 )
+CARRY_OVER_POLICIES = (
+    ("auto_same_person", "Auto carry to same person (default)"),
+    ("auto_any_qualified", "Auto carry; reassign to any qualified personnel"),
+    ("never", "Never carry — drop if not done"),
+    ("manual_prompt", "Always prompt at carry-over"),
+)
+RECURRENCE_KINDS = (
+    ("none", "(no recurrence)"),
+    ("daily", "Every day"),
+    ("weekdays", "Specific weekday(s)"),
+    ("every_n_weeks", "Every N weeks on a chosen weekday"),
+    ("monthly_date", "Day-of-month"),
+    ("monthly_nth_weekday", "Nth weekday of the month"),
+)
+WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 # --------------------------------------------------------------------------
@@ -722,5 +738,374 @@ def update_person_qual(person_id, pq_id, *, status, started_at=None,
             expires_at=expires_dt, notes=notes or None, valid_from=eff_date))
         s.flush()
         return person_id
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Qualification catalog (the qual definitions, not per-person rows)
+# --------------------------------------------------------------------------
+
+
+def create_qual(name):
+    """Add a qualification to the catalog. The web UI only exposes the
+    name; other fields (code/category/validity) stay null as there."""
+    def _q(s: Session) -> int:
+        clean = (name or "").strip()
+        if not clean:
+            raise ValidationError("a name is required")
+        last_pos = s.scalar(
+            select(M.Qualification.display_order)
+            .order_by(M.Qualification.display_order.desc()).limit(1)
+        ) or 0
+        q = M.Qualification(name=clean, display_order=last_pos + 1)
+        s.add(q)
+        s.flush()
+        return q.id
+
+    return _q
+
+
+def update_qual(qual_id, name):
+    def _q(s: Session) -> int | None:
+        q = s.get(M.Qualification, qual_id)
+        if not q:
+            return None
+        clean = (name or "").strip()
+        if not clean:
+            raise ValidationError("a name is required")
+        q.name = clean
+        return q.id
+
+    return _q
+
+
+def archive_qual(qual_id, reason=""):
+    def _q(s: Session) -> int | None:
+        q = s.get(M.Qualification, qual_id)
+        if not q:
+            return None
+        q.active = False
+        q.archived_at = datetime.now()
+        q.archived_reason = reason or None
+        return q.id
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Task assignments (add / change lead / remove, after task creation)
+# --------------------------------------------------------------------------
+
+
+def _ensure_task_unlocked(s: Session, inst: M.TaskInstance) -> None:
+    wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+    if wl is not None and wl.locked:
+        raise ValidationError("worklist is locked; amend it before editing tasks")
+
+
+def add_assignment(task_id, *, person_id=None, external_poic_name=None,
+                   is_poic=False):
+    """Attach a person (or an off-roster lead) to a task. Setting POIC
+    demotes any current lead, matching the route."""
+    def _q(s: Session) -> int | None:
+        inst = s.get(M.TaskInstance, task_id)
+        if not inst:
+            return None
+        _ensure_task_unlocked(s, inst)
+        ext = (external_poic_name or "").strip() or None
+        if not person_id and not ext:
+            raise ValidationError("pick a person or enter an off-roster lead name")
+        if is_poic:
+            for a in s.scalars(select(M.TaskAssignment).where(
+                M.TaskAssignment.instance_id == inst.id,
+                M.TaskAssignment.is_poic == True,  # noqa: E712
+                M.TaskAssignment.active == True,  # noqa: E712
+            )).all():
+                a.is_poic = False
+        s.add(M.TaskAssignment(
+            instance_id=inst.id, person_id=int(person_id) if person_id else None,
+            external_poic_name=ext, is_poic=bool(is_poic)))
+        s.flush()
+        return inst.id
+
+    return _q
+
+
+def set_assignment_poic(task_id, assignment_id):
+    """Make one assignment the lead, demoting the rest."""
+    def _q(s: Session) -> int | None:
+        a = s.get(M.TaskAssignment, assignment_id)
+        if not a or a.instance_id != task_id:
+            return None
+        inst = s.get(M.TaskInstance, task_id)
+        _ensure_task_unlocked(s, inst)
+        for other in s.scalars(select(M.TaskAssignment).where(
+            M.TaskAssignment.instance_id == task_id,
+            M.TaskAssignment.is_poic == True,  # noqa: E712
+            M.TaskAssignment.active == True,  # noqa: E712
+        )).all():
+            other.is_poic = False
+        a.is_poic = True
+        return task_id
+
+    return _q
+
+
+def remove_assignment(task_id, assignment_id):
+    def _q(s: Session) -> int | None:
+        a = s.get(M.TaskAssignment, assignment_id)
+        if not a or a.instance_id != task_id:
+            return None
+        inst = s.get(M.TaskInstance, task_id)
+        _ensure_task_unlocked(s, inst)
+        a.active = False
+        a.archived_at = datetime.now()
+        return task_id
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Task templates (recurring task definitions)
+# --------------------------------------------------------------------------
+
+
+def _build_recurrence(kind, *, weekdays=None, n=None, weekday=None, day=None,
+                      anchor=None) -> dict | None:
+    kind = (kind or "none").strip()
+    if kind in ("none", ""):
+        return None
+    if kind == "daily":
+        return {"kind": "daily"}
+    if kind == "weekdays":
+        return {"kind": "weekdays", "weekdays": [int(x) for x in (weekdays or [])]}
+    if kind == "every_n_weeks":
+        return {"kind": "every_n_weeks", "n": int(n or 2),
+                "weekday": int(weekday or 0), "anchor": anchor or None}
+    if kind == "monthly_date":
+        return {"kind": "monthly_date", "day": int(day or 1)}
+    if kind == "monthly_nth_weekday":
+        return {"kind": "monthly_nth_weekday", "n": int(n or 1),
+                "weekday": int(weekday or 0)}
+    return None
+
+
+def create_template(*, name, category_id=None, description=None,
+                    estimated_hours=None, carry_over_policy="auto_same_person",
+                    recurrence=None, required_drivers_license=False,
+                    required_duty_section=None, required_quals=(), notes=None,
+                    splittable=False, reassignable=True):
+    def _q(s: Session) -> int:
+        clean = (name or "").strip()
+        if not clean:
+            raise ValidationError("a name is required")
+        tmpl = M.TaskTemplate(
+            name=clean[:240],
+            category_id=int(category_id) if category_id else None,
+            description=description or None,
+            estimated_hours=float(estimated_hours) if estimated_hours not in
+            (None, "") else None,
+            splittable=bool(splittable),
+            reassignable=bool(reassignable),
+            carry_over_policy=carry_over_policy or "auto_same_person",
+            recurrence_rule=recurrence,
+            required_drivers_license=bool(required_drivers_license),
+            required_duty_section=int(required_duty_section)
+            if required_duty_section else None,
+            notes=notes or None)
+        s.add(tmpl)
+        s.flush()
+        for qid in required_quals or []:
+            s.add(M.TaskTemplateRequiredQual(task_template_id=tmpl.id,
+                                             qual_id=int(qid)))
+        s.flush()
+        return tmpl.id
+
+    return _q
+
+
+def update_template(template_id, *, name, category_id=None, description=None,
+                    estimated_hours=None, carry_over_policy="auto_same_person",
+                    recurrence=None, required_drivers_license=False,
+                    required_duty_section=None, required_quals=(), notes=None,
+                    splittable=False, reassignable=True):
+    def _q(s: Session) -> int | None:
+        tmpl = s.get(M.TaskTemplate, template_id)
+        if not tmpl:
+            return None
+        clean = (name or "").strip()
+        if not clean:
+            raise ValidationError("a name is required")
+        tmpl.name = clean[:240]
+        tmpl.category_id = int(category_id) if category_id else None
+        tmpl.description = description or None
+        tmpl.estimated_hours = (float(estimated_hours)
+                                if estimated_hours not in (None, "") else None)
+        tmpl.splittable = bool(splittable)
+        tmpl.reassignable = bool(reassignable)
+        tmpl.carry_over_policy = carry_over_policy or "auto_same_person"
+        tmpl.recurrence_rule = recurrence
+        tmpl.required_drivers_license = bool(required_drivers_license)
+        tmpl.required_duty_section = (int(required_duty_section)
+                                      if required_duty_section else None)
+        tmpl.notes = notes or None
+        s.query(M.TaskTemplateRequiredQual).filter(
+            M.TaskTemplateRequiredQual.task_template_id == template_id).delete()
+        for qid in required_quals or []:
+            s.add(M.TaskTemplateRequiredQual(task_template_id=tmpl.id,
+                                             qual_id=int(qid)))
+        s.flush()
+        return tmpl.id
+
+    return _q
+
+
+def archive_template(template_id, reason=""):
+    def _q(s: Session) -> int | None:
+        tmpl = s.get(M.TaskTemplate, template_id)
+        if not tmpl:
+            return None
+        tmpl.active = False
+        tmpl.archived_at = datetime.now()
+        tmpl.archived_reason = reason or None
+        return tmpl.id
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Worklists: update name/notes, amend (clone a locked week), archive,
+# carry-over apply
+# --------------------------------------------------------------------------
+
+
+def update_worklist(worklist_id, *, name, notes=None):
+    def _q(s: Session) -> int | None:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            return None
+        if wl.locked:
+            raise ValidationError("worklist is locked; create an amendment instead")
+        clean = (name or "").strip()
+        if not clean:
+            raise ValidationError("a name is required")
+        wl.name = clean
+        wl.notes = notes or None
+        return wl.id
+
+    return _q
+
+
+def amend_worklist(worklist_id, *, amendment_reason, operator_name=None):
+    """Clone a locked worklist into a new editable version, duplicating its
+    tasks + assignments. Returns the new worklist id."""
+    def _q(s: Session) -> int:
+        parent = s.get(M.Worklist, worklist_id)
+        if not parent:
+            raise ValidationError("worklist not found")
+        if not parent.locked:
+            raise ValidationError("only locked worklists are amended")
+        reason = (amendment_reason or "").strip()
+        if not reason:
+            raise ValidationError("an amendment reason is required")
+        sibling_version = s.scalar(
+            select(M.Worklist.version)
+            .where((M.Worklist.id == parent.id) |
+                   (M.Worklist.parent_id == parent.id))
+            .order_by(M.Worklist.version.desc()).limit(1)) or 1
+        clone = M.Worklist(
+            week_starting=parent.week_starting, name=parent.name,
+            version=sibling_version + 1, parent_id=parent.id, notes=parent.notes,
+            amended_at=datetime.now(), amendment_reason=reason,
+            operator_name=(operator_name or None) and operator_name.strip())
+        s.add(clone)
+        s.flush()
+        from sqlalchemy.orm import selectinload
+        instances = s.scalars(
+            select(M.TaskInstance).where(
+                M.TaskInstance.worklist_id == parent.id,
+                M.TaskInstance.active == True,  # noqa: E712
+            ).options(selectinload(M.TaskInstance.assignments))).all()
+        for inst in instances:
+            new_inst = M.TaskInstance(
+                template_id=inst.template_id, worklist_id=clone.id,
+                scheduled_date=inst.scheduled_date, category_id=inst.category_id,
+                name=inst.name, description=inst.description, status=inst.status,
+                hours=inst.hours, notes=inst.notes,
+                completion_notes=inst.completion_notes,
+                completed_at=inst.completed_at, carried_from_instance_id=inst.id,
+                display_order=inst.display_order)
+            s.add(new_inst)
+            s.flush()
+            for a in inst.assignments:
+                if not a.active:
+                    continue
+                s.add(M.TaskAssignment(
+                    instance_id=new_inst.id, person_id=a.person_id,
+                    is_poic=a.is_poic, external_poic_name=a.external_poic_name,
+                    completed=a.completed, completion_notes=a.completion_notes,
+                    hours_worked=a.hours_worked, display_order=a.display_order))
+        s.flush()
+        return clone.id
+
+    return _q
+
+
+def archive_worklist(worklist_id, reason=""):
+    def _q(s: Session) -> int | None:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            return None
+        wl.active = False
+        wl.archived_at = datetime.now()
+        wl.archived_reason = reason or None
+        return wl.id
+
+    return _q
+
+
+def apply_carry_overs(worklist_id, decisions):
+    """Apply a batch of carry-over decisions.
+
+    ``decisions`` maps instance_id -> dict(action=..., reassign_person_ids=[],
+    poic_person_id=...). Actions: carry | reassign | complete | discard |
+    leave. Returns the count of decisions acted on.
+    """
+    def _q(s: Session) -> int:
+        wl = s.get(M.Worklist, worklist_id)
+        if not wl:
+            raise ValidationError("worklist not found")
+        if wl.locked:
+            raise ValidationError("amend the worklist before processing carry-overs")
+        candidates = {c.instance.id: c for c in find_pending_carry_overs(s, wl)}
+        acted = 0
+        for iid, decision in (decisions or {}).items():
+            c = candidates.get(iid)
+            if c is None:
+                continue
+            action = decision.get("action", "leave")
+            if action == "reassign":
+                apply_carry_over(
+                    s, wl, c, "reassign",
+                    reassign_person_ids=decision.get("reassign_person_ids") or [],
+                    new_poic_person_id=decision.get("poic_person_id"))
+            else:
+                apply_carry_over(s, wl, c, action)
+            acted += 1
+        s.flush()
+        return acted
+
+    return _q
+
+
+def task_template_choices():
+    """Return [(id, name)] for active task templates."""
+    def _q(s: Session):
+        rows = s.scalars(
+            select(M.TaskTemplate)
+            .where(M.TaskTemplate.active == True)  # noqa: E712
+            .order_by(M.TaskTemplate.display_order, M.TaskTemplate.id)).all()
+        return [(t.id, t.name) for t in rows]
 
     return _q

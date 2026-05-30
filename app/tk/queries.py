@@ -909,3 +909,189 @@ def task_get(task_id: int):
         }
 
     return _q
+
+
+# --------------------------------------------------------------------------
+# Task assignment management
+# --------------------------------------------------------------------------
+
+
+def task_assignments(task_id: int):
+    """Task header + its active assignments (id, name, is_poic) for the
+    assignee-management dialog."""
+    def _q(s: Session) -> dict | None:
+        inst = s.get(M.TaskInstance, task_id)
+        if inst is None:
+            return None
+        wl = s.get(M.Worklist, inst.worklist_id) if inst.worklist_id else None
+        rows = s.scalars(
+            select(M.TaskAssignment)
+            .where(
+                M.TaskAssignment.instance_id == inst.id,
+                M.TaskAssignment.active == True,  # noqa: E712
+            )
+            .options(selectinload(M.TaskAssignment.person))
+            .order_by(M.TaskAssignment.display_order, M.TaskAssignment.id)
+        ).all()
+        assignments = [
+            {
+                "id": a.id,
+                "name": a.person.full_display if a.person
+                else (a.external_poic_name or "(external)"),
+                "is_poic": a.is_poic,
+                "is_person": a.person_id is not None,
+            }
+            for a in rows
+        ]
+        return {
+            "task_id": inst.id,
+            "task_name": inst.name,
+            "worklist_id": inst.worklist_id,
+            "locked": bool(wl and wl.locked),
+            "assignments": assignments,
+        }
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Qualification catalog
+# --------------------------------------------------------------------------
+
+
+def qual_catalog():
+    """All active qualifications with a usage rollup, for the catalog tab."""
+    def _q(s: Session) -> list[dict]:
+        quals = s.scalars(
+            select(M.Qualification)
+            .where(M.Qualification.active == True)  # noqa: E712
+            .order_by(M.Qualification.display_order, M.Qualification.name)
+        ).all()
+        counts_rows = s.execute(
+            select(M.PersonQual.qual_id, M.PersonQual.status)
+            .where(M.PersonQual.valid_to.is_(None),
+                   M.PersonQual.active == True)  # noqa: E712
+        ).all()
+        counts: dict[int, dict[str, int]] = {}
+        for qid, st in counts_rows:
+            counts.setdefault(qid, {})[st] = counts.get(qid, {}).get(st, 0) + 1
+        out = []
+        for q in quals:
+            c = counts.get(q.id, {})
+            out.append({
+                "id": q.id,
+                "name": q.name,
+                "qualified": c.get("qualified", 0),
+                "in_progress": c.get("in_progress", 0),
+                "assigned": c.get("assigned", 0),
+                "dinq": c.get("dinq", 0),
+                "validity_period_days": q.validity_period_days,
+            })
+        return out
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Task templates (recurring tasks)
+# --------------------------------------------------------------------------
+
+
+def template_list():
+    """Active task templates with a human recurrence description."""
+    from ..services.recurrence import describe
+
+    def _q(s: Session) -> list[dict]:
+        templates = s.scalars(
+            select(M.TaskTemplate)
+            .where(M.TaskTemplate.active == True)  # noqa: E712
+            .order_by(M.TaskTemplate.display_order, M.TaskTemplate.id)
+            .options(selectinload(M.TaskTemplate.category))
+        ).all()
+        return [
+            {
+                "id": t.id,
+                "name": t.name,
+                "category": t.category.name if t.category else None,
+                "recurrence": describe(t.recurrence_rule or {}),
+                "carry_over_policy": t.carry_over_policy,
+                "estimated_hours": t.estimated_hours,
+            }
+            for t in templates
+        ]
+
+    return _q
+
+
+def template_get(template_id: int):
+    """Raw template values + recurrence parts + required-qual ids, for the
+    edit form."""
+    def _q(s: Session) -> dict | None:
+        t = s.get(M.TaskTemplate, template_id)
+        if t is None:
+            return None
+        rule = t.recurrence_rule or {}
+        required = list(s.scalars(
+            select(M.TaskTemplateRequiredQual.qual_id)
+            .where(M.TaskTemplateRequiredQual.task_template_id == template_id)
+        ).all())
+        return {
+            "id": t.id,
+            "name": t.name,
+            "category_id": t.category_id,
+            "description": t.description,
+            "estimated_hours": t.estimated_hours,
+            "carry_over_policy": t.carry_over_policy,
+            "required_drivers_license": t.required_drivers_license,
+            "required_duty_section": t.required_duty_section,
+            "notes": t.notes,
+            "splittable": t.splittable,
+            "reassignable": t.reassignable,
+            "required_quals": required,
+            "rec_kind": rule.get("kind", "none"),
+            "rec_weekdays": rule.get("weekdays", []),
+            "rec_n": rule.get("n"),
+            "rec_weekday": rule.get("weekday"),
+            "rec_day": rule.get("day"),
+            "rec_anchor": rule.get("anchor"),
+        }
+
+    return _q
+
+
+# --------------------------------------------------------------------------
+# Carry-over candidates (pending tasks from earlier weeks)
+# --------------------------------------------------------------------------
+
+
+def carry_over_candidates(worklist_id: int):
+    """Pending carry-over candidates for a worklist, as plain dicts."""
+    from ..services.carry_over import find_pending_carry_overs
+
+    def _q(s: Session) -> dict | None:
+        wl = s.get(M.Worklist, worklist_id)
+        if wl is None:
+            return None
+        if wl.locked:
+            return {"worklist_id": wl.id, "locked": True, "candidates": []}
+        cands = find_pending_carry_overs(s, wl)
+        out = []
+        for c in cands:
+            assignees = [
+                a.person.full_display if a.person
+                else (a.external_poic_name or "(external)")
+                for a in c.assignments
+            ]
+            out.append({
+                "instance_id": c.instance.id,
+                "name": c.instance.name,
+                "status": c.instance.status,
+                "source_week": c.source_worklist.week_starting.isoformat()
+                if c.source_worklist else None,
+                "suggested": c.suggested_action,
+                "policy": c.template_policy,
+                "assignees": assignees,
+            })
+        return {"worklist_id": wl.id, "locked": False, "candidates": out}
+
+    return _q

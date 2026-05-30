@@ -16,6 +16,7 @@ from .screens.absences import AbsencesScreen
 from .screens.alerts import AlertsScreen
 from .screens.personnel import PersonnelScreen
 from .screens.quals import QualsScreen
+from .screens.templates import TemplatesScreen
 from .screens.today import TodayScreen
 from .screens.worklists import WorklistsScreen
 
@@ -26,6 +27,7 @@ NAV = [
     ("quals", "Qualifications", QualsScreen),
     ("absences", "Absences", AbsencesScreen),
     ("worklists", "Worklists", WorklistsScreen),
+    ("templates", "Recurring", TemplatesScreen),
     ("alerts", "Alerts", AlertsScreen),
 ]
 
