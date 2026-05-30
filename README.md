@@ -14,8 +14,9 @@ SQLite file; nothing leaves the device.
   `TBDTASK_DATA_DIR`.
 - The runtime app does not depend on `openpyxl`. Personnel, qualifications
   and tasks are entered through the UI.
-- The Pi 400 AppImage just bundles a portable Python interpreter and the
-  app; see `tools/build_appimage.sh`.
+- The Pi 400 AppImage bundles a Python interpreter, a dynamically-linked
+  Tcl/Tk runtime, and the app — it runs the native tkinter UI offline with
+  no system dependencies; see `tools/build_appimage.sh`.
 
 ## Features
 
@@ -147,23 +148,27 @@ chmod +x tbdtask-0.1.0-aarch64.AppImage
 ./tbdtask-0.1.0-aarch64.AppImage
 ```
 
-The AppImage opens a native WebKitGTK window on `http://127.0.0.1:<free-port>/`
-and keeps its data in `~/.local/share/tbdtask/`. First-time setup on
-Void Linux: `sudo xbps-install -S webkit2gtk`.
+The AppImage opens the **native tkinter window** directly (no browser, no
+WebKitGTK) and keeps its data in `~/.local/share/tbdtask/`. It is fully
+self-contained — a bundled Python + Tcl/Tk + the app — so there are no
+system packages to install on the Pi.
 
 ## Build the AppImage locally
 
-The Pi 400 is **aarch64**, so that's the default target:
+The AppImage bundles a **dynamically-linked Tk** runtime assembled from
+Debian/Ubuntu packages. (python-build-standalone's statically-linked Tk
+aborts with an xcb assertion the moment a widget renders, on real X
+servers too — see the header comment in `tools/build_appimage.sh`.)
 
 ```sh
-tools/build_appimage.sh                 # defaults to ARCH=aarch64 (Pi 400)
-ARCH=x86_64 tools/build_appimage.sh     # desktop testing
-BUILD_TAURI=0 tools/build_appimage.sh   # skip the native shell (browser fallback)
+ARCH=x86_64 tools/build_appimage.sh     # default: assembles from the build host's python+tk
+ARCH=aarch64 tools/build_appimage.sh    # Pi 400: fetches arm64 .debs (or set DEB_DIR=...)
+WITH_PDF=0 ARCH=... tools/build_appimage.sh   # omit ReportLab (smaller; Print explains how to add it)
 ```
 
-Output lands in `dist/tbdtask-<version>-<arch>.AppImage`. The Tauri
-cross-build needs `gcc-aarch64-linux-gnu` and arm64 WebKitGTK dev libs;
-see `desktop/README.md` for the full toolchain setup.
+Output lands in `dist/tbdtask-<version>-<arch>.AppImage`. The aarch64
+build needs `ar`/`tar` and network to fetch the arm64 runtime .debs; point
+`DEB_DIR` at a directory of pre-downloaded .debs to build offline.
 
 ## Cut a release
 

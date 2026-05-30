@@ -1,12 +1,15 @@
-name: Release
-
-# Builds the aarch64 AppImage and attaches it to a GitHub Release.
+# .github/workflows/release.yml
+# Builds the aarch64 AppImage (native tkinter UI) and attaches it to a
+# GitHub Release.
 #
-# Triggers:
+# Triggered by either:
 #   - Push a tag matching v*    (e.g. ``git tag v0.1.1 && git push --tags``)
 #   - Manual run via the Actions tab (workflow_dispatch). Manual runs upload
-#     to a Release named after the chosen ref unless overridden.
-
+#     to a release named after the chosen tag.
+#
+# The AppImage bundles a dynamically-linked Tk runtime assembled from arm64
+# .debs (see tools/build_appimage.sh). No cross-compiler or WebKitGTK is
+# needed — the build only extracts .debs and pip-installs arch-correct wheels.
 on:
   push:
     tags:
@@ -27,96 +30,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ---- Cross-compile toolchain (x86_64 host → aarch64 target) ----
-      - name: Install aarch64 cross GCC
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu pkg-config
-
-      - name: Enable arm64 multiarch
-        run: |
-          sudo dpkg --add-architecture arm64
-          # Restrict the default amd64 sources so apt doesn't try to fetch
-          # arm64 from archive.ubuntu.com (which only hosts amd64/i386).
-          sudo sed -i 's|^Types: deb$|Types: deb\nArchitectures: amd64|' \
-            /etc/apt/sources.list.d/ubuntu.sources
-          # Add arm64 sources from ports.ubuntu.com.
-          sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources >/dev/null <<'EOF'
-          Types: deb
-          URIs: http://ports.ubuntu.com/ubuntu-ports/
-          Suites: noble noble-updates noble-backports noble-security
-          Components: main universe restricted multiverse
-          Architectures: arm64
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-          EOF
-          sudo apt-get update
-
-      - name: Install aarch64 WebKitGTK + GTK dev libs
-        run: |
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev:arm64 \
-            libgtk-3-dev:arm64 \
-            libssl-dev:arm64 \
-            libayatana-appindicator3-dev:arm64 \
-            librsvg2-dev:arm64
-
-      # ---- Rust toolchain with aarch64 target ----
-      - name: Install Rust + aarch64 target
-        run: |
-          rustup target add aarch64-unknown-linux-gnu
-
-      - name: Cache cargo registry + git
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: cargo-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
-
-      - name: Cache cargo target
-        uses: actions/cache@v4
-        with:
-          path: desktop/src-tauri/target
-          key: cargo-target-${{ runner.os }}-aarch64-${{ hashFiles('desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/src/**') }}
-          restore-keys: |
-            cargo-target-${{ runner.os }}-aarch64-
-
-      # ---- Python (host interpreter; only used to drive pip --target) ----
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # ---- Build ----
-      - name: Build AppImage
+      - name: Install build prerequisites
         run: |
-          ARCH=aarch64 BUILD_TAURI=1 bash tools/build_appimage.sh
+          python -m pip install --upgrade pip
+          sudo apt-get update
+          # ``ar`` (binutils) extracts .debs; ``squashfs-tools`` lets us
+          # sanity-check the payload. appimagetool fetches its own runtime.
+          sudo apt-get install -y binutils squashfs-tools file
 
-      - name: Inspect output
+      - name: Build aarch64 AppImage
+        env:
+          ARCH: aarch64
         run: |
-          ls -la dist/*.AppImage
-          file dist/*.AppImage
-          sha256sum dist/*.AppImage > dist/SHA256SUMS
-          cat dist/SHA256SUMS
+          bash tools/build_appimage.sh
 
-      # ---- Release ----
-      - name: Resolve release tag
-        id: tag
+      - name: Verify the payload is ARM64 + dynamically-linked Tk
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          fi
+          set -e
+          OUT=$(ls dist/tbdtask-*-aarch64.AppImage)
+          OFF=$(grep -abo 'hsqs' "$OUT" | tail -1 | cut -d: -f1)
+          rm -rf payload && unsquashfs -o "$OFF" -d payload "$OUT" >/dev/null
+          test -x payload/AppRun
+          file payload/usr/python/bin/python3 | grep -q "ARM aarch64"
+          TK=$(find payload -name '_tkinter*.so' | head -1)
+          file "$TK" | grep -q "ARM aarch64"
+          # _tkinter must link the bundled shared Tk (NOT statically), which
+          # is the whole point of this build.
+          objdump -p "$TK" | grep -q "NEEDED.*libtk8.6.so"
+          test "$(find payload -name '*.so*' -exec file {} \; | grep -c 'x86-64')" = "0"
+          echo "aarch64 dynamic-Tk payload verified."
 
-      - name: Create or update release
+      - name: Compute checksum
+        run: |
+          cd dist && sha256sum tbdtask-*.AppImage | tee SHA256SUMS
+
+      - name: Upload AppImage to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.name }}
-          name: ${{ steps.tag.outputs.name }}
-          generate_release_notes: true
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: |
-            dist/tbdtask-*-aarch64.AppImage
+            dist/tbdtask-*.AppImage
             dist/SHA256SUMS
+          fail_on_error: true
