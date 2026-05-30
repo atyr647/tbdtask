@@ -34,6 +34,12 @@ postgres = [
 redis = [
     "redis>=5.0",
 ]
+# Native worklist PDF export for the tkinter front-end (app.tk.pdf). Kept
+# optional so the core install and the hosted web service stay lean; the
+# Tk UI degrades gracefully and prompts to install this when it's missing.
+print = [
+    "reportlab>=4.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

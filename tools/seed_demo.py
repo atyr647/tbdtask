@@ -20,64 +20,58 @@ from app.services.task_generator import generate_for_worklist
 from app.services.alerts import recompute as recompute_alerts
 
 
-# (title, last_name, group_label) — fictional civilian roster.
+# (paygrade, rating_or_None, last_name, position) — fictional Navy division.
+# rating is None for officers/warrants/non-rated; rate token is derived.
 ROSTER = [
-    ("Director", "Reyes", "Leadership"),
-    ("Manager", "Holland", "Leadership"),
-    ("Supervisor", "Brennan", "Senior"),
-    ("Team Lead", "Banks", "Senior"),
-    ("Team Lead", "Wallace", "Senior"),
-    ("Coordinator", "Spencer", "Professional"),
-    ("Planner", "Hartman", "Professional"),
-    ("Scheduler", "Carrington", "Professional"),
-    ("Analyst", "Mason", "Professional"),
-    ("Technician", "Foster", "Professional"),
-    ("Coordinator", "Tanner", "Professional"),
-    ("Coordinator", "Sandoval", "Professional"),
-    ("Operator", "Avalos", "Associate"),
-    ("Technician", "Vega", "Professional"),
-    ("Technician", "Juarez", "Professional"),
-    ("Specialist", "Garrison", "Professional"),
-    ("Operator", "Garcia", "Associate"),
-    ("Associate", "Sutton", "Associate"),
-    ("Associate", "Pearce", "Associate"),
-    ("Assistant", "Tate", "Associate"),
-    ("Assistant", "Estrada", "Associate"),
-    ("Associate", "Riley", "Associate"),
-    ("Associate", "Mendoza", "Associate"),
-    ("Associate", "Beck", "Associate"),
-    ("Associate", "Adler", "Associate"),
-    ("Associate", "Ellis", "Associate"),
-    ("Associate", "Greer", "Associate"),
-    ("Associate", "Townsend", "Associate"),
-    ("Associate", "Sloane", "Associate"),
-    ("Associate", "Hayward", "Associate"),
-    ("Associate", "Acevedo", "Associate"),
-    ("Assistant", "Yates", "Associate"),
-    ("Associate", "Sims", "Associate"),
-    ("Intern", "Olson", "Associate"),
-    ("Intern", "Marsh", "Associate"),
-    ("Coordinator", "Reilly", "Professional"),
+    ("O-3", None, "Reyes", "Department Head"),
+    ("W-3", None, "Holland", "Licensing"),
+    ("E-9", "BM", "Brennan", "LCPO"),
+    ("E-8", "GM", "Banks", "DLCPO"),
+    ("E-7", "OS", "Wallace", "Workcenter Supervisor"),
+    ("E-7", "IT", "Spencer", "LPO"),
+    ("E-6", "ET", "Hartman", "DLPO"),
+    ("E-6", "MM", "Carrington", "RPPO"),
+    ("E-6", "BM", "Mason", "Watchbills"),
+    ("E-6", "GM", "Foster", "ALPO"),
+    ("E-5", "OS", "Tanner", "Training"),
+    ("E-5", "IT", "Sandoval", "Tagout Audit"),
+    ("E-5", "ET", "Avalos", "Hazmat"),
+    ("E-5", "EN", "Vega", "Tool Custodian"),
+    ("E-5", "BM", "Juarez", "DCPO"),
+    ("E-5", "FC", "Garrison", "Hardcards"),
+    ("E-4", "OS", "Garcia", "Muster Report"),
+    ("E-4", "GM", "Sutton", "Career Counselor"),
+    ("E-4", "IT", "Pearce", "Sponsorship"),
+    ("E-4", "MM", "Tate", "DRMO"),
+    ("E-4", "EN", "Estrada", None),
+    ("E-4", "BM", "Riley", None),
+    ("E-4", "ET", "Mendoza", None),
+    ("E-3", "OS", "Beck", None),
+    ("E-3", "GM", "Adler", None),
+    ("E-3", "IT", "Ellis", None),
+    ("E-3", "MM", "Greer", None),
+    ("E-3", None, "Townsend", None),
+    ("E-3", "EN", "Sloane", None),
+    ("E-3", "BM", "Hayward", None),
+    ("E-2", None, "Acevedo", None),
+    ("E-2", "EN", "Yates", None),
+    ("E-2", None, "Sims", None),
+    ("E-1", None, "Olson", None),
+    ("E-1", None, "Marsh", None),
+    ("E-4", "QM", "Reilly", "Watchbills"),
 ]
 
-PAYGRADE = {
-    "Director": "L5", "Manager": "L4", "Supervisor": "L3", "Team Lead": "L3",
-    "Coordinator": "L2", "Planner": "L2", "Scheduler": "L2", "Analyst": "L2",
-    "Technician": "L2", "Specialist": "L2", "Operator": "L1", "Associate": "L1",
-    "Assistant": "L1", "Intern": "L0",
-}
-
-# Qualification catalog — same shape as the production structure, but with
-# civilian certification names.
+# Qualification catalog — Navy-shaped PQS / watchstation names.
 QUALS = [
-    ("Safety Certified", "Core"), ("Quality Review", "Core"), ("Purchasing", "Core"),
-    ("Team Operations", "Core"), ("Front Desk", "Coverage"), ("Field Rover", "Coverage"),
-    ("Site Survey", "Field"), ("Traffic Control", "Field"), ("Communications", "Field"),
-    ("Incident Lead", "Field"), ("Vehicle", "Equipment"), ("Forklift", "Equipment"),
-    ("Bulldozer", "Equipment"), ("Boat Crew", "Equipment"), ("Boat Engineer", "Equipment"),
-    ("Boat Lead", "Equipment"),
+    ("3M / PMS", "Core"), ("Damage Control", "Core"), ("Security Reaction Force", "Core"),
+    ("Sea & Anchor Detail", "Core"), ("Quarterdeck Watch", "Watch"), ("Roving Patrol", "Watch"),
+    ("Sounding & Security", "Watch"), ("Helmsman", "Watch"), ("Lookout", "Watch"),
+    ("OOD Inport", "Watch"), ("Forklift Operator", "Equipment"), ("Crane Signalman", "Equipment"),
+    ("Small Arms (9mm)", "Equipment"), ("RHIB Coxswain", "Equipment"), ("Engineering Watch", "Equipment"),
+    ("EOOW", "Equipment"),
 ]
-PINNED = {"Quality Review", "Vehicle", "Forklift", "Bulldozer", "Boat Crew", "Boat Engineer", "Boat Lead"}
+PINNED = {"Damage Control", "Small Arms (9mm)", "Forklift Operator", "Crane Signalman",
+          "RHIB Coxswain", "Engineering Watch", "EOOW"}
 
 
 ABSENCE_CODES = [
@@ -115,10 +109,11 @@ def main() -> None:
         s.query(M.PersonPrd).delete()
         s.query(M.PersonDutySection).delete()
         s.query(M.PersonRate).delete()
+        # Alerts FK to persons, so clear them before deleting personnel.
+        s.query(M.Alert).delete()
         s.query(M.Person).delete()
         s.query(M.AbsenceCode).delete()
         s.query(M.TaskCategory).delete()
-        s.query(M.Alert).delete()
         s.commit()
 
         # Codes / categories ------------------------------------------------
@@ -131,18 +126,21 @@ def main() -> None:
         cats = {c.name: c for c in s.scalars(select(M.TaskCategory)).all()}
 
         # Roster -----------------------------------------------------------
+        from app.data import ranks as rank_catalog
         people: list[M.Person] = []
-        for i, (rate, last, group) in enumerate(ROSTER):
+        for i, (paygrade, rating, last, position) in enumerate(ROSTER):
+            rate = rank_catalog.rate_token(paygrade, rating)
             display = f"{rate} {last}"
             p = M.Person(
-                last_name=last, full_display=display,
-                notes=f"Demo / {group}", display_order=i,
+                last_name=last, full_display=display, position=position,
+                notes=f"Demo / {rank_catalog.group_for(rate, paygrade)}",
+                display_order=i,
             )
             s.add(p)
             s.flush()
             s.add(M.PersonRate(
                 person_id=p.id, rate=rate,
-                paygrade=PAYGRADE.get(rate),
+                paygrade=paygrade,
                 valid_from=today,
             ))
             s.add(M.PersonRosterStatus(
@@ -183,14 +181,15 @@ def main() -> None:
             s.flush()
             quals[name] = q
 
-        # Make Tanner broadly qualified, including HMMWV expiring in 12 days
-        for qname in ("Safety Certified", "Quality Review", "Purchasing", "Front Desk", "Field Rover",
-                      "Site Survey", "Traffic Control", "Communications", "Vehicle", "Bulldozer",
-                      "Boat Crew", "Boat Engineer"):
+        # Make Tanner broadly qualified, including Small Arms expiring in 12 days
+        for qname in ("3M / PMS", "Damage Control", "Security Reaction Force",
+                      "Quarterdeck Watch", "Roving Patrol", "Sounding & Security",
+                      "Helmsman", "Lookout", "Small Arms (9mm)", "Crane Signalman",
+                      "RHIB Coxswain", "Engineering Watch"):
             q = quals[qname]
             ach = datetime.now() - timedelta(days=200)
             exp = None
-            if qname == "Vehicle":
+            if qname == "Small Arms (9mm)":
                 ach = datetime.now() - timedelta(days=350)
                 exp = datetime.now() + timedelta(days=12)
             s.add(M.PersonQual(
@@ -200,11 +199,11 @@ def main() -> None:
 
         # A few in-progress and dinq examples
         for last, qname, status in [
-            ("Sandoval", "Safety Certified", "in_progress"),
-            ("Sandoval", "Front Desk", "in_progress"),
-            ("Vega", "Front Desk", "in_progress"),
-            ("Mason", "Safety Certified", "dinq"),
-            ("Marsh", "Quality Review", "dinq"),
+            ("Sandoval", "Damage Control", "in_progress"),
+            ("Sandoval", "Quarterdeck Watch", "in_progress"),
+            ("Vega", "Quarterdeck Watch", "in_progress"),
+            ("Mason", "Damage Control", "dinq"),
+            ("Marsh", "3M / PMS", "dinq"),
         ]:
             s.add(M.PersonQual(
                 person_id=by_last[last].id, qual_id=quals[qname].id,
@@ -224,7 +223,7 @@ def main() -> None:
         ))
         s.add(M.Absence(
             person_id=by_last["Spencer"].id,
-            code_id=abs_codes["TAD"].id,
+            code_id=abs_codes["Travel"].id,
             start_date=monday, end_date=monday + timedelta(days=4),
             reason="LARC operator school",
         ))

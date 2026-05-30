@@ -69,6 +69,21 @@ python -m uvicorn app.main:app --reload    # dev server on :8000
 python -m app.main                         # opens default browser on :8765
 ```
 
+### Native Tk front-end (Pi 400 performance)
+
+The web view runs inside WebKitGTK, which is the dominant cost on the
+Pi 400. `app/tk/` is a native **tkinter** UI over the same
+services/SQLite backend — no browser engine, no HTTP — so it starts
+instantly and repaints cheaply on that hardware:
+
+```sh
+python -m app.tk            # opens the native window (needs tkinter)
+```
+
+It's a read-first port today (Today, Personnel, Qualifications,
+Absences, Worklists, Alerts). See `app/tk/README.md` for the
+architecture and porting status.
+
 The schema is managed by Alembic. `init_db()` runs `alembic upgrade head`
 on every startup, so the app self-migrates. To create a new migration
 after editing `app/models.py`:
