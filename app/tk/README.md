@@ -72,9 +72,12 @@ keeps the screens dumb and the session lifetime contained.
 Departed + profile), Qualifications (readiness overview + colour matrix),
 Absences (list + calendar grid), Worklists (list + week view), Alerts.
 
-**Write side (done):** create person, create incoming, edit person
-(effective-dated rate / duty / PRD / license + status), in-processing
-checklist, mark-arrived, move-to-departed; create / edit / archive
+**Write side (done):** add person — one form with a Status choice that
+reveals the incoming arrival / sponsor / in-processing checklist fields
+when "Incoming" is picked and the active-roster fields otherwise; edit
+person (effective-dated rate / duty / PRD / license + status), in-
+processing checklist, mark-arrived, move-to-departed; create / edit /
+archive
 absence; alert triage (dismiss / snooze / resolve) and PRD actions
 (update PRD, archive person from alert); create worklist (auto-seeds
 recurring tasks), regenerate recurring, add task (with multi-assignee

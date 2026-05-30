@@ -12,12 +12,25 @@ from .. import queries as Q
 from .base import Screen
 
 
-def _person_fields(incoming: bool, sponsor_choices=None):
-    """Field spec shared by the add/edit person forms.
+def _is_incoming(v):
+    return v == "incoming"
+
+
+def _is_onboard(v):
+    # active-roster fields show unless the person is being added as incoming
+    return v != "incoming"
+
+
+def _person_fields(mode: str, sponsor_choices=None):
+    """Field spec for the add / edit person form.
 
     Paygrade is picked first; the Rating field only shows for enlisted
     grades (warrant/officer have no rating). Position is an editable Navy
-    billet dropdown that also accepts custom text.
+    billet dropdown that also accepts custom text. Duty section is typed.
+
+    In ``add`` mode a Status choice (Active / Incoming) is shown: picking
+    Incoming reveals arrival / sponsor / in-processing checklist and hides
+    the active-roster fields. ``edit`` mode is always an on-board person.
     """
     fields = [
         forms.text("last_name", "Last name", required=True),
@@ -29,19 +42,36 @@ def _person_fields(incoming: bool, sponsor_choices=None):
         forms.combo("position", "Position / billet", commands.position_choices(),
                     help="pick or type"),
     ]
-    if incoming:
+    if mode == "add":
+        fields.append(forms.choice(
+            "status", "Status",
+            [("active", "Active (on board)"), ("incoming", "Incoming")]))
+        # Active-roster fields — hidden while Incoming is selected.
+        on = ("status", _is_onboard)
         fields += [
-            forms.date("arrival_date", "Arrival date"),
-            forms.choice("sponsor_person_id", "Sponsor", sponsor_choices or []),
-            forms.boolean("orders_received", "Orders received"),
-            forms.boolean("itinerary_received", "Itinerary received"),
-            forms.boolean("aob_scheduled", "AOB scheduled"),
-            forms.boolean("barracks_assigned", "Barracks assigned"),
+            forms.integer("duty_section", "Duty section", visible_when=on),
+            forms.date("prd_date", "PRD", visible_when=on),
+            forms.boolean("has_drivers_license", "Has driver's license",
+                          visible_when=on),
+            forms.date("drivers_license_expires", "License expires",
+                       visible_when=on),
         ]
-    else:
+        # Incoming-only fields.
+        inc = ("status", _is_incoming)
         fields += [
-            forms.choice("duty_section", "Duty section",
-                         [(d, str(d)) for d in commands.DUTY_SECTIONS]),
+            forms.date("arrival_date", "Arrival date", visible_when=inc),
+            forms.choice("sponsor_person_id", "Sponsor", sponsor_choices or [],
+                         visible_when=inc),
+            forms.boolean("orders_received", "Orders received", visible_when=inc),
+            forms.boolean("itinerary_received", "Itinerary received",
+                          visible_when=inc),
+            forms.boolean("aob_scheduled", "AOB scheduled", visible_when=inc),
+            forms.boolean("barracks_assigned", "Barracks assigned",
+                          visible_when=inc),
+        ]
+    else:  # edit
+        fields += [
+            forms.integer("duty_section", "Duty section"),
             forms.date("prd_date", "PRD"),
             forms.boolean("has_drivers_license", "Has driver's license"),
             forms.date("drivers_license_expires", "License expires"),
@@ -64,12 +94,8 @@ class PersonnelScreen(Screen):
             return
 
         bar = self.header("Personnel")
-        actions = ttk.Frame(bar)
-        actions.pack(side="right")
-        ttk.Button(actions, text="+ Add person", style="Accent.TButton",
-                   command=self._add_person).pack(side="left", padx=2)
-        ttk.Button(actions, text="+ Incoming",
-                   command=self._add_incoming).pack(side="left", padx=2)
+        ttk.Button(bar, text="+ Add person", style="Accent.TButton",
+                   command=self._add_person).pack(side="right")
 
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True)
@@ -298,34 +324,43 @@ class PersonnelScreen(Screen):
 
     # -- Write actions ----------------------------------------------------
     def _add_person(self):
-        vals = forms.prompt(self, "Add person", _person_fields(incoming=False),
-                            submit_label="Create")
-        if not vals:
-            return
-        run_write(
-            self, commands.create_person(**vals),
-            pii_texts=(vals.get("notes"),),
-            on_done=lambda: self.app.show("personnel", tab="active"),
-        )
-
-    def _add_incoming(self):
         sponsors = read(commands.active_people_choices())
-        vals = forms.prompt(self, "Add incoming personnel",
-                            _person_fields(incoming=True, sponsor_choices=sponsors),
-                            submit_label="Create")
+        vals = forms.prompt(
+            self, "Add person",
+            _person_fields("add", sponsor_choices=sponsors),
+            initial={"status": "active"}, submit_label="Create")
         if not vals:
             return
-        run_write(
-            self, commands.create_incoming(**vals),
-            pii_texts=(vals.get("notes"),),
-            on_done=lambda: self.app.show("personnel", tab="incoming"),
-        )
+        if vals.get("status") == "incoming":
+            cmd = commands.create_incoming(
+                last_name=vals["last_name"], first_name=vals.get("first_name"),
+                paygrade=vals.get("paygrade"), rating=vals.get("rating"),
+                position=vals.get("position"), notes=vals.get("notes"),
+                arrival_date=vals.get("arrival_date"),
+                sponsor_person_id=vals.get("sponsor_person_id"),
+                orders_received=vals.get("orders_received"),
+                itinerary_received=vals.get("itinerary_received"),
+                aob_scheduled=vals.get("aob_scheduled"),
+                barracks_assigned=vals.get("barracks_assigned"))
+            tab = "incoming"
+        else:
+            cmd = commands.create_person(
+                last_name=vals["last_name"], first_name=vals.get("first_name"),
+                paygrade=vals.get("paygrade"), rating=vals.get("rating"),
+                position=vals.get("position"), notes=vals.get("notes"),
+                duty_section=vals.get("duty_section"),
+                prd_date=vals.get("prd_date"),
+                has_drivers_license=vals.get("has_drivers_license"),
+                drivers_license_expires=vals.get("drivers_license_expires"))
+            tab = "active"
+        run_write(self, cmd, pii_texts=(vals.get("notes"),),
+                  on_done=lambda: self.app.show("personnel", tab=tab))
 
     def _edit_person(self, person_id: int):
         initial = read(Q.person_current(person_id))
         if not initial:
             return
-        vals = forms.prompt(self, "Edit person", _person_fields(incoming=False),
+        vals = forms.prompt(self, "Edit person", _person_fields("edit"),
                             initial=initial, submit_label="Save")
         if not vals:
             return
