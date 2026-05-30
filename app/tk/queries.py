@@ -835,6 +835,7 @@ def person_current(person_id: int):
             "rate": rate,
             "paygrade": paygrade,
             "rating": rank_catalog.rating_of(rate, paygrade),
+            "community": rank_catalog.community_of(rate, paygrade),
             "position": p.position,
             "notes": p.notes,
             "duty_section": ds,

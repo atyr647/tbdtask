@@ -104,12 +104,22 @@ def rating_choices() -> list[tuple[str, str]]:
             + [(r, r) for r in rank_catalog.RATINGS])
 
 
+def community_choices() -> list[tuple[str, str]]:
+    """(key, label) apprenticeship communities, for an undesignated junior."""
+    return [(key, label) for key, label in rank_catalog.COMMUNITIES]
+
+
 def position_choices() -> list[tuple[str, str]]:
     return [(p, p) for p in rank_catalog.POSITIONS]
 
 
 def is_enlisted_paygrade(paygrade: str | None) -> bool:
     return rank_catalog.is_enlisted(paygrade)
+
+
+def is_junior_enlisted(paygrade: str | None) -> bool:
+    """True for E-1..E-3, where the apprenticeship community applies."""
+    return paygrade in rank_catalog.E1E3_GRADE_LETTER
 
 
 def absence_code_choices():
@@ -143,26 +153,30 @@ def active_people_choices():
 # --------------------------------------------------------------------------
 
 
-def _resolve_rate(paygrade=None, rating=None, rate=None):
-    """Return (rate_token, paygrade) from a paygrade(+rating) selection.
+def _resolve_rate(paygrade=None, rating=None, rate=None, community=None):
+    """Return (rate_token, paygrade) from a paygrade(+rating/community).
 
-    Falls back to a raw ``rate`` token (deriving its paygrade) when no
-    paygrade is supplied, so older call sites/tests keep working.
+    ``community`` only matters for an undesignated E-1..E-3 sailor (no
+    rating), where it picks the apprenticeship token (Seaman/Fireman/
+    Airman/Constructionman/Hospitalman). Falls back to a raw ``rate`` token
+    (deriving its paygrade) when no paygrade is supplied, so older call
+    sites/tests keep working.
     """
     if paygrade:
-        return rank_catalog.rate_token(paygrade, rating), paygrade
+        return (rank_catalog.rate_token(paygrade, rating, community), paygrade)
     if rate:
         return rate, rank_catalog.paygrade_for(rate)
     return None, None
 
 
 def create_person(*, last_name, first_name=None, paygrade=None, rating=None,
-                  rate=None, position=None, notes=None, duty_section=None,
+                  community=None, rate=None, position=None, notes=None,
+                  duty_section=None,
                   prd_date=None, has_drivers_license=False,
                   drivers_license_expires=None, roster_status="active"):
     def _q(s: Session) -> int:
         today = date.today()
-        rate_token, pg = _resolve_rate(paygrade, rating, rate)
+        rate_token, pg = _resolve_rate(paygrade, rating, rate, community)
         full_display = f"{rate_token} {last_name}".strip() if rate_token else last_name
         last_pos = s.scalar(
             select(M.Person.display_order)
@@ -197,13 +211,13 @@ def create_person(*, last_name, first_name=None, paygrade=None, rating=None,
 
 
 def create_incoming(*, last_name, first_name=None, paygrade=None, rating=None,
-                    rate=None, notes=None, arrival_date=None,
+                    community=None, rate=None, notes=None, arrival_date=None,
                     sponsor_person_id=None, orders_received=False,
                     itinerary_received=False, aob_scheduled=False,
                     barracks_assigned=False, position=None):
     def _q(s: Session) -> int:
         today = date.today()
-        rate_token, pg = _resolve_rate(paygrade, rating, rate)
+        rate_token, pg = _resolve_rate(paygrade, rating, rate, community)
         full_display = f"{rate_token} {last_name}".strip() if rate_token else last_name
         last_pos = s.scalar(
             select(M.Person.display_order)
@@ -233,7 +247,8 @@ def create_incoming(*, last_name, first_name=None, paygrade=None, rating=None,
 
 
 def update_person(person_id, *, last_name, first_name=None, paygrade=None,
-                  rating=None, rate=None, position=None, notes=None,
+                  rating=None, community=None, rate=None, position=None,
+                  notes=None,
                   duty_section=None, prd_date=None, prd_reason="correction",
                   has_drivers_license=False, drivers_license_expires=None,
                   roster_status="active", effective_date=None):
@@ -242,7 +257,7 @@ def update_person(person_id, *, last_name, first_name=None, paygrade=None,
         if not p:
             return None
         eff_date = _parse_date(effective_date) or date.today()
-        rate_token, pg = _resolve_rate(paygrade, rating, rate)
+        rate_token, pg = _resolve_rate(paygrade, rating, rate, community)
         p.last_name = last_name
         p.first_name = first_name
         p.position = position

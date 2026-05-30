@@ -574,6 +574,50 @@ def test_rank_catalog_token_assembly():
     assert r.rating_of("PO3", "E-4") is None      # non-rated token
 
 
+def test_e1_e3_apprenticeship_communities():
+    from app.data import ranks as r
+    # Rated strikers: rating + community letter + grade letter.
+    assert r.rate_token("E-3", "BM") == "BMSN"    # Seaman
+    assert r.rate_token("E-3", "EN") == "ENFN"    # Fireman (Engineman)
+    assert r.rate_token("E-2", "CM") == "CMCA"    # Constructionman
+    assert r.rate_token("E-1", "AD") == "ADAR"    # Airman
+    assert r.rate_token("E-3", "HM") == "HMHN"    # Hospitalman
+    assert r.rate_token("E-3", "MM") == "MMFN"    # Machinist's Mate -> Fireman
+    assert r.rate_token("E-2", "OS") == "OSSA"    # Operations Specialist -> Seaman
+    # Undesignated (no rating): bare apprentice token by chosen community.
+    assert r.rate_token("E-3", None, "fireman") == "FN"
+    assert r.rate_token("E-2", None, "airman") == "AA"
+    assert r.rate_token("E-1", None, "constructionman") == "CR"
+    assert r.rate_token("E-3", None, "hospitalman") == "HN"
+    assert r.rate_token("E-3", None) == "SN"      # defaults to Seaman
+    # Community lookup from a rating.
+    assert r.community_for_rating("EN") == "fireman"
+    assert r.community_for_rating("CM") == "constructionman"
+    assert r.community_for_rating("AD") == "airman"
+    assert r.community_for_rating("HM") == "hospitalman"
+    assert r.community_for_rating("BM") == "seaman"
+    # Reverse: extract rating + community from a stored E1-E3 token.
+    assert r.rating_of("ENFN", "E-3") == "EN"
+    assert r.rating_of("CMCA", "E-2") == "CM"
+    assert r.rating_of("FN", "E-3") is None        # undesignated -> no rating
+    assert r.community_of("FN", "E-3") == "fireman"
+    assert r.community_of("ENFN", "E-3") == "fireman"
+    assert r.community_of("CR", "E-1") == "constructionman"
+
+
+def test_create_person_e1e3_striker_and_undesignated(session):
+    # Designated striker.
+    pid = run(session, C.create_person(
+        last_name="Reed", paygrade="E-3", rating="EN"))
+    session.commit()
+    assert session.get(M.Person, pid).full_display == "ENFN Reed"
+    # Undesignated fireman recruit (community drives the token).
+    pid2 = run(session, C.create_person(
+        last_name="Poe", paygrade="E-1", community="fireman"))
+    session.commit()
+    assert session.get(M.Person, pid2).full_display == "FR Poe"
+
+
 def test_create_person_with_paygrade_and_rating(session):
     pid = run(session, C.create_person(
         last_name="Diaz", paygrade="E-5", rating="IT", position="LPO"))

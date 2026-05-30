@@ -54,7 +54,7 @@ ROSTER = [
     ("E-3", "EN", "Sloane", None),
     ("E-3", "BM", "Hayward", None),
     ("E-2", None, "Acevedo", None),
-    ("E-2", "FN", "Yates", None),
+    ("E-2", "EN", "Yates", None),
     ("E-2", None, "Sims", None),
     ("E-1", None, "Olson", None),
     ("E-1", None, "Marsh", None),

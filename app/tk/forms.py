@@ -83,13 +83,15 @@ class _FormDialog(tk.Toplevel):
         # Wire conditional visibility: when a controller field changes, the
         # dependent rows re-evaluate. Triggers fire on combobox select and
         # on entry edits.
+        traced: set[str] = set()
         for f in fields:
-            if f.visible_when is None:
-                continue
-            ctrl_name = f.visible_when[0]
-            ctrl = self._vars.get(ctrl_name)
-            if isinstance(ctrl, tk.StringVar):
-                ctrl.trace_add("write", lambda *_: self._apply_visibility())
+            for ctrl_name, _pred in self._visibility_conditions(f):
+                if ctrl_name in traced:
+                    continue
+                ctrl = self._vars.get(ctrl_name)
+                if isinstance(ctrl, tk.StringVar):
+                    ctrl.trace_add("write", lambda *_: self._apply_visibility())
+                    traced.add(ctrl_name)
         self._apply_visibility()
 
         self._error = ttk.Label(self, text="", style="TLabel", foreground=theme.BAD)
@@ -189,17 +191,30 @@ class _FormDialog(tk.Toplevel):
             help_lbl.grid(row=row, column=2, sticky="w", padx=(8, 0))
             self._rows[f.name].append((help_lbl, row, 2))
 
-    def _is_visible(self, f: Field) -> bool:
+    @staticmethod
+    def _visibility_conditions(f: Field):
+        """Normalise visible_when into a list of (controller, predicate).
+
+        Accepts a single ``(name, pred)`` or a list of them (all must pass).
+        """
         if f.visible_when is None:
-            return True
-        ctrl_name, predicate = f.visible_when
-        ctrl = self._field_by_name.get(ctrl_name)
-        if ctrl is None:
-            return True
-        try:
-            return bool(predicate(self._read(ctrl)))
-        except Exception:
-            return True
+            return []
+        vw = f.visible_when
+        if vw and isinstance(vw[0], str):  # single (name, pred)
+            return [vw]
+        return list(vw)
+
+    def _is_visible(self, f: Field) -> bool:
+        for ctrl_name, predicate in self._visibility_conditions(f):
+            ctrl = self._field_by_name.get(ctrl_name)
+            if ctrl is None:
+                continue
+            try:
+                if not predicate(self._read(ctrl)):
+                    return False
+            except Exception:
+                continue
+        return True
 
     def _apply_visibility(self):
         for f in self._fields:

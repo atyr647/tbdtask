@@ -132,3 +132,42 @@ def test_form_visible_when_and_combo(tmp_path):
     assert dlg._read(dlg._field_by_name["pos"]) == "Custom Billet"
     dlg.destroy()
     root.destroy()
+
+
+def test_form_multi_condition_visible_when():
+    """A field with a LIST of (controller, predicate) conditions shows only
+    when ALL pass (used for the undesignated-junior Community field)."""
+    import os
+    os.environ.setdefault("TBDTASK_SINGLE_TENANT", "1")
+    import tkinter as tk
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        import pytest
+        pytest.skip("no display")
+    root.withdraw()
+    from app.tk import forms
+
+    fields = [
+        forms.choice("paygrade", "PG", [("E-1", "E-1"), ("E-5", "E-5")]),
+        forms.choice("rating", "Rating", [("", "(none)"), ("BM", "BM")]),
+        forms.choice("community", "Community", [("seaman", "Seaman"),
+                                                ("fireman", "Fireman")],
+                     visible_when=[("paygrade", lambda v: v in ("E-1", "E-2", "E-3")),
+                                   ("rating", lambda v: not v)]),
+    ]
+    dlg = forms._FormDialog(root, "t", fields, {}, "Save")
+    comm = dlg._field_by_name["community"]
+    # E-1 + no rating -> visible
+    dlg._vars["paygrade"].set("E-1")
+    dlg._vars["rating"].set("(none)")
+    assert dlg._is_visible(comm) is True
+    # E-1 + a rating -> hidden (designated striker, community is implied)
+    dlg._vars["rating"].set("BM")
+    assert dlg._is_visible(comm) is False
+    # E-5 + no rating -> hidden (community only applies to E1-E3)
+    dlg._vars["paygrade"].set("E-5")
+    dlg._vars["rating"].set("(none)")
+    assert dlg._is_visible(comm) is False
+    dlg.destroy()
+    root.destroy()

@@ -21,6 +21,12 @@ def _is_onboard(v):
     return v != "incoming"
 
 
+def _rating_blank(v):
+    # True when no specific rating is chosen (undesignated).
+    from app.data import ranks as _r
+    return not v or v == _r.NON_RATED_LABEL
+
+
 def _person_fields(mode: str, sponsor_choices=None):
     """Field spec for the add / edit person form.
 
@@ -39,6 +45,12 @@ def _person_fields(mode: str, sponsor_choices=None):
         forms.choice("rating", "Rating", commands.rating_choices(),
                      visible_when=("paygrade", commands.is_enlisted_paygrade),
                      help="enlisted only"),
+        # Apprenticeship community only matters for an undesignated E-1..E-3
+        # (so SR/SA/SN vs FR/FA/FN vs AR/AA/AN vs CR/CA/CN vs HR/HA/HN).
+        forms.choice("community", "Community", commands.community_choices(),
+                     visible_when=[("paygrade", commands.is_junior_enlisted),
+                                   ("rating", _rating_blank)],
+                     help="undesignated E1–E3"),
         forms.combo("position", "Position / billet", commands.position_choices(),
                     help="pick or type"),
     ]
@@ -335,6 +347,7 @@ class PersonnelScreen(Screen):
             cmd = commands.create_incoming(
                 last_name=vals["last_name"], first_name=vals.get("first_name"),
                 paygrade=vals.get("paygrade"), rating=vals.get("rating"),
+                community=vals.get("community"),
                 position=vals.get("position"), notes=vals.get("notes"),
                 arrival_date=vals.get("arrival_date"),
                 sponsor_person_id=vals.get("sponsor_person_id"),
@@ -347,6 +360,7 @@ class PersonnelScreen(Screen):
             cmd = commands.create_person(
                 last_name=vals["last_name"], first_name=vals.get("first_name"),
                 paygrade=vals.get("paygrade"), rating=vals.get("rating"),
+                community=vals.get("community"),
                 position=vals.get("position"), notes=vals.get("notes"),
                 duty_section=vals.get("duty_section"),
                 prd_date=vals.get("prd_date"),
