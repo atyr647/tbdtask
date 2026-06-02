@@ -24,14 +24,18 @@ sha256sum -c SHA256SUMS.txt
 
 ## Heads-up
 
-This binary was cross-built and its structure verified (ARM64 Python +
-dynamically-linked Tk), but it has **not yet been launched on real Pi
-hardware** — only the x86_64 sibling build was confirmed to open a window
-in CI. If the window doesn't appear, capture the terminal output and file
-an issue; the most likely culprit would be a missing X library on a
-stripped-down OS image (the AppImage bundles the Tk/X closure, but a
-headless Raspberry Pi OS Lite has no display server at all — you need the
-Desktop image or an X session).
+This binary is cross-built. The build verifies that the **complete
+`_tkinter` shared-library closure is bundled** (the first Pi attempt
+crashed because Debian's `_tkinter` needs `libBLT.2.5.so.8.6`, which was
+missing — that's fixed, and the build now fails loudly if any lib in the
+chain is absent). It still has not been launched on real Pi hardware in
+CI — only the x86_64 sibling build was confirmed to open a window — so if
+anything misbehaves, capture the terminal output and file an issue.
+
+It needs a graphical session: Raspberry Pi OS **Lite has no display
+server**, so use the Desktop image (or an X session). The bundled libs
+cover the Tk/X stack; only ubiquitous system libraries (libc, libz,
+libssl, …) are expected from the OS.
 
 ## Rebuilding
 
