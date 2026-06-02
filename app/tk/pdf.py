@@ -195,13 +195,7 @@ def render_worklist_pdf(grid: dto.WeekGridDTO, out_path: str) -> str:
                 bits.append(f"<i>{esc(cell.absence_reason)}</i>")
             flow.append(Paragraph(" ".join(bits), out_style))
         for t in cell.tasks:
-            parts = []
-            if t.is_poic:
-                parts.append("<b>Lead</b>")
-            parts.append(esc(t.name))
-            if t.category:
-                parts.append(f"<i>({esc(t.category)})</i>")
-            line = " ".join(parts)
+            line = esc(t.name)
             if t.other_assignees:
                 line += (
                     f"<br/><font size=5 color='{theme.MUTED}'>w/ "
@@ -324,12 +318,7 @@ def render_worklist_pdf(grid: dto.WeekGridDTO, out_path: str) -> str:
         for day in grid.unassigned:
             lines = []
             for t in day.tasks:
-                p = [esc(t.name)]
-                if t.external_poic:
-                    p.append(f"<i>Lead: {esc(t.external_poic)}</i>")
-                if t.category:
-                    p.append(f"<i>({esc(t.category)})</i>")
-                lines.append(" ".join(p))
+                lines.append(esc(t.name))
             ua_data.append(
                 [
                     Paragraph(f"<b>{esc(day.day_label)}</b>", base),

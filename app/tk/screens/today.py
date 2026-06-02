@@ -115,16 +115,8 @@ class TodayScreen(Screen):
                 badge(row, t.status.replace("_", " "), status=t.status).pack(
                     side="left"
                 )
-                name = ttk.Label(row, text=f"  {t.name}", style="Card.TLabel")
-                name.pack(side="left")
-                meta = []
-                if t.category:
-                    meta.append(t.category)
-                if t.poic_label:
-                    meta.append(f"POIC: {t.poic_label}")
-                elif t.assignees:
-                    meta.append(", ".join(t.assignees[:3]))
-                if meta:
+                ttk.Label(row, text=f"  {t.name}", style="Card.TLabel").pack(side="left")
+                if t.assignees:
                     ttk.Label(
-                        row, text=" · ".join(meta), style="CardMuted.TLabel"
+                        row, text=", ".join(t.assignees[:3]), style="CardMuted.TLabel"
                     ).pack(side="right")

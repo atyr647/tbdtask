@@ -53,12 +53,18 @@ def _next_monday(today: date | None = None) -> date:
 
 _TYPE_LABELS = {
     "prd_apply": "PRD — apply for orders",
+    "prd_orders_window": "PRD — apply for orders",
     "prd_2month": "PRD — 2 months out",
+    "prd_2mo": "PRD — 2 months out",
     "prd_1month": "PRD — 1 month out",
+    "prd_1mo": "PRD — 1 month out",
     "prd_weekly": "PRD — within a month",
+    "prd_weekly_in_month": "PRD — within a month",
     "prd_passed": "PRD — passed",
     "qual_expiring": "Qualification expiring",
     "qual_expired": "Qualification expired",
+    "qual_due_soon": "Qualification due soon",
+    "qual_overdue": "Qualification overdue",
     "worklist_carry_over_pending": "Pending carry-over",
 }
 
@@ -78,8 +84,11 @@ def _alert_dto(s: Session, a: M.Alert) -> dto.AlertRowDTO:
     for key in ("expires_on", "expired_on"):
         if key in payload:
             detail_bits.append(f"{key.replace('_', ' ')} {payload[key]}")
+    if "due_at" in payload:
+        detail_bits.append(f"due {payload['due_at']}")
     if "days" in payload:
-        detail_bits.append(f"{payload['days']} days")
+        d = payload["days"]
+        detail_bits.append(f"{abs(d)} days {'overdue' if d < 0 else 'left'}")
     if "count" in payload:
         detail_bits.append(f"{payload['count']} task(s)")
     return dto.AlertRowDTO(
@@ -411,6 +420,7 @@ def person_profile(person_id: int):
                 expires_at=pq.expires_at,
                 pq_id=pq.id,
                 started_at=pq.started_at,
+                due_at=pq.due_at,
                 notes=pq.notes,
             )
             for pq, q in qual_rows

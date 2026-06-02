@@ -60,12 +60,9 @@ class TemplatesScreen(Screen):
 
     # -- form -------------------------------------------------------------
     def _fields(self):
-        cats = read(commands.task_categories_choices())
         quals = read(commands.qual_choices())
         return [
             forms.text("name", "Name", required=True),
-            forms.choice("category_id", "Category", cats),
-            forms.multiline("description", "Description"),
             forms.number("estimated_hours", "Estimated hours"),
             forms.choice(
                 "carry_over_policy",

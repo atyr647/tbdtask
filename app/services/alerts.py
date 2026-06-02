@@ -180,6 +180,54 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
     counts["prd_weekly_in_month"] = len(keep_weekly)
     counts["prd_passed"] = len(keep_passed)
 
+    # Qualification deadlines -----------------------------------------
+    # Current person-qual rows that are still pending (not qualified/waived)
+    # and carry a due date: warn when the deadline is near and escalate once
+    # it has passed.
+    keep_qual_soon: set = set()
+    keep_qual_over: set = set()
+    qpending = session.scalars(
+        select(M.PersonQual).where(
+            M.PersonQual.valid_to.is_(None),
+            M.PersonQual.active == True,  # noqa: E712
+            M.PersonQual.due_at.is_not(None),
+            M.PersonQual.status.notin_(("qualified", "waived")),
+        )
+    ).all()
+    for pq in qpending:
+        days = (pq.due_at - today).days
+        qual = session.get(M.Qualification, pq.qual_id)
+        qname = qual.name if qual else f"qual #{pq.qual_id}"
+        key = f"{pq.person_id}:{pq.qual_id}:{pq.due_at.isoformat()}"
+        payload = {
+            "key": key,
+            "qual_name": qname,
+            "due_at": pq.due_at.isoformat(),
+            "days": days,
+        }
+        if days < 0:
+            keep_qual_over.add(key)
+            _ensure_alert(
+                session,
+                "qual_overdue",
+                severity="urgent",
+                person_id=pq.person_id,
+                payload=payload,
+            )
+        elif days <= 30:
+            keep_qual_soon.add(key)
+            _ensure_alert(
+                session,
+                "qual_due_soon",
+                severity="warn",
+                person_id=pq.person_id,
+                payload=payload,
+            )
+    _resolve_stale(session, "qual_overdue", keep_qual_over)
+    _resolve_stale(session, "qual_due_soon", keep_qual_soon)
+    counts["qual_overdue"] = len(keep_qual_over)
+    counts["qual_due_soon"] = len(keep_qual_soon)
+
     # Worklist carry-overs --------------------------------------------
     pending = session.execute(
         select(
@@ -228,6 +276,10 @@ def recompute(session: Session, *, today: Optional[date] = None) -> dict[str, in
     _resolve_stale(session, "worklist_carry_over_pending", keep_carry)
     counts["worklist_carry_over_pending"] = len(keep_carry)
 
+    # Make newly-added alerts queryable immediately, even on a session with
+    # autoflush disabled (the offline Tk path commits right after, the web
+    # path runs inside session_scope).
+    session.flush()
     return counts
 
 

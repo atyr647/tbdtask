@@ -225,3 +225,70 @@ def test_qual_with_no_validity_has_no_expiry(session):
 
     fetched = session.get(M.PersonQual, pq.id)
     assert fetched.expires_at is None
+
+
+# Qualification deadlines: a pending person-qual with a due date drives
+# qual_due_soon (within 30 days) and qual_overdue (past due) alerts.
+
+
+def test_qual_due_soon_alert_within_30_days(session):
+    q = make_qual(session, "RHIB Coxswain")
+    p = make_person(session, "Vega")
+    pq = M.PersonQual(
+        person_id=p.id, qual_id=q.id, status="assigned",
+        due_at=_today() + timedelta(days=10), valid_from=_today(), org_id=1,
+    )
+    session.add(pq)
+    session.commit()
+    recompute(session, today=_today())
+    types = {a.alert_type for a in active_alerts(session)}
+    assert "qual_due_soon" in types
+    assert "qual_overdue" not in types
+
+
+def test_qual_overdue_alert_is_urgent(session):
+    q = make_qual(session, "Small Arms")
+    p = make_person(session, "Mason")
+    pq = M.PersonQual(
+        person_id=p.id, qual_id=q.id, status="in_progress",
+        due_at=_today() - timedelta(days=3), valid_from=_today(), org_id=1,
+    )
+    session.add(pq)
+    session.commit()
+    recompute(session, today=_today())
+    overdue = [a for a in active_alerts(session) if a.alert_type == "qual_overdue"]
+    assert len(overdue) == 1 and overdue[0].severity == "urgent"
+
+
+def test_qualified_qual_with_due_date_raises_no_alert(session):
+    # A qual that's already qualified shouldn't alert even if due_at lingers.
+    q = make_qual(session, "Helmsman")
+    p = make_person(session, "Reyes")
+    pq = M.PersonQual(
+        person_id=p.id, qual_id=q.id, status="qualified",
+        due_at=_today() - timedelta(days=5), valid_from=_today(), org_id=1,
+    )
+    session.add(pq)
+    session.commit()
+    recompute(session, today=_today())
+    types = {a.alert_type for a in active_alerts(session)}
+    assert "qual_overdue" not in types and "qual_due_soon" not in types
+
+
+def test_qual_deadline_alert_resolves_when_achieved(session):
+    q = make_qual(session, "EOOW")
+    p = make_person(session, "Tanner")
+    pq = M.PersonQual(
+        person_id=p.id, qual_id=q.id, status="assigned",
+        due_at=_today() + timedelta(days=5), valid_from=_today(), org_id=1,
+    )
+    session.add(pq)
+    session.commit()
+    recompute(session, today=_today())
+    assert any(a.alert_type == "qual_due_soon" for a in active_alerts(session))
+    # Person achieves it: close the row, drop the deadline.
+    pq.status = "qualified"
+    pq.due_at = None
+    session.commit()
+    recompute(session, today=_today())
+    assert not any(a.alert_type == "qual_due_soon" for a in active_alerts(session))

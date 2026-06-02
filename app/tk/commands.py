@@ -745,17 +745,13 @@ def create_task(
     *,
     name,
     scheduled_date=None,
-    category_id=None,
-    description=None,
     person_ids=(),
-    poic_person_id=None,
-    external_poic_name=None,
 ):
     """Create a TaskInstance under a worklist and attach assignees.
 
-    Mirrors the route's POIC defaulting: a single assignee, or the first of
-    several, becomes the lead when none is chosen explicitly and there's no
-    external lead.
+    A scheduled day is required — an unscheduled task wouldn't appear under
+    any day on the week view. No categories, no POIC: every assignee is
+    equal.
     """
 
     def _q(s: Session) -> int:
@@ -767,33 +763,20 @@ def create_task(
         clean_name = (name or "").strip()
         if not clean_name:
             raise ValidationError("task name is required")
+        sched = _parse_date(scheduled_date)
+        if sched is None:
+            raise ValidationError("pick a day for the task")
         inst = M.TaskInstance(
             worklist_id=worklist_id,
-            scheduled_date=_parse_date(scheduled_date),
-            category_id=int(category_id) if category_id else None,
+            scheduled_date=sched,
             name=clean_name[:240],
-            description=description or None,
             status="open",
         )
         s.add(inst)
         s.flush()
         pids = [int(x) for x in person_ids if str(x).strip()]
-        poic = int(poic_person_id) if poic_person_id else None
-        ext = (external_poic_name or "").strip()
-        if pids and poic is None and not ext:
-            poic = pids[0]
         for pid in pids:
-            s.add(
-                M.TaskAssignment(
-                    instance_id=inst.id, person_id=pid, is_poic=(pid == poic)
-                )
-            )
-        if ext:
-            s.add(
-                M.TaskAssignment(
-                    instance_id=inst.id, external_poic_name=ext, is_poic=True
-                )
-            )
+            s.add(M.TaskAssignment(instance_id=inst.id, person_id=pid))
         s.flush()
         return inst.id
 
@@ -805,10 +788,8 @@ def update_task(
     *,
     name,
     scheduled_date=None,
-    category_id=None,
     status="open",
     hours=None,
-    description=None,
     completion_notes=None,
 ):
     def _q(s: Session) -> int | None:
@@ -821,12 +802,13 @@ def update_task(
         clean_name = (name or "").strip()
         if not clean_name:
             raise ValidationError("task name is required")
+        sched = _parse_date(scheduled_date)
+        if sched is None:
+            raise ValidationError("pick a day for the task")
         inst.name = clean_name[:240]
-        inst.scheduled_date = _parse_date(scheduled_date)
-        inst.category_id = int(category_id) if category_id else None
+        inst.scheduled_date = sched
         inst.status = status
         inst.hours = float(hours) if hours not in (None, "") else None
-        inst.description = description or None
         inst.completion_notes = completion_notes or None
         if status == "done" and inst.completed_at is None:
             inst.completed_at = datetime.now()
@@ -838,6 +820,8 @@ def update_task(
 
 
 def archive_task(task_id, reason=""):
+    """Soft-delete (remove) a task instance."""
+
     def _q(s: Session) -> int | None:
         inst = s.get(M.TaskInstance, task_id)
         if not inst:
@@ -849,20 +833,6 @@ def archive_task(task_id, reason=""):
         inst.archived_at = datetime.now()
         inst.archived_reason = reason or None
         return inst.worklist_id
-
-    return _q
-
-
-def task_categories_choices():
-    """Return [(id, name)] for active task categories."""
-
-    def _q(s: Session):
-        rows = s.scalars(
-            select(M.TaskCategory)
-            .where(M.TaskCategory.active == True)  # noqa: E712
-            .order_by(M.TaskCategory.display_order)
-        ).all()
-        return [(c.id, c.name) for c in rows]
 
     return _q
 
@@ -920,14 +890,17 @@ def assign_quals(
     status="assigned",
     started_at=None,
     achieved_at=None,
+    due_at=None,
     notes=None,
 ):
     """Bulk-assign one or more qualifications to a person.
 
-    ``status`` / ``started_at`` / ``achieved_at`` / ``notes`` apply to every
-    selected qual. ``expires_at`` is derived from the qual's
-    ``validity_period_days`` when an achieved date is given, matching the
-    route. Returns the count created.
+    ``status`` / ``started_at`` / ``achieved_at`` / ``due_at`` / ``notes``
+    apply to every selected qual. ``expires_at`` is derived from the qual's
+    ``validity_period_days`` when an achieved date is given. ``due_at`` is
+    the deadline by which a not-yet-qualified person must achieve it; it is
+    required unless the status is qualified or waived, and drives the
+    qual_due_soon / qual_overdue alerts. Returns the count created.
     """
 
     def _q(s: Session) -> int:
@@ -937,6 +910,12 @@ def assign_quals(
         ids = [int(x) for x in (qual_ids or []) if str(x).strip()]
         if not ids:
             raise ValidationError("select at least one qualification")
+        due = _parse_date(due_at)
+        # A qual the person doesn't already hold must carry a deadline.
+        if status not in ("qualified", "waived") and due is None:
+            raise ValidationError(
+                "set a deadline ('Must complete by') for an assigned qual"
+            )
         started_dt = _parse_dt(started_at)
         achieved_dt = _parse_dt(achieved_at)
         today = date.today()
@@ -956,6 +935,7 @@ def assign_quals(
                     started_at=started_dt,
                     achieved_at=achieved_dt,
                     expires_at=expires_dt,
+                    due_at=due if status not in ("qualified", "waived") else None,
                     notes=notes or None,
                     valid_from=today,
                 )
@@ -976,12 +956,14 @@ def update_person_qual(
     status,
     started_at=None,
     achieved_at=None,
+    due_at=None,
     notes=None,
     effective_date=None,
 ):
     """Change a current person-qual: close the active row and append a new
     one capturing the change (the effective-dated audit pattern the route
-    uses). Refuses to edit a historical row."""
+    uses). Refuses to edit a historical row. Once qualified or waived the
+    deadline is cleared; otherwise the deadline is carried/updated."""
 
     def _q(s: Session) -> int | None:
         pq = s.get(M.PersonQual, pq_id)
@@ -996,6 +978,12 @@ def update_person_qual(
         expires_dt = None
         if achieved_dt and q and q.validity_period_days:
             expires_dt = achieved_dt + timedelta(days=q.validity_period_days)
+        # Keep a deadline while still pending; clear it once qualified/waived.
+        new_due = _parse_date(due_at)
+        if new_due is None and status not in ("qualified", "waived"):
+            new_due = pq.due_at  # carry forward the existing deadline
+        if status in ("qualified", "waived"):
+            new_due = None
         pq.valid_to = eff_date
         s.add(
             M.PersonQual(
@@ -1005,6 +993,7 @@ def update_person_qual(
                 started_at=started_dt,
                 achieved_at=achieved_dt,
                 expires_at=expires_dt,
+                due_at=new_due,
                 notes=notes or None,
                 valid_from=eff_date,
             )
@@ -1082,60 +1071,19 @@ def _ensure_task_unlocked(s: Session, inst: M.TaskInstance) -> None:
         raise ValidationError("worklist is locked; amend it before editing tasks")
 
 
-def add_assignment(task_id, *, person_id=None, external_poic_name=None, is_poic=False):
-    """Attach a person (or an off-roster lead) to a task. Setting POIC
-    demotes any current lead, matching the route."""
+def add_assignment(task_id, *, person_id=None):
+    """Attach a person to a task. All assignees are equal (no POIC)."""
 
     def _q(s: Session) -> int | None:
         inst = s.get(M.TaskInstance, task_id)
         if not inst:
             return None
         _ensure_task_unlocked(s, inst)
-        ext = (external_poic_name or "").strip() or None
-        if not person_id and not ext:
-            raise ValidationError("pick a person or enter an off-roster lead name")
-        if is_poic:
-            for a in s.scalars(
-                select(M.TaskAssignment).where(
-                    M.TaskAssignment.instance_id == inst.id,
-                    M.TaskAssignment.is_poic == True,  # noqa: E712
-                    M.TaskAssignment.active == True,  # noqa: E712
-                )
-            ).all():
-                a.is_poic = False
-        s.add(
-            M.TaskAssignment(
-                instance_id=inst.id,
-                person_id=int(person_id) if person_id else None,
-                external_poic_name=ext,
-                is_poic=bool(is_poic),
-            )
-        )
+        if not person_id:
+            raise ValidationError("pick a person")
+        s.add(M.TaskAssignment(instance_id=inst.id, person_id=int(person_id)))
         s.flush()
         return inst.id
-
-    return _q
-
-
-def set_assignment_poic(task_id, assignment_id):
-    """Make one assignment the lead, demoting the rest."""
-
-    def _q(s: Session) -> int | None:
-        a = s.get(M.TaskAssignment, assignment_id)
-        if not a or a.instance_id != task_id:
-            return None
-        inst = s.get(M.TaskInstance, task_id)
-        _ensure_task_unlocked(s, inst)
-        for other in s.scalars(
-            select(M.TaskAssignment).where(
-                M.TaskAssignment.instance_id == task_id,
-                M.TaskAssignment.is_poic == True,  # noqa: E712
-                M.TaskAssignment.active == True,  # noqa: E712
-            )
-        ).all():
-            other.is_poic = False
-        a.is_poic = True
-        return task_id
 
     return _q
 

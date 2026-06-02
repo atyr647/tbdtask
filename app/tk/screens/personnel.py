@@ -352,7 +352,13 @@ class PersonnelScreen(Screen):
             badge(row, q.status.replace("_", " "), status=q.status).pack(side="left")
             lbl = ttk.Label(row, text=f"  {q.name}", style="Card.TLabel")
             lbl.pack(side="left")
-            if q.expires_at:
+            if q.due_at:
+                ttk.Label(
+                    row,
+                    text=f"due {q.due_at.strftime('%Y-%m-%d')}",
+                    style="CardMuted.TLabel",
+                ).pack(side="right")
+            elif q.expires_at:
                 ttk.Label(
                     row,
                     text=f"exp {q.expires_at.strftime('%Y-%m-%d')}",
@@ -564,6 +570,8 @@ class PersonnelScreen(Screen):
                 parent=self,
             )
             return
+        # The deadline applies only while the qual is still pending.
+        pending = ("status", lambda v: v not in ("qualified", "waived"))
         vals = forms.prompt(
             self,
             "Assign qualifications",
@@ -573,6 +581,12 @@ class PersonnelScreen(Screen):
                     "status",
                     "Status",
                     [(s, s.replace("_", " ")) for s in commands.PERSON_QUAL_STATUSES],
+                ),
+                forms.date(
+                    "due_at",
+                    "Must complete by",
+                    visible_when=pending,
+                    help="deadline (required)",
                 ),
                 forms.date("started_at", "Started"),
                 forms.date("achieved_at", "Achieved"),
@@ -593,6 +607,7 @@ class PersonnelScreen(Screen):
                 status=vals.get("status") or "assigned",
                 started_at=vals.get("started_at"),
                 achieved_at=vals.get("achieved_at"),
+                due_at=vals.get("due_at"),
                 notes=vals.get("notes"),
             ),
             pii_texts=(vals.get("notes"),),
@@ -606,8 +621,11 @@ class PersonnelScreen(Screen):
             "achieved_at": q.achieved_at.strftime("%Y-%m-%d")
             if q.achieved_at
             else None,
+            "due_at": q.due_at.strftime("%Y-%m-%d") if getattr(q, "due_at", None)
+            else None,
             "notes": q.notes,
         }
+        pending = ("status", lambda v: v not in ("qualified", "waived"))
         vals = forms.prompt(
             self,
             f"Update — {q.name}",
@@ -617,6 +635,10 @@ class PersonnelScreen(Screen):
                     "Status",
                     [(s, s.replace("_", " ")) for s in commands.PERSON_QUAL_STATUSES],
                     required=True,
+                ),
+                forms.date(
+                    "due_at", "Must complete by", visible_when=pending,
+                    help="deadline (required)",
                 ),
                 forms.date("started_at", "Started"),
                 forms.date("achieved_at", "Achieved"),
@@ -636,6 +658,7 @@ class PersonnelScreen(Screen):
                 status=vals.get("status") or q.status,
                 started_at=vals.get("started_at"),
                 achieved_at=vals.get("achieved_at"),
+                due_at=vals.get("due_at"),
                 notes=vals.get("notes"),
                 effective_date=vals.get("effective_date"),
             ),

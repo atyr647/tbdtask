@@ -203,7 +203,7 @@ class _FormDialog(tk.Toplevel):
                 box,
                 bg=theme.PANEL,
                 highlightthickness=0,
-                height=min(160, 24 * max(1, len(f.choices))),
+                height=min(180, 24 * max(1, len(f.choices))),
             )
             sb = ttk.Scrollbar(box, orient="vertical", command=canvas.yview)
             inner = tk.Frame(canvas, bg=theme.PANEL)
@@ -215,6 +215,26 @@ class _FormDialog(tk.Toplevel):
                 "<Configure>",
                 lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
             )
+
+            # Mouse-wheel scrolling while the pointer is over the list.
+            def _wheel(e, c=canvas):
+                if e.num == 5 or e.delta < 0:
+                    c.yview_scroll(1, "units")
+                elif e.num == 4 or e.delta > 0:
+                    c.yview_scroll(-1, "units")
+
+            def _bind_wheel(_e, c=canvas):
+                c.bind_all("<MouseWheel>", _wheel)
+                c.bind_all("<Button-4>", _wheel)
+                c.bind_all("<Button-5>", _wheel)
+
+            def _unbind_wheel(_e, c=canvas):
+                c.unbind_all("<MouseWheel>")
+                c.unbind_all("<Button-4>")
+                c.unbind_all("<Button-5>")
+
+            canvas.bind("<Enter>", _bind_wheel)
+            canvas.bind("<Leave>", _unbind_wheel)
             preset = set(value or ())
             vars_for_choice: list[tuple[Any, tk.BooleanVar]] = []
             for val, lbl in f.choices:

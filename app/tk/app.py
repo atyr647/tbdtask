@@ -103,16 +103,26 @@ class App(tk.Tk):
         ).pack(fill="x")
 
     def _hover(self, btn, key, entering):
-        if key == self._current:
-            return
-        btn.configure(bg="#283150" if entering else theme.SIDEBAR)
+        # The active item keeps its highlight; others get a transient hover
+        # tint. On leave, always restore the exact base colour so a hovered-
+        # then-abandoned item can't get stuck (Tk <Leave> can be missed, so
+        # we also reconcile every button against the current selection).
+        if entering:
+            if key != self._current:
+                btn.configure(bg="#283150")
+        else:
+            self._reset_nav_colors()
 
-    def _highlight(self, key):
+    def _reset_nav_colors(self):
+        """Force every nav button to its correct base/active colour."""
         for k, btn in self._nav_buttons.items():
-            if k == key:
+            if k == self._current:
                 btn.configure(bg=theme.SIDEBAR_ACTIVE, fg="white")
             else:
                 btn.configure(bg=theme.SIDEBAR, fg="#c7d0e6")
+
+    def _highlight(self, key):
+        self._reset_nav_colors()
 
     def show(self, key: str, **params):
         """Navigate to a screen, passing params straight to its refresh()."""
