@@ -123,6 +123,7 @@ class QualLineDTO:
     expires_at: datetime | None
     pq_id: int | None = None
     started_at: datetime | None = None
+    due_at: date | None = None
     notes: str | None = None
 
 

@@ -762,6 +762,10 @@ class PersonQual(
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     achieved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Deadline by which an assigned-but-not-yet-qualified person must achieve
+    # the qualification. Set when a qual is assigned to someone who doesn't
+    # already hold or waive it; drives the qual_due_soon / qual_overdue alerts.
+    due_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     valid_from: Mapped[date] = mapped_column(Date, nullable=False)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

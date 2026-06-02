@@ -139,9 +139,9 @@ make freeze                              # generate pinned requirements.txt
 
 ## Get the AppImage
 
-Prebuilt aarch64 AppImages are attached to [GitHub Releases](../../releases).
-Download the latest `tbdtask-<version>-aarch64.AppImage` (and optionally
-`SHA256SUMS` to verify), then on the Pi:
+A prebuilt Pi 400 (aarch64) AppImage is committed in
+[`prebuilt/`](prebuilt/) for direct download — no release needed. Newer
+builds are also attached to [GitHub Releases](../../releases). On the Pi:
 
 ```sh
 chmod +x tbdtask-0.1.0-aarch64.AppImage

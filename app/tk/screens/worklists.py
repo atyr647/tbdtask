@@ -70,9 +70,14 @@ class WorklistsScreen(Screen):
             ).pack(side="right")
             ttk.Button(
                 row,
+                text="Delete",
+                command=lambda wid=w.id, nm=w.name: self._delete_worklist(wid, nm),
+            ).pack(side="right", padx=2)
+            ttk.Button(
+                row,
                 text="Open",
                 command=lambda wid=w.id: self.app.show("worklists", worklist_id=wid),
-            ).pack(side="right", padx=8)
+            ).pack(side="right", padx=2)
 
     def _show_week(self, worklist_id: int):
         view = read(Q.worklist_show(worklist_id))
@@ -141,6 +146,13 @@ class WorklistsScreen(Screen):
             bar, text=f"{view.week_total_tasks} tasks", style="Muted.TLabel"
         ).pack(side="right", padx=8, pady=(10, 0))
 
+        if not view.locked:
+            ttk.Label(
+                self,
+                text="Tip: click a task to edit, manage assignees, or remove it.",
+                style="Muted.TLabel",
+            ).pack(anchor="w", pady=(0, 6))
+
         scroller = VScroll(self)
         scroller.pack(fill="both", expand=True)
         for day in view.days:
@@ -197,21 +209,15 @@ class WorklistsScreen(Screen):
             row = ttk.Frame(block, style="Card.TFrame")
             row.pack(fill="x", padx=(18, 0))
             badge(row, t.status.replace("_", " "), status=t.status).pack(side="left")
-            text = f"  {t.name}"
-            if t.is_poic:
-                text += "  (POIC)"
-            lbl = ttk.Label(row, text=text, style="Card.TLabel")
+            lbl = ttk.Label(row, text=f"  {t.name}", style="Card.TLabel")
             lbl.pack(side="left")
             self._bind_edit(lbl, t.id)
-            meta = []
-            if t.category:
-                meta.append(t.category)
             if t.other_assignees:
-                meta.append("with " + ", ".join(t.other_assignees[:3]))
-            if meta:
-                ttk.Label(row, text=" · ".join(meta), style="CardMuted.TLabel").pack(
-                    side="right"
-                )
+                ttk.Label(
+                    row,
+                    text="with " + ", ".join(t.other_assignees[:3]),
+                    style="CardMuted.TLabel",
+                ).pack(side="right")
 
     def _bind_edit(self, widget, task_id):
         """On an unlocked week, click a task to get an action menu
@@ -260,52 +266,35 @@ class WorklistsScreen(Screen):
             on_done=lambda: self.app.show("worklists", worklist_id=worklist_id),
         )
 
-    def _task_fields(self, days, include_status=False):
-        people = read(commands.active_people_choices())
-        cats = read(commands.task_categories_choices())
-        day_choices = [
+    def _day_choices(self, days):
+        return [
             (d.on_date.isoformat(), f"{d.weekday} · {d.on_date.strftime('%d %b')}")
             for d in days
         ]
-        fields = [
-            forms.text("name", "Task name", required=True),
-            forms.choice("scheduled_date", "Day", day_choices),
-            forms.choice("category_id", "Category", cats),
-            forms.multiline("description", "Description"),
-        ]
-        if include_status:
-            fields += [
-                forms.choice(
-                    "status",
-                    "Status",
-                    [(s, s.replace("_", " ")) for s in commands.TASK_STATUSES],
-                ),
-                forms.number("hours", "Hours"),
-                forms.multiline("completion_notes", "Completion notes"),
-            ]
-        else:
-            fields += [
-                forms.multichoice("person_ids", "Assignees", people),
-            ]
-        return fields, people
 
     def _add_task(self, view):
-        fields, people = self._task_fields(view.days)
-        vals = forms.prompt(self, f"Add task — {view.name}", fields, submit_label="Add")
+        people = read(commands.active_people_choices())
+        day_choices = self._day_choices(view.days)
+        fields = [
+            forms.text("name", "Task name", required=True),
+            forms.choice("scheduled_date", "Day", day_choices, required=True),
+            forms.multichoice("person_ids", "Assignees", people),
+        ]
+        # Default the day to the first day so the picker is never empty.
+        initial = {"scheduled_date": day_choices[0][0]} if day_choices else {}
+        vals = forms.prompt(
+            self, f"Add task — {view.name}", fields, initial=initial, submit_label="Add"
+        )
         if not vals:
             return
-        # First assignee becomes POIC by default (mirrors the route).
         run_write(
             self,
             commands.create_task(
                 view.id,
                 name=vals["name"],
                 scheduled_date=vals.get("scheduled_date"),
-                category_id=vals.get("category_id"),
-                description=vals.get("description"),
                 person_ids=vals.get("person_ids") or [],
             ),
-            pii_texts=(vals.get("description"),),
             on_done=lambda: self.app.show("worklists", worklist_id=view.id),
         )
 
@@ -314,9 +303,18 @@ class WorklistsScreen(Screen):
         if not initial:
             return
         view = read(Q.worklist_show(initial["worklist_id"]))
-        fields, _ = self._task_fields(view.days if view else [], include_status=True)
-        # Show who's currently assigned (editing assignees is a follow-up;
-        # for now the edit form covers task fields + status/hours).
+        day_choices = self._day_choices(view.days if view else [])
+        fields = [
+            forms.text("name", "Task name", required=True),
+            forms.choice("scheduled_date", "Day", day_choices, required=True),
+            forms.choice(
+                "status",
+                "Status",
+                [(s, s.replace("_", " ")) for s in commands.TASK_STATUSES],
+            ),
+            forms.number("hours", "Hours"),
+            forms.multiline("completion_notes", "Completion notes"),
+        ]
         assignees = ", ".join(initial.get("assignees") or []) or "none"
         title = f"Edit task — {assignees}"
         vals = forms.prompt(self, title, fields, initial=initial, submit_label="Save")
@@ -328,13 +326,11 @@ class WorklistsScreen(Screen):
                 task_id,
                 name=vals["name"],
                 scheduled_date=vals.get("scheduled_date"),
-                category_id=vals.get("category_id"),
                 status=vals.get("status") or "open",
                 hours=vals.get("hours"),
-                description=vals.get("description"),
                 completion_notes=vals.get("completion_notes"),
             ),
-            pii_texts=(vals.get("description"), vals.get("completion_notes")),
+            pii_texts=(vals.get("completion_notes"),),
             on_done=lambda: self.app.show(
                 "worklists", worklist_id=initial["worklist_id"]
             ),
@@ -454,6 +450,17 @@ class WorklistsScreen(Screen):
             on_done=lambda: self.app.show("worklists"),
         )
 
+    def _delete_worklist(self, worklist_id, name):
+        run_write(
+            self,
+            commands.archive_worklist(worklist_id, "deleted"),
+            confirm=(
+                "Delete worklist",
+                f"Delete “{name}”? It will be removed from the lists.",
+            ),
+            on_done=lambda: self.app.show("worklists"),
+        )
+
     # -- task assignee management ----------------------------------------
     def _manage_assignees(self, task_id):
         data = read(Q.task_assignments(task_id))
@@ -477,8 +484,7 @@ class WorklistsScreen(Screen):
         for a in data["assignments"]:
             row = ttk.Frame(listf)
             row.pack(fill="x", pady=2)
-            label = a["name"] + ("  (POIC)" if a["is_poic"] else "")
-            ttk.Label(row, text=label, style="TLabel").pack(side="left")
+            ttk.Label(row, text=a["name"], style="TLabel").pack(side="left")
             ttk.Button(
                 row,
                 text="Remove",
@@ -486,14 +492,6 @@ class WorklistsScreen(Screen):
                     dlg, task_id, commands.remove_assignment(task_id, aid)
                 ),
             ).pack(side="right", padx=2)
-            if not a["is_poic"]:
-                ttk.Button(
-                    row,
-                    text="Make lead",
-                    command=lambda aid=a["id"]: self._do_assignment(
-                        dlg, task_id, commands.set_assignment_poic(task_id, aid)
-                    ),
-                ).pack(side="right", padx=2)
 
         ttk.Button(
             dlg,
@@ -514,26 +512,14 @@ class WorklistsScreen(Screen):
         vals = forms.prompt(
             parent_dlg,
             "Add assignee",
-            [
-                forms.choice("person_id", "Person", people),
-                forms.text("external_poic_name", "…or off-roster lead name"),
-                forms.boolean("is_poic", "Make lead (POIC)"),
-            ],
+            [forms.choice("person_id", "Person", people, required=True)],
             submit_label="Add",
         )
-        if not vals:
-            return
-        if not vals.get("person_id") and not vals.get("external_poic_name"):
+        if not vals or not vals.get("person_id"):
             return
         run_write(
             self,
-            commands.add_assignment(
-                task_id,
-                person_id=vals.get("person_id"),
-                external_poic_name=vals.get("external_poic_name"),
-                is_poic=vals.get("is_poic"),
-            ),
-            pii_texts=(vals.get("external_poic_name"),),
+            commands.add_assignment(task_id, person_id=vals.get("person_id")),
         )
         parent_dlg.destroy()
         self._manage_assignees(task_id)

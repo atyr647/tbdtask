@@ -50,14 +50,6 @@ PYHOME="$APPDIR/usr/python"
 LIBS="$APPDIR/usr/libs"
 mkdir -p "$PYHOME/bin" "$PYHOME/lib" "$LIBS" "$APPDIR/usr/share/${APP_NAME}"
 
-# Shared libraries the Tk stack needs (the _tkinter.so dependency closure).
-TK_LIBS=(
-  libtk8.6.so libtcl8.6.so libX11.so.6 libXau.so.6 libXdmcp.so.6
-  libXext.so.6 libXft.so.2 libXrender.so.1 libXss.so.1 libfontconfig.so.1
-  libfreetype.so.6 libxcb.so.1 "libBLT.2.5.so.8.6" libbsd.so.0 libmd.so.0
-  libpng16.so.16 libexpat.so.1 libuuid.so.1 libz.so.1
-)
-
 copy_lib() {  # find a lib by name under the lib dirs and copy (deref symlink)
   local name="$1" base="${2:-}"
   for d in "${base}/lib/$TRIPLE" "${base}/usr/lib/$TRIPLE" "/lib/$TRIPLE" "/usr/lib/$TRIPLE"; do
@@ -66,17 +58,71 @@ copy_lib() {  # find a lib by name under the lib dirs and copy (deref symlink)
   return 1
 }
 
+# Core libraries provided by every Linux host's glibc/loader — never bundle
+# these (bundling them can break the dynamic loader on the target).
+_is_core_lib() {
+  case "$1" in
+    libc.so.*|libm.so.*|libdl.so.*|librt.so.*|libpthread.so.*|libutil.so.*|\
+    libresolv.so.*|ld-linux*.so.*|libgcc_s.so.*|libstdc++.so.*) return 0;;
+    *) return 1;;
+  esac
+}
+
+# Find a library file by soname under the given search bases.
+_find_lib() {
+  local name="$1"; shift
+  local b
+  for b in "$@"; do
+    for d in "$b/lib/$TRIPLE" "$b/usr/lib/$TRIPLE" "$b/lib" "$b/usr/lib"; do
+      if [[ -e "$d/$name" ]]; then echo "$d/$name"; return 0; fi
+    done
+  done
+  return 1
+}
+
+# Recursively copy the full NEEDED shared-library closure of the given ELF
+# files into $LIBS. Bases are searched in order (arm64 extract tree first,
+# then the host). This is what guarantees nothing (e.g. libBLT, pulled in by
+# _tkinter) is silently dropped — the earlier hand-maintained list missed it.
+bundle_closure() {
+  local -a bases=("$@")
+  local -a queue=()
+  # Seed from whatever ELF objects already landed in the bundle.
+  while IFS= read -r f; do queue+=("$f"); done < <(
+    find "$PYHOME" "$LIBS" -type f \( -name '*.so' -o -name '*.so.*' \) 2>/dev/null
+    find "$PYHOME/bin" -type f 2>/dev/null
+  )
+  declare -A seen=()
+  while ((${#queue[@]})); do
+    local obj="${queue[0]}"; queue=("${queue[@]:1}")
+    [[ -n "${seen[$obj]:-}" ]] && continue
+    seen[$obj]=1
+    local so
+    while IFS= read -r so; do
+      [[ -z "$so" ]] && continue
+      _is_core_lib "$so" && continue
+      [[ -e "$LIBS/$so" ]] && continue
+      local src; src=$(_find_lib "$so" "${bases[@]}") || { echo "    ! unresolved: $so"; continue; }
+      cp -aL "$src" "$LIBS/$so"
+      echo "    + $so"
+      queue+=("$LIBS/$so")
+    done < <(objdump -p "$obj" 2>/dev/null | awk '/NEEDED/{print $2}')
+  done
+}
+
 if [[ "$ARCH" == "x86_64" ]]; then
   echo "[1/3] Assembling python$PYVER + Tk from the build host..."
   cp -a "/usr/bin/python$PYVER" "$PYHOME/bin/python3"
   cp -a "/usr/lib/python$PYVER" "$PYHOME/lib/python$PYVER"
   # libpython
   copy_lib "libpython$PYVER.so.1.0" || cp -aL /usr/lib/$TRIPLE/libpython$PYVER.so.1.0 "$LIBS/"
-  # Tk + X shared libs
-  for l in "${TK_LIBS[@]}"; do copy_lib "$l" || echo "  warn: $l not found"; done
   # tcl/tk script libraries
   cp -a /usr/share/tcltk/tcl8.6 "$PYHOME/lib/tcl8.6"
   cp -a /usr/share/tcltk/tk8.6 "$PYHOME/lib/tk8.6"
+  # Recursively bundle the full shared-lib closure (Tk/X + transitive deps,
+  # incl. libBLT) from the host.
+  echo "  Resolving shared-library closure..."
+  bundle_closure ""
 else
   echo "[1/3] Assembling python + Tk from arm64 .debs..."
   # Pull arm64 .debs (pre-downloaded into DEB_DIR, or fetched here).
@@ -93,9 +139,14 @@ else
     curl -fL --retry 3 -o "$WORK/Packages.gz" \
       "$MIRROR/dists/$SUITE/main/binary-arm64/Packages.gz"
     # Packages we need (binary package name -> pulled from the index).
+    # Debian's _tkinter is linked against BLT — the lib lives in
+    # ``tk8.6-blt2.5`` (NOT ``blt``, which is docs only). Its absence is what
+    # broke the first Pi launch (libBLT.2.5.so.8.6 missing). bundle_closure
+    # resolves the exact lib set; this list just makes the needed .debs
+    # available in the extract tree.
     NEED=(
       libpython3.11-minimal libpython3.11-stdlib python3.11-minimal libpython3.11
-      python3-tk libtcl8.6 libtk8.6
+      python3-tk libtcl8.6 libtk8.6 tk8.6-blt2.5
       libx11-6 libxau6 libxdmcp6 libxext6 libxft2 libxrender1 libxss1
       libfontconfig1 libfreetype6 libxcb1 libbsd0 libmd0 libpng16-16
       libexpat1 libbrotli1 libgraphite2-3 libharfbuzz0b
@@ -121,10 +172,14 @@ else
     cp -a "$EXTRACT/usr/bin/python3.11" "$PYHOME/bin/python3"
   cp -a "$EXTRACT/usr/lib/python3.11" "$PYHOME/lib/python3.11"
   cp -aL "$EXTRACT/usr/lib/$TRIPLE/libpython3.11.so.1.0" "$LIBS/" 2>/dev/null || true
-  for l in "${TK_LIBS[@]}"; do copy_lib "$l" "$EXTRACT" || echo "  warn: $l (arm64) not found"; done
   cp -a "$EXTRACT/usr/share/tcltk/tcl8.6" "$PYHOME/lib/tcl8.6"
   cp -a "$EXTRACT/usr/share/tcltk/tk8.6" "$PYHOME/lib/tk8.6"
   PYVER=3.11
+  # Recursively bundle the full shared-lib closure from the extracted arm64
+  # tree (preferred) then the host. Guarantees transitive deps like libBLT
+  # are included rather than relying on a hand-maintained list.
+  echo "  Resolving shared-library closure (arm64)..."
+  bundle_closure "$EXTRACT"
 fi
 
 # 2. App runtime deps as architecture-correct wheels ------------------------
@@ -142,6 +197,36 @@ python3 -m pip install --no-cache-dir --target "$SITE" \
 cp -R "$ROOT/app" "$APPDIR/usr/share/${APP_NAME}/app"
 cp -R "$ROOT/alembic" "$APPDIR/usr/share/${APP_NAME}/alembic"
 cp "$ROOT/alembic.ini" "$APPDIR/usr/share/${APP_NAME}/alembic.ini"
+
+# 2b. Verify the _tkinter import chain is fully satisfied --------------------
+# A missing transitive lib here (e.g. libBLT, which _tkinter NEEDs on Debian)
+# crashes the app at "import tkinter" on the target. Walk the NEEDED closure
+# of _tkinter and fail the build if any non-OS-baseline lib is unbundled.
+echo "[2b/3] Verifying _tkinter shared-library closure..."
+TKSO=$(find "$PYHOME/lib" -name '_tkinter*.so' | head -1)
+if [[ -n "$TKSO" ]]; then
+  # Libraries present on essentially every Linux (incl. Raspberry Pi OS /
+  # Void) and therefore safe to resolve at runtime from the host.
+  OS_BASELINE='^(libc|libm|libdl|librt|libpthread|libutil|libresolv|ld-linux.*|libgcc_s|libstdc\+\+|libz|libffi|libbz2|liblzma|libsqlite3|libssl|libcrypto|libreadline|libncursesw|libtinfo|libuuid|libcrypt|libpanelw|libnsl|libtirpc|libdb-5)\.so'
+  declare -A _seen=(); _q=("$TKSO"); _miss=0
+  while ((${#_q[@]})); do
+    _o="${_q[0]}"; _q=("${_q[@]:1}"); [[ -n "${_seen[$_o]:-}" ]] && continue; _seen[$_o]=1
+    while IFS= read -r _so; do
+      [[ -z "$_so" ]] && continue
+      echo "$_so" | grep -Eq "$OS_BASELINE" && continue
+      if [[ -e "$LIBS/$_so" ]]; then _q+=("$LIBS/$_so")
+      else echo "  MISSING from bundle: $_so (needed by $(basename "$_o"))"; _miss=$((_miss+1)); fi
+    done < <(objdump -p "$_o" 2>/dev/null | awk '/NEEDED/{print $2}')
+  done
+  if ((_miss)); then
+    echo "ERROR: $_miss library(ies) in the _tkinter chain are not bundled."
+    echo "       The app would crash at 'import tkinter' on the target."
+    exit 1
+  fi
+  echo "  _tkinter closure complete."
+else
+  echo "  warn: _tkinter.so not found to verify."
+fi
 
 # 3. AppRun + metadata + assembly ------------------------------------------
 echo "[3/3] Writing AppRun + assembling AppImage..."

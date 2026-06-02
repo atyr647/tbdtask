@@ -1,0 +1,1 @@
+26c65166d5c63eca277efb069dbc92b46bdb4e4da20b9f5f92275e240cf9b764  tbdtask-0.1.0-aarch64.AppImage
