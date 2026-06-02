@@ -254,7 +254,9 @@ def test_create_task_requires_name(session):
     wl = make_worklist(session, monday)
     session.commit()
     with pytest.raises(C.ValidationError):
-        run(session, C.create_task(wl.id, name="   ", scheduled_date=monday.isoformat()))
+        run(
+            session, C.create_task(wl.id, name="   ", scheduled_date=monday.isoformat())
+        )
 
 
 def test_create_task_requires_a_day(session):
@@ -271,28 +273,43 @@ def test_create_task_rejected_when_locked(session):
     wl = make_worklist(session, monday, locked=True)
     session.commit()
     with pytest.raises(C.ValidationError):
-        run(session, C.create_task(wl.id, name="late task",
-                                   scheduled_date=monday.isoformat()))
+        run(
+            session,
+            C.create_task(wl.id, name="late task", scheduled_date=monday.isoformat()),
+        )
 
 
 def test_update_task_status_done_sets_completed_at(session):
     monday = date.today() - timedelta(days=date.today().weekday())
     wl = make_worklist(session, monday)
     session.commit()
-    tid = run(session, C.create_task(wl.id, name="Inspect 402",
-                                     scheduled_date=monday.isoformat()))
+    tid = run(
+        session,
+        C.create_task(wl.id, name="Inspect 402", scheduled_date=monday.isoformat()),
+    )
     session.commit()
-    run(session, C.update_task(tid, name="Inspect 402",
-                               scheduled_date=monday.isoformat(),
-                               status="done", hours=2.5))
+    run(
+        session,
+        C.update_task(
+            tid,
+            name="Inspect 402",
+            scheduled_date=monday.isoformat(),
+            status="done",
+            hours=2.5,
+        ),
+    )
     session.commit()
     inst = session.get(M.TaskInstance, tid)
     assert inst.status == "done"
     assert inst.completed_at is not None
     assert inst.hours == 2.5
     # Flipping back to open clears the completion timestamp.
-    run(session, C.update_task(tid, name="Inspect 402",
-                               scheduled_date=monday.isoformat(), status="open"))
+    run(
+        session,
+        C.update_task(
+            tid, name="Inspect 402", scheduled_date=monday.isoformat(), status="open"
+        ),
+    )
     session.commit()
     assert session.get(M.TaskInstance, tid).completed_at is None
 
@@ -301,8 +318,10 @@ def test_archive_task_soft_deletes(session):
     monday = date.today() - timedelta(days=date.today().weekday())
     wl = make_worklist(session, monday)
     session.commit()
-    tid = run(session, C.create_task(wl.id, name="Scrap me",
-                                     scheduled_date=monday.isoformat()))
+    tid = run(
+        session,
+        C.create_task(wl.id, name="Scrap me", scheduled_date=monday.isoformat()),
+    )
     session.commit()
     run(session, C.archive_task(tid, "duplicate"))
     session.commit()
@@ -343,8 +362,10 @@ def test_qual_choices_excludes_already_held(session):
     q1 = make_qual(session, "Forklift")
     make_qual(session, "Crane")  # stays in catalog; should still be offered
     session.commit()
-    run(session, C.assign_quals(p.id, qual_ids=[q1.id], status="assigned",
-                                due_at="2026-12-01"))
+    run(
+        session,
+        C.assign_quals(p.id, qual_ids=[q1.id], status="assigned", due_at="2026-12-01"),
+    )
     session.commit()
     offered = run(session, C.qual_choices(exclude_person_id=p.id))
     names = [n for _, n in offered]
@@ -359,8 +380,10 @@ def test_assign_pending_qual_requires_deadline(session):
     with pytest.raises(C.ValidationError):
         run(session, C.assign_quals(p.id, qual_ids=[q.id], status="assigned"))
     # With a deadline it succeeds and stores due_at.
-    run(session, C.assign_quals(p.id, qual_ids=[q.id], status="assigned",
-                                due_at="2026-12-01"))
+    run(
+        session,
+        C.assign_quals(p.id, qual_ids=[q.id], status="assigned", due_at="2026-12-01"),
+    )
     session.commit()
     pq = next(r for r in session.get(M.Person, p.id).quals if r.valid_to is None)
     assert pq.due_at == date(2026, 12, 1)
@@ -369,8 +392,11 @@ def test_assign_pending_qual_requires_deadline(session):
     session.commit()
     run(session, C.assign_quals(p.id, qual_ids=[q2.id], status="qualified"))
     session.commit()
-    pq2 = next(r for r in session.get(M.Person, p.id).quals
-               if r.valid_to is None and r.qual_id == q2.id)
+    pq2 = next(
+        r
+        for r in session.get(M.Person, p.id).quals
+        if r.valid_to is None and r.qual_id == q2.id
+    )
     assert pq2.due_at is None
 
 
@@ -378,8 +404,12 @@ def test_update_person_qual_closes_and_appends(session):
     p = make_person(session, last_name="Tanner")
     q = make_qual(session, "Boat Crew", validity_period_days=730)
     session.commit()
-    run(session, C.assign_quals(p.id, qual_ids=[q.id], status="in_progress",
-                                due_at="2026-06-01"))
+    run(
+        session,
+        C.assign_quals(
+            p.id, qual_ids=[q.id], status="in_progress", due_at="2026-06-01"
+        ),
+    )
     session.commit()
     pq = next(r for r in session.get(M.Person, p.id).quals if r.valid_to is None)
     assert pq.due_at == date(2026, 6, 1)
@@ -407,8 +437,10 @@ def test_update_person_qual_rejects_historical_row(session):
     p = make_person(session, last_name="Banks")
     q = make_qual(session, "Diver")
     session.commit()
-    run(session, C.assign_quals(p.id, qual_ids=[q.id], status="assigned",
-                                due_at="2026-12-01"))
+    run(
+        session,
+        C.assign_quals(p.id, qual_ids=[q.id], status="assigned", due_at="2026-12-01"),
+    )
     session.commit()
     pq = next(r for r in session.get(M.Person, p.id).quals if r.valid_to is None)
     # Close it by updating once...
@@ -450,9 +482,12 @@ def test_add_assignment_attaches_person(session):
     monday = date.today() - timedelta(days=date.today().weekday())
     wl = make_worklist(session, monday)
     session.commit()
-    tid = run(session, C.create_task(wl.id, name="Job",
-                                     scheduled_date=monday.isoformat(),
-                                     person_ids=[p1.id]))
+    tid = run(
+        session,
+        C.create_task(
+            wl.id, name="Job", scheduled_date=monday.isoformat(), person_ids=[p1.id]
+        ),
+    )
     session.commit()
     run(session, C.add_assignment(tid, person_id=p2.id))
     session.commit()
@@ -466,9 +501,12 @@ def test_remove_assignment_soft_deletes(session):
     monday = date.today() - timedelta(days=date.today().weekday())
     wl = make_worklist(session, monday)
     session.commit()
-    tid = run(session, C.create_task(wl.id, name="Job",
-                                     scheduled_date=monday.isoformat(),
-                                     person_ids=[p1.id]))
+    tid = run(
+        session,
+        C.create_task(
+            wl.id, name="Job", scheduled_date=monday.isoformat(), person_ids=[p1.id]
+        ),
+    )
     session.commit()
     inst = session.get(M.TaskInstance, tid)
     aid = inst.assignments[0].id
@@ -482,9 +520,12 @@ def test_add_assignment_requires_person(session):
     monday = date.today() - timedelta(days=date.today().weekday())
     wl = make_worklist(session, monday)
     session.commit()
-    tid = run(session, C.create_task(wl.id, name="Job",
-                                     scheduled_date=monday.isoformat(),
-                                     person_ids=[p1.id]))
+    tid = run(
+        session,
+        C.create_task(
+            wl.id, name="Job", scheduled_date=monday.isoformat(), person_ids=[p1.id]
+        ),
+    )
     session.commit()
     with pytest.raises(C.ValidationError):
         run(session, C.add_assignment(tid))

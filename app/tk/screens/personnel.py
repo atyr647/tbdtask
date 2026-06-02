@@ -621,7 +621,8 @@ class PersonnelScreen(Screen):
             "achieved_at": q.achieved_at.strftime("%Y-%m-%d")
             if q.achieved_at
             else None,
-            "due_at": q.due_at.strftime("%Y-%m-%d") if getattr(q, "due_at", None)
+            "due_at": q.due_at.strftime("%Y-%m-%d")
+            if getattr(q, "due_at", None)
             else None,
             "notes": q.notes,
         }
@@ -637,7 +638,9 @@ class PersonnelScreen(Screen):
                     required=True,
                 ),
                 forms.date(
-                    "due_at", "Must complete by", visible_when=pending,
+                    "due_at",
+                    "Must complete by",
+                    visible_when=pending,
                     help="deadline (required)",
                 ),
                 forms.date("started_at", "Started"),

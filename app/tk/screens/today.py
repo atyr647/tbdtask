@@ -115,7 +115,9 @@ class TodayScreen(Screen):
                 badge(row, t.status.replace("_", " "), status=t.status).pack(
                     side="left"
                 )
-                ttk.Label(row, text=f"  {t.name}", style="Card.TLabel").pack(side="left")
+                ttk.Label(row, text=f"  {t.name}", style="Card.TLabel").pack(
+                    side="left"
+                )
                 if t.assignees:
                     ttk.Label(
                         row, text=", ".join(t.assignees[:3]), style="CardMuted.TLabel"

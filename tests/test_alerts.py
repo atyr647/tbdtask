@@ -235,8 +235,12 @@ def test_qual_due_soon_alert_within_30_days(session):
     q = make_qual(session, "RHIB Coxswain")
     p = make_person(session, "Vega")
     pq = M.PersonQual(
-        person_id=p.id, qual_id=q.id, status="assigned",
-        due_at=_today() + timedelta(days=10), valid_from=_today(), org_id=1,
+        person_id=p.id,
+        qual_id=q.id,
+        status="assigned",
+        due_at=_today() + timedelta(days=10),
+        valid_from=_today(),
+        org_id=1,
     )
     session.add(pq)
     session.commit()
@@ -250,8 +254,12 @@ def test_qual_overdue_alert_is_urgent(session):
     q = make_qual(session, "Small Arms")
     p = make_person(session, "Mason")
     pq = M.PersonQual(
-        person_id=p.id, qual_id=q.id, status="in_progress",
-        due_at=_today() - timedelta(days=3), valid_from=_today(), org_id=1,
+        person_id=p.id,
+        qual_id=q.id,
+        status="in_progress",
+        due_at=_today() - timedelta(days=3),
+        valid_from=_today(),
+        org_id=1,
     )
     session.add(pq)
     session.commit()
@@ -265,8 +273,12 @@ def test_qualified_qual_with_due_date_raises_no_alert(session):
     q = make_qual(session, "Helmsman")
     p = make_person(session, "Reyes")
     pq = M.PersonQual(
-        person_id=p.id, qual_id=q.id, status="qualified",
-        due_at=_today() - timedelta(days=5), valid_from=_today(), org_id=1,
+        person_id=p.id,
+        qual_id=q.id,
+        status="qualified",
+        due_at=_today() - timedelta(days=5),
+        valid_from=_today(),
+        org_id=1,
     )
     session.add(pq)
     session.commit()
@@ -279,8 +291,12 @@ def test_qual_deadline_alert_resolves_when_achieved(session):
     q = make_qual(session, "EOOW")
     p = make_person(session, "Tanner")
     pq = M.PersonQual(
-        person_id=p.id, qual_id=q.id, status="assigned",
-        due_at=_today() + timedelta(days=5), valid_from=_today(), org_id=1,
+        person_id=p.id,
+        qual_id=q.id,
+        status="assigned",
+        due_at=_today() + timedelta(days=5),
+        valid_from=_today(),
+        org_id=1,
     )
     session.add(pq)
     session.commit()
